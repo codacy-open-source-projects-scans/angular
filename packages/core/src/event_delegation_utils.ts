@@ -13,11 +13,14 @@ import {
   EventDispatcher,
   isSupportedEvent,
   registerDispatcher,
+  registerEventType,
+  unregisterEventType,
 } from '@angular/core/primitives/event-dispatch';
 import {Attribute} from '@angular/core/primitives/event-dispatch';
 import {Injectable, InjectionToken, Injector, inject} from './di';
 import {RElement} from './render3/interfaces/renderer_dom';
 import {EVENT_REPLAY_ENABLED_DEFAULT, IS_EVENT_REPLAY_ENABLED} from './hydration/tokens';
+import {OnDestroy} from './interface/lifecycle_hooks';
 
 declare global {
   interface Element {
@@ -42,12 +45,6 @@ export function setJSActionAttributes(nativeElement: Element, eventTypes: string
   const parts = eventTypes.reduce((prev, curr) => prev + curr + ':;', '');
   const existingAttr = nativeElement.getAttribute(Attribute.JSACTION);
   nativeElement.setAttribute(Attribute.JSACTION, `${existingAttr ?? ''}${parts}`);
-}
-
-export function setJSActionAttribute(nativeElement: Element, eventType: string) {
-  const existingAttr = nativeElement.getAttribute(Attribute.JSACTION);
-  //  This is required to be a module accessor to appease security tests on setAttribute.
-  nativeElement.setAttribute(Attribute.JSACTION, `${existingAttr ?? ''}${eventType}:;`);
 }
 
 export const sharedStashFunction = (rEl: RElement, eventType: string, listenerFn: () => void) => {
@@ -86,8 +83,12 @@ export const GLOBAL_EVENT_DELEGATION = new InjectionToken<GlobalEventDelegation>
  * `provideGlobalEventDelegation` is called.
  */
 @Injectable()
-export class GlobalEventDelegation {
+export class GlobalEventDelegation implements OnDestroy {
   private eventContractDetails = inject(JSACTION_EVENT_CONTRACT);
+
+  ngOnDestroy() {
+    this.eventContractDetails.instance?.cleanUp();
+  }
 
   supports(eventName: string): boolean {
     return isSupportedEvent(eventName);
@@ -95,17 +96,12 @@ export class GlobalEventDelegation {
 
   addEventListener(element: HTMLElement, eventName: string, handler: Function): Function {
     this.eventContractDetails.instance!.addEvent(eventName);
-    setJSActionAttribute(element, eventName);
+    registerEventType(element, eventName, '');
     return () => this.removeEventListener(element, eventName, handler);
   }
 
   removeEventListener(element: HTMLElement, eventName: string, callback: Function): void {
-    const newJsactionAttribute = element
-      .getAttribute(Attribute.JSACTION)
-      ?.split(';')
-      .filter((s) => s === eventName + ':')
-      .join(';');
-    element.setAttribute(Attribute.JSACTION, newJsactionAttribute ?? '');
+    unregisterEventType(element, eventName);
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "angular-srcs",
-  "version": "18.1.0-next.4",
+  "version": "18.2.0-next.0",
   "private": true,
   "description": "Angular - a web framework for modern web apps",
   "homepage": "https://github.com/angular/angular",
@@ -86,7 +86,7 @@
     "@types/jasminewd2": "^2.0.8",
     "@types/node": "^16.11.7",
     "@types/selenium-webdriver": "3.0.7",
-    "@types/selenium-webdriver4": "npm:@types/selenium-webdriver@4.1.23",
+    "@types/selenium-webdriver4": "npm:@types/selenium-webdriver@4.1.24",
     "@types/semver": "^7.3.4",
     "@types/shelljs": "^0.8.6",
     "@types/systemjs": "6.13.5",
@@ -145,7 +145,7 @@
     "tslib": "^2.3.0",
     "tslint": "6.1.3",
     "tsx": "^4.7.2",
-    "typescript": "5.5.2",
+    "typescript": "5.5.3",
     "webtreemap": "^2.0.1",
     "ws": "^8.15.0",
     "xhr2": "0.2.1",
@@ -158,7 +158,7 @@
     "@angular-devkit/architect-cli": "^0.1801.0-next",
     "@angular/animations": "^18.1.0-next",
     "@angular/build-tooling": "https://github.com/angular/dev-infra-private-build-tooling-builds.git#5e30807f0fc6f1f00b2ac9186bd5f704b72e6ea6",
-    "@angular/docs": "https://github.com/angular/dev-infra-private-docs-builds.git#8027736ca214560ef31afc600ccf5a70be0ba24a",
+    "@angular/docs": "https://github.com/angular/dev-infra-private-docs-builds.git#97fa4e1998648d1c620113d8eb15a324ae7b20b3",
     "@angular/ng-dev": "https://github.com/angular/dev-infra-private-ng-dev-builds.git#806cbfc987d0df61f2ed90a24e2d4176e8a50a5b",
     "@bazel/bazelisk": "^1.7.5",
     "@bazel/buildifier": "^6.0.0",
@@ -222,7 +222,7 @@
   "// 3": "Ensure that transitive dependencies on `https-proxy-agent` are at minimum v5 as older versions patch NodeJS directly, breaking tools like webdriver which is used by the karma-sauce-launcher as an example.",
   "// 4": "Ensure that a single instance of the `saucelabs` package is used. Protractor and the Karma sauce launcher pull this package as dependency. A single instance allows for e.g. easier patching in the Karma config.",
   "resolutions": {
-    "**/https-proxy-agent": "7.0.4",
+    "**/https-proxy-agent": "7.0.5",
     "**/saucelabs": "7.5.0"
   }
 }
