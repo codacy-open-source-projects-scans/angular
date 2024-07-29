@@ -99,5 +99,14 @@ runInEachFileSystem(() => {
 
       expect(diags.length).toBe(0);
     });
+
+    it('should not report a @let declaration that is only used in a structural directive', () => {
+      const diags = diagnose(`
+        @let foo = null;
+        <div *ngIf="foo"></div>
+      `);
+
+      expect(diags.length).toBe(0);
+    });
   });
 });
