@@ -21,6 +21,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["ES2022", "dom"],
+    "types": ["node"],
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "jsx": "react",
@@ -29,6 +30,7 @@
     // TODO(crisbeto): temporarily disabled while adding support for TS 5.4. Should be re-enabled.
     "skipLibCheck": true,
     "paths": {
+      "@angular/docs": ["./shared-docs"],
       "@angular/*": ["../packages/*"],
     },
   },
