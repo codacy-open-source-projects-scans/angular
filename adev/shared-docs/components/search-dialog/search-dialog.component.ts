@@ -7,21 +7,20 @@
  */
 
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   ElementRef,
-  EventEmitter,
-  NgZone,
+  Injector,
   OnDestroy,
-  OnInit,
-  Output,
-  QueryList,
-  ViewChild,
-  ViewChildren,
+  Signal,
+  afterNextRender,
+  effect,
   inject,
+  output,
+  viewChild,
+  viewChildren,
 } from '@angular/core';
+import {NgTemplateOutlet} from '@angular/common';
 
 import {WINDOW} from '../../providers/index';
 import {ClickOutside} from '../../directives/index';
@@ -36,6 +35,7 @@ import {Router, RouterLink} from '@angular/router';
 import {filter, fromEvent} from 'rxjs';
 import {AlgoliaIcon} from '../algolia-icon/algolia-icon.component';
 import {RelativeLink} from '../../pipes/relative-link.pipe';
+import {SearchResult, SnippetResult} from '../../interfaces';
 
 @Component({
   selector: 'docs-search-dialog',
@@ -49,99 +49,125 @@ import {RelativeLink} from '../../pipes/relative-link.pipe';
     AlgoliaIcon,
     RelativeLink,
     RouterLink,
+    NgTemplateOutlet,
   ],
   templateUrl: './search-dialog.component.html',
   styleUrls: ['./search-dialog.component.scss'],
 })
-export class SearchDialog implements OnInit, AfterViewInit, OnDestroy {
-  @Output() onClose = new EventEmitter<void>();
-  @ViewChild('searchDialog') dialog?: ElementRef<HTMLDialogElement>;
-  @ViewChildren(SearchItem) items?: QueryList<SearchItem>;
+export class SearchDialog implements OnDestroy {
+  onClose = output();
+  dialog = viewChild.required<ElementRef<HTMLDialogElement>>('searchDialog');
+  items = viewChildren(SearchItem);
 
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly ngZone = inject(NgZone);
   private readonly search = inject(Search);
   private readonly relativeLink = new RelativeLink();
   private readonly router = inject(Router);
   private readonly window = inject(WINDOW);
-
-  private keyManager?: ActiveDescendantKeyManager<SearchItem>;
+  private readonly injector = inject(Injector);
+  private readonly keyManager = new ActiveDescendantKeyManager(
+    this.items,
+    this.injector,
+  ).withWrap();
 
   searchQuery = this.search.searchQuery;
   searchResults = this.search.searchResults;
 
-  ngOnInit(): void {
-    this.ngZone.runOutsideAngular(() => {
-      fromEvent<KeyboardEvent>(this.window, 'keydown')
-        .pipe(
-          filter((_) => !!this.keyManager),
-          takeUntilDestroyed(this.destroyRef),
-        )
-        .subscribe((event) => {
-          // When user presses Enter we can navigate to currently selected item in the search result list.
-          if (event.key === 'Enter') {
-            this.navigateToTheActiveItem();
-          } else {
-            this.ngZone.run(() => {
-              this.keyManager?.onKeydown(event);
-            });
-          }
-        });
+  constructor() {
+    effect(() => {
+      this.items();
+      afterNextRender(
+        {
+          write: () => this.keyManager.setFirstItemActive(),
+        },
+        {injector: this.injector},
+      );
     });
+
+    this.keyManager.change.pipe(takeUntilDestroyed()).subscribe(() => {
+      this.keyManager.activeItem?.scrollIntoView();
+    });
+
+    afterNextRender({
+      write: () => {
+        if (!this.dialog().nativeElement.open) {
+          this.dialog().nativeElement.showModal?.();
+        }
+      },
+    });
+
+    fromEvent<KeyboardEvent>(this.window, 'keydown')
+      .pipe(takeUntilDestroyed())
+      .subscribe((event) => {
+        // When user presses Enter we can navigate to currently selected item in the search result list.
+        if (event.key === 'Enter') {
+          this.navigateToTheActiveItem();
+        } else {
+          this.keyManager.onKeydown(event);
+        }
+      });
   }
 
-  ngAfterViewInit() {
-    if (!this.dialog?.nativeElement.open) {
-      this.dialog?.nativeElement.showModal?.();
+  splitMarkedText(snippet: string): Array<{highlight: boolean; text: string}> {
+    const parts: Array<{highlight: boolean; text: string}> = [];
+    while (snippet.indexOf('<ɵ>') !== -1) {
+      const beforeMatch = snippet.substring(0, snippet.indexOf('<ɵ>'));
+      const match = snippet.substring(snippet.indexOf('<ɵ>') + 3, snippet.indexOf('</ɵ>'));
+      parts.push({highlight: false, text: beforeMatch});
+      parts.push({highlight: true, text: match});
+      snippet = snippet.substring(snippet.indexOf('</ɵ>') + 4);
+    }
+    parts.push({highlight: false, text: snippet});
+    return parts;
+  }
+
+  getBestSnippetForMatch(result: SearchResult): string {
+    // if there is content, return it
+    if (result._snippetResult.content !== undefined) {
+      return result._snippetResult.content.value;
     }
 
-    if (!this.items) {
-      return;
+    const hierarchy = result._snippetResult.hierarchy;
+    if (hierarchy === undefined) {
+      return '';
     }
-
-    this.keyManager = new ActiveDescendantKeyManager(this.items).withWrap();
-    this.keyManager?.setFirstItemActive();
-
-    this.updateActiveItemWhenResultsChanged();
-    this.scrollToActiveItem();
+    function matched(snippet: SnippetResult | undefined) {
+      return snippet?.matchLevel !== undefined && snippet.matchLevel !== 'none';
+    }
+    // return the most specific subheader match
+    if (matched(hierarchy.lvl4)) {
+      return hierarchy.lvl4!.value;
+    }
+    if (matched(hierarchy.lvl3)) {
+      return hierarchy.lvl3!.value;
+    }
+    if (matched(hierarchy.lvl2)) {
+      return hierarchy.lvl2!.value;
+    }
+    // if no subheader matched the query, fall back to just returning the most specific one
+    return hierarchy.lvl3?.value ?? hierarchy.lvl2?.value ?? '';
   }
 
   ngOnDestroy(): void {
-    this.keyManager?.destroy();
+    this.keyManager.destroy();
   }
 
   closeSearchDialog() {
-    this.dialog?.nativeElement.close();
-    this.onClose.next();
+    this.dialog().nativeElement.close();
+    this.onClose.emit();
   }
 
   updateSearchQuery(query: string) {
     this.search.updateSearchQuery(query);
   }
 
-  private updateActiveItemWhenResultsChanged(): void {
-    this.items?.changes.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      // Change detection should be run before execute `setFirstItemActive`.
-      Promise.resolve().then(() => {
-        this.keyManager?.setFirstItemActive();
-      });
-    });
-  }
-
   private navigateToTheActiveItem(): void {
-    const activeItemLink: string | undefined = this.keyManager?.activeItem?.item?.url;
+    const activeItemLink: string | undefined = this.keyManager.activeItem?.item?.url;
 
     if (!activeItemLink) {
       return;
     }
 
     this.router.navigateByUrl(this.relativeLink.transform(activeItemLink));
-    this.onClose.next();
-  }
-
-  private scrollToActiveItem(): void {
-    this.keyManager?.change.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.keyManager?.activeItem?.scrollIntoView();
-    });
+    this.onClose.emit();
   }
 }

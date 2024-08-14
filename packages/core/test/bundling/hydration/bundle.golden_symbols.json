@@ -588,6 +588,9 @@
     "name": "allocLFrame"
   },
   {
+    "name": "angularZoneInstanceIdProperty"
+  },
+  {
     "name": "appendChild"
   },
   {
@@ -1020,6 +1023,9 @@
     "name": "invokeHostBindingsInCreationMode"
   },
   {
+    "name": "isAngularZoneProperty"
+  },
+  {
     "name": "isApplicationBootstrapConfig"
   },
   {
@@ -1167,9 +1173,6 @@
     "name": "nativeInsertBefore"
   },
   {
-    "name": "nativeParentNode"
-  },
-  {
     "name": "nativeRemoveNode"
   },
   {
@@ -1177,6 +1180,9 @@
   },
   {
     "name": "ngOnChangesSetInput"
+  },
+  {
+    "name": "ngZoneInstanceId"
   },
   {
     "name": "nonNull"

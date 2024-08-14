@@ -7,9 +7,9 @@
  */
 
 import {anchorTarget} from '../helpers';
-import {RendererApi} from 'marked';
+import {Renderer, Tokens} from 'marked';
 
-export const linkRender: RendererApi['link'] = (href, title, text) => {
+export function linkRender(this: Renderer, {href, title, tokens}: Tokens.Link) {
   const titleAttribute = title ? ` title=${title}` : '';
-  return `<a href="${href}"${titleAttribute}${anchorTarget(href)}>${text}</a>`;
-};
+  return `<a href="${href}"${titleAttribute}${anchorTarget(href)}>${this.parser.parseInline(tokens)}</a>`;
+}

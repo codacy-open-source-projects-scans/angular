@@ -22,6 +22,7 @@ ng_module(
         "//adev/shared-docs/interfaces",
         "//adev/shared-docs/pipes",
         "//adev/shared-docs/services",
+        "//packages/common",
         "//packages/core",
         "//packages/forms",
         "//packages/router",
@@ -46,8 +47,10 @@ ts_library(
         "//adev/shared-docs/services",
         "//adev/shared-docs/testing",
         "//packages/core",
+        "//packages/core/testing",
         "//packages/platform-browser",
         "//packages/router",
+        "//packages/router/testing",
     ],
 )
 

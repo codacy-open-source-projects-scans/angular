@@ -20,6 +20,8 @@ import {
 } from './analysis';
 import {getAngularDecorators} from '../../utils/ng_decorators';
 import {getImportOfIdentifier} from '../../utils/typescript/imports';
+import {closestNode} from '../../utils/typescript/nodes';
+import {findUninitializedPropertiesToCombine} from './internal';
 
 /**
  * Placeholder used to represent expressions inside the AST.
@@ -30,13 +32,32 @@ const PLACEHOLDER = 'ɵɵngGeneratePlaceholderɵɵ';
 /** Options that can be used to configure the migration. */
 export interface MigrationOptions {
   /** Whether to generate code that keeps injectors backwards compatible. */
-  backwardsCompatibleConstructors: boolean;
+  backwardsCompatibleConstructors?: boolean;
 
   /** Whether to migrate abstract classes. */
-  migrateAbstractClasses: boolean;
+  migrateAbstractClasses?: boolean;
 
   /** Whether to make the return type of `@Optinal()` parameters to be non-nullable. */
-  nonNullableOptional: boolean;
+  nonNullableOptional?: boolean;
+
+  /**
+   * Internal-only option that determines whether the migration should try to move the
+   * initializers of class members from the constructor back into the member itself. E.g.
+   *
+   * ```
+   * // Before
+   * private foo;
+   *
+   * constructor(@Inject(BAR) private bar: Bar) {
+   *   this.foo = this.bar.getValue();
+   * }
+   *
+   * // After
+   * private bar = inject(BAR);
+   * private foo = this.bar.getValue();
+   * ```
+   */
+  _internalCombineMemberInitializers?: boolean;
 }
 
 /**
@@ -60,12 +81,44 @@ export function migrateFile(sourceFile: ts.SourceFile, options: MigrationOptions
   const printer = ts.createPrinter();
   const tracker = new ChangeTracker(printer);
 
-  analysis.classes.forEach((result) => {
+  analysis.classes.forEach(({node, constructor, superCall}) => {
+    let removedStatements: Set<ts.Statement> | null = null;
+
+    if (options._internalCombineMemberInitializers) {
+      findUninitializedPropertiesToCombine(node, constructor, localTypeChecker)?.forEach(
+        (initializer, property) => {
+          const statement = closestNode(initializer, ts.isStatement);
+
+          if (!statement) {
+            return;
+          }
+
+          const newProperty = ts.factory.createPropertyDeclaration(
+            cloneModifiers(property.modifiers),
+            property.name,
+            property.questionToken,
+            property.type,
+            initializer,
+          );
+          tracker.replaceText(
+            statement.getSourceFile(),
+            statement.getFullStart(),
+            statement.getFullWidth(),
+            '',
+          );
+          tracker.replaceNode(property, newProperty);
+          removedStatements = removedStatements || new Set();
+          removedStatements.add(statement);
+        },
+      );
+    }
+
     migrateClass(
-      result.node,
-      result.constructor,
-      result.superCall,
+      node,
+      constructor,
+      superCall,
       options,
+      removedStatements,
       localTypeChecker,
       printer,
       tracker,
@@ -88,6 +141,7 @@ export function migrateFile(sourceFile: ts.SourceFile, options: MigrationOptions
  * @param constructor Reference to the class' constructor node.
  * @param superCall Reference to the constructor's `super()` call, if any.
  * @param options Options used to configure the migration.
+ * @param removedStatements Statements that have been removed from the constructor already.
  * @param localTypeChecker Type checker set up for the specific file.
  * @param printer Printer used to output AST nodes as strings.
  * @param tracker Object keeping track of the changes made to the file.
@@ -97,6 +151,7 @@ function migrateClass(
   constructor: ts.ConstructorDeclaration,
   superCall: ts.CallExpression | null,
   options: MigrationOptions,
+  removedStatements: Set<ts.Statement> | null,
   localTypeChecker: ts.TypeChecker,
   printer: ts.Printer,
   tracker: ChangeTracker,
@@ -110,12 +165,20 @@ function migrateClass(
   }
 
   const sourceFile = node.getSourceFile();
-  const unusedParameters = getConstructorUnusedParameters(constructor, localTypeChecker);
+  const unusedParameters = getConstructorUnusedParameters(
+    constructor,
+    localTypeChecker,
+    removedStatements,
+  );
   const superParameters = superCall
     ? getSuperParameters(constructor, superCall, localTypeChecker)
     : null;
   const memberIndentation = getNodeIndentation(node.members[0]);
-  const innerReference = superCall || constructor.body?.statements[0] || constructor;
+  const removedStatementCount = removedStatements?.size || 0;
+  const innerReference =
+    superCall ||
+    constructor.body?.statements.find((statement) => !removedStatements?.has(statement)) ||
+    constructor;
   const innerIndentation = getNodeIndentation(innerReference);
   const propsToAdd: string[] = [];
   const prependToConstructor: string[] = [];
@@ -154,7 +217,7 @@ function migrateClass(
 
   if (
     !options.backwardsCompatibleConstructors &&
-    (!constructor.body || constructor.body.statements.length === 0)
+    (!constructor.body || constructor.body.statements.length - removedStatementCount === 0)
   ) {
     // Drop the constructor if it was empty.
     removedMembers.add(constructor);
@@ -257,12 +320,17 @@ function migrateParameter(
   // If the parameter declares a property, we need to declare it (e.g. `private foo: Foo`).
   if (declaresProp) {
     const prop = ts.factory.createPropertyDeclaration(
-      node.modifiers?.filter((modifier) => {
-        // Strip out the DI decorators, as well as `public` which is redundant.
-        return !ts.isDecorator(modifier) && modifier.kind !== ts.SyntaxKind.PublicKeyword;
-      }),
+      cloneModifiers(
+        node.modifiers?.filter((modifier) => {
+          // Strip out the DI decorators, as well as `public` which is redundant.
+          return !ts.isDecorator(modifier) && modifier.kind !== ts.SyntaxKind.PublicKeyword;
+        }),
+      ),
       name,
-      undefined,
+      // Don't add the question token to private properties since it won't affect interface implementation.
+      node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.PrivateKeyword)
+        ? undefined
+        : node.questionToken,
       // We can't initialize the property if it's referenced within a `super` call.
       // See the logic further below for the initialization.
       usedInSuper ? node.type : undefined,
@@ -545,4 +613,16 @@ function replaceNodePlaceholder(
 ): string {
   const result = printer.printNode(ts.EmitHint.Unspecified, node, sourceFile);
   return result.replace(PLACEHOLDER, replacement);
+}
+
+/**
+ * Clones an optional array of modifiers. Can be useful to
+ * strip the comments from a node with modifiers.
+ */
+function cloneModifiers(modifiers: ts.ModifierLike[] | ts.NodeArray<ts.ModifierLike> | undefined) {
+  return modifiers?.map((modifier) => {
+    return ts.isDecorator(modifier)
+      ? ts.factory.createDecorator(modifier.expression)
+      : ts.factory.createModifier(modifier.kind);
+  });
 }
