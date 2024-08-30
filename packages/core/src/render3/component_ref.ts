@@ -30,7 +30,7 @@ import {Renderer2, RendererFactory2} from '../render/api';
 import {Sanitizer} from '../sanitization/sanitizer';
 import {assertDefined, assertGreaterThan, assertIndexInRange} from '../util/assert';
 
-import {AfterRenderEventManager} from './after_render_hooks';
+import {AfterRenderManager} from './after_render/manager';
 import {assertComponentType, assertNoDuplicateDirectives} from './assert';
 import {attachPatchData} from './context_discovery';
 import {getComponentDef} from './definition';
@@ -88,6 +88,7 @@ import {debugStringifyTypeForError, stringifyForError} from './util/stringify_ut
 import {getComponentLViewByIndex, getNativeByTNode, getTNode} from './util/view_utils';
 import {ViewRef} from './view_ref';
 import {ChainedInjector} from './chained_injector';
+import {unregisterLView} from './interfaces/lview_tracking';
 
 export class ComponentFactoryResolver extends AbstractComponentFactoryResolver {
   /**
@@ -260,7 +261,6 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
       }
       const sanitizer = rootViewInjector.get(Sanitizer, null);
 
-      const afterRenderEventManager = rootViewInjector.get(AfterRenderEventManager, null);
       const changeDetectionScheduler = rootViewInjector.get(ChangeDetectionScheduler, null);
 
       const environment: LViewEnvironment = {
@@ -268,7 +268,6 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
         sanitizer,
         // We don't use inline effects (yet).
         inlineEffectRunner: null,
-        afterRenderEventManager,
         changeDetectionScheduler,
       };
 
@@ -335,6 +334,7 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
 
       let component: T;
       let tElementNode: TElementNode;
+      let componentView: LView | null = null;
 
       try {
         const rootComponentDef = this.componentDef;
@@ -356,7 +356,7 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
         }
 
         const hostTNode = createRootComponentTNode(rootLView, hostRNode);
-        const componentView = createRootComponentView(
+        componentView = createRootComponentView(
           hostTNode,
           hostRNode,
           rootComponentDef,
@@ -390,6 +390,14 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
           [LifecycleHooksFeature],
         );
         renderView(rootTView, rootLView, null);
+      } catch (e) {
+        // Stop tracking the views if creation failed since
+        // the consumer won't have a way to dereference them.
+        if (componentView !== null) {
+          unregisterLView(componentView);
+        }
+        unregisterLView(rootLView);
+        throw e;
       } finally {
         leaveView();
       }
@@ -672,7 +680,7 @@ function projectNodes(
     // complex checks down the line.
     // We also normalize the length of the passed in projectable nodes (to match the number of
     // <ng-container> slots defined by a component).
-    projection.push(nodesforSlot != null ? Array.from(nodesforSlot) : null);
+    projection.push(nodesforSlot != null && nodesforSlot.length ? Array.from(nodesforSlot) : null);
   }
 }
 

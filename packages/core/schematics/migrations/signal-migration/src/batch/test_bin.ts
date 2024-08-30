@@ -13,7 +13,7 @@ import {executeMergePhase} from '../../../../utils/tsurge/executors/merge_exec';
 import {executeMigratePhase} from '../../../../utils/tsurge/executors/migrate_exec';
 import {SignalInputMigration} from '../migration';
 import {writeMigrationReplacements} from '../write_replacements';
-import {CompilationUnitData} from './metadata_file';
+import {CompilationUnitData} from './unit_data';
 
 main().catch((e) => {
   console.error(e);
@@ -41,12 +41,12 @@ async function main() {
 
     process.stdout.write(JSON.stringify(mergedResult));
   } else if (mode === 'migrate') {
-    const replacements = await executeMigratePhase(
+    const {replacements, projectDirAbsPath} = await executeMigratePhase(
       migration,
       JSON.parse(fs.readFileSync(path.resolve(args[1]), 'utf8')) as CompilationUnitData,
       path.resolve(args[0]),
     );
 
-    writeMigrationReplacements(replacements);
+    writeMigrationReplacements(replacements, projectDirAbsPath);
   }
 }

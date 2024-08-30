@@ -1,3 +1,130 @@
+<a name="19.0.0-next.2"></a>
+# 19.0.0-next.2 (2024-08-28)
+## Breaking Changes
+### core
+- Render default fallback with empty `projectableNodes`.
+  
+  When passing an empty array to `projectableNodes` in the `createComponent` API, the default fallback content of the `ng-content` will be rendered if present. To prevent rendering the default content, pass `document.createTextNode('')` as a `projectableNode`.
+  
+  For example:
+  
+  ```ts
+  // The first ng-content will render the default fallback content if present
+  createComponent(MyComponent. { projectableNodes: [[], [secondNode]] });
+  
+  // To prevent projecting the default fallback content:
+  createComponent(MyComponent. { projectableNodes: [[document.createTextNode('')], [secondNode]] });
+  
+  ```
+- The timers that are used for zone coalescing and hybrid
+  mode scheduling (which schedules an application state synchronization
+  when changes happen outside the Angular zone) will now run in the zone
+  above Angular rather than the root zone. This will mostly affect tests
+  which use `fakeAsync`: these timers will now be visible to `fakeAsync`
+  and can be affected by `tick` or `flush`.
+### elements
+- as part of switching away from custom CD behavior to the
+  hybrid scheduler, timing of change detection around custom elements has
+  changed subtly. These changes make elements more efficient, but can cause
+  tests which encoded assumptions about how or when elements would be checked
+  to require updating.
+### common
+| Commit | Type | Description |
+| -- | -- | -- |
+| [50f08e6c4bf](https://github.com/angular/angular/commit/50f08e6c4bf1caeeb08d3505ce7fabd466b9c76b) | feat | automatically use sizes auto in NgOptimizedImage ([#57479](https://github.com/angular/angular/pull/57479)) |
+### compiler-cli
+| Commit | Type | Description |
+| -- | -- | -- |
+| [4716c3b9660](https://github.com/angular/angular/commit/4716c3b9660b01f4ef3642fb774270b7f4a13d1a) | perf | reduce duplicate component style resolution ([#57502](https://github.com/angular/angular/pull/57502)) |
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [a3cdbfe87f5](https://github.com/angular/angular/commit/a3cdbfe87f5a8daef11a154ef3edb5a3a5c12f77) | fix | avoid leaking memory if component throws during creation ([#57546](https://github.com/angular/angular/pull/57546)) |
+| [7a99815146e](https://github.com/angular/angular/commit/7a99815146eb78074aa3ed6db73c6e87042df692) | fix | Do not bubble capture events. ([#57476](https://github.com/angular/angular/pull/57476)) |
+| [7b1e5be20b9](https://github.com/angular/angular/commit/7b1e5be20b99c88246c6be78a4dcd64eb55cee1a) | fix | fallback to default ng-content with empty projectable nodes. ([#57480](https://github.com/angular/angular/pull/57480)) |
+| [0300dd2e18f](https://github.com/angular/angular/commit/0300dd2e18f064f2f57f7371e0dc5c01218b5019) | fix | Fix fixture.detectChanges with autoDetect disabled and zoneless ([#57416](https://github.com/angular/angular/pull/57416)) |
+| [226a67dabba](https://github.com/angular/angular/commit/226a67dabba90a488ad09ce7bb026b8883c90d4a) | fix | Schedulers run in zone above Angular rather than root ([#57553](https://github.com/angular/angular/pull/57553)) |
+### elements
+| Commit | Type | Description |
+| -- | -- | -- |
+| [0cebfd7462c](https://github.com/angular/angular/commit/0cebfd7462c6a7c6c3b0d66720c436a4b0eea19d) | fix | switch to `ComponentRef.setInput` & remove custom scheduler ([#56728](https://github.com/angular/angular/pull/56728)) |
+### router
+| Commit | Type | Description |
+| -- | -- | -- |
+| [8f6308457f0](https://github.com/angular/angular/commit/8f6308457f0f03e9bbd09f4bc10d1c61fd41d22c) | fix | Do not unnecessarily run matcher twice on route matching ([#57530](https://github.com/angular/angular/pull/57530)) |
+### upgrade
+| Commit | Type | Description |
+| -- | -- | -- |
+| [c9d90786d0a](https://github.com/angular/angular/commit/c9d90786d0a6421bbb21b9d1649d031b34e3fa5d) | fix | Address Trusted Types violations in @angular/upgrade ([#57454](https://github.com/angular/angular/pull/57454)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.2"></a>
+# 18.2.2 (2024-08-28)
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [106917af878](https://github.com/angular/angular/commit/106917af87868a801d536371511436247ca17382) | fix | avoid leaking memory if component throws during creation ([#57546](https://github.com/angular/angular/pull/57546)) |
+| [6d3a2af146a](https://github.com/angular/angular/commit/6d3a2af146a83f362501f911790503776383369f) | fix | Do not bubble capture events. ([#57476](https://github.com/angular/angular/pull/57476)) |
+### http
+| Commit | Type | Description |
+| -- | -- | -- |
+| [5d2e243c76a](https://github.com/angular/angular/commit/5d2e243c76ac55080bce35b9c3704ad9c2e4a932) | fix | Dynamicaly call the global fetch implementation ([#57531](https://github.com/angular/angular/pull/57531)) |
+### router
+| Commit | Type | Description |
+| -- | -- | -- |
+| [804925b1149](https://github.com/angular/angular/commit/804925b11492cbcaa586c90958615abe5c525e5f) | fix | Do not unnecessarily run matcher twice on route matching ([#57530](https://github.com/angular/angular/pull/57530)) |
+### upgrade
+| Commit | Type | Description |
+| -- | -- | -- |
+| [03ec620e31a](https://github.com/angular/angular/commit/03ec620e31a0335a05013659daaa947010df6778) | fix | Address Trusted Types violations in @angular/upgrade ([#57454](https://github.com/angular/angular/pull/57454)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.1"></a>
+# 18.2.1 (2024-08-22)
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [9de30a7b1c](https://github.com/angular/angular/commit/9de30a7b1cbda5bd85db607266ad533c1aac0a02) | fix | Allow zoneless scheduler to run inside `fakeAsync` ([#56932](https://github.com/angular/angular/pull/56932)) |
+| [286012fb89](https://github.com/angular/angular/commit/286012fb89270bd9330ffeb229f3a14b6e67d2a9) | fix | handle hydration of components that project content conditionally ([#57383](https://github.com/angular/angular/pull/57383)) |
+### migrations
+| Commit | Type | Description |
+| -- | -- | -- |
+| [0bb649b8fa](https://github.com/angular/angular/commit/0bb649b8fa22a0db4f383db29995105b0b4adc81) | fix | account for members with doc strings and no modifiers ([#57389](https://github.com/angular/angular/pull/57389)) |
+| [3b63082384](https://github.com/angular/angular/commit/3b63082384b396514dd836b7763202536f3f4f23) | fix | avoid migrating route component in tests ([#57317](https://github.com/angular/angular/pull/57317)) |
+| [6b4357fae4](https://github.com/angular/angular/commit/6b4357fae45f0c187c8d23649b94a828dd9aaa6e) | fix | preserve type when using inject decorator ([#57389](https://github.com/angular/angular/pull/57389)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="19.0.0-next.1"></a>
+# 19.0.0-next.1 (2024-08-22)
+## Breaking Changes
+### core
+- The `autoDetect` feature of `ComponentFixture` will now
+  attach the fixture to the `ApplicationRef`. As a result, errors during
+  automatic change detection of the fixture be reported to the `ErrorHandler`.
+  This change may cause custom error handlers to observe new failures that were previously unreported.
+### compiler-cli
+| Commit | Type | Description |
+| -- | -- | -- |
+| [9e87593055](https://github.com/angular/angular/commit/9e87593055a5314a67090bd15d5552c23b538050) | feat | ensure template style elements are preprocessed as inline styles ([#57429](https://github.com/angular/angular/pull/57429)) |
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [b063468027](https://github.com/angular/angular/commit/b0634680272569501146bb7a9cdfe53033e25971) | feat | support TypeScript 5.6 ([#57424](https://github.com/angular/angular/pull/57424)) |
+| [3b0dca75d6](https://github.com/angular/angular/commit/3b0dca75d6dab6039253edd00c436715775bd0dd) | fix | Allow zoneless scheduler to run inside `fakeAsync` ([#56932](https://github.com/angular/angular/pull/56932)) |
+| [f03d274e87](https://github.com/angular/angular/commit/f03d274e87c919514a70d02c0699523957de7386) | fix | ComponentFixture autoDetect feature works like production ([#55228](https://github.com/angular/angular/pull/55228)) |
+| [d4449fce21](https://github.com/angular/angular/commit/d4449fce21bebbb18f9e1341f1675cdbec7e83ac) | fix | handle hydration of components that project content conditionally ([#57383](https://github.com/angular/angular/pull/57383)) |
+### migrations
+| Commit | Type | Description |
+| -- | -- | -- |
+| [4ae66f25d0](https://github.com/angular/angular/commit/4ae66f25d01ffd603872b3df3faf5c5c555b6446) | fix | account for members with doc strings and no modifiers ([#57389](https://github.com/angular/angular/pull/57389)) |
+| [ac93839d69](https://github.com/angular/angular/commit/ac93839d694929fdf16c610994a369d4efb2823a) | fix | avoid migrating route component in tests ([#57317](https://github.com/angular/angular/pull/57317)) |
+| [58a79b6e43](https://github.com/angular/angular/commit/58a79b6e435f2a46a7ab17ff5538083e05340b6f) | fix | preserve type when using inject decorator ([#57389](https://github.com/angular/angular/pull/57389)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
 <a name="19.0.0-next.0"></a>
 # 19.0.0-next.0 (2024-08-14)
 ## Breaking Changes

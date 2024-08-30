@@ -6,16 +6,13 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {TsurgeMigration} from '../migration';
-import {
-  initMockFileSystem,
-  MockFileSystem,
-} from '../../../../../compiler-cli/src/ngtsc/file_system/testing';
+import {TsurgeFunnelMigration, TsurgeMigration} from '../migration';
+import {MockFileSystem} from '@angular/compiler-cli/src/ngtsc/file_system/testing';
 import {
   absoluteFrom,
   AbsoluteFsPath,
   getFileSystem,
-} from '../../../../../compiler-cli/src/ngtsc/file_system';
+} from '@angular/compiler-cli/src/ngtsc/file_system';
 import {groupReplacementsByFile} from '../helpers/group_replacements';
 import {applyTextUpdates} from '../replacement';
 
@@ -61,11 +58,15 @@ export async function runTsurgeMigration<UnitData, GlobalData>(
 
   const unitData = await migration.analyze(info);
   const merged = await migration.merge([unitData]);
-  const replacements = await migration.migrate(merged, info);
-  const updates = groupReplacementsByFile(replacements);
+  const replacements =
+    migration instanceof TsurgeFunnelMigration
+      ? await migration.migrate(merged)
+      : await migration.migrate(merged, info);
 
-  for (const [filePath, changes] of updates.entries()) {
-    mockFs.writeFile(filePath, applyTextUpdates(mockFs.readFile(filePath), changes));
+  const updates = groupReplacementsByFile(replacements);
+  for (const [projectRelativePath, changes] of updates.entries()) {
+    const absolutePath = mockFs.resolve('/', projectRelativePath);
+    mockFs.writeFile(absolutePath, applyTextUpdates(mockFs.readFile(absolutePath), changes));
   }
 
   return mockFs;
