@@ -13,8 +13,7 @@ import {ConvertInputPreparation} from './prepare_and_check';
 import {DecoratorInputTransform} from '@angular/compiler-cli/src/ngtsc/metadata';
 import {ImportManager} from '@angular/compiler-cli/src/ngtsc/translator';
 import {removeFromUnionIfPossible} from '../utils/remove_from_union';
-
-const printer = ts.createPrinter({newLine: ts.NewLineKind.LineFeed});
+import {MigrationResult} from '../result';
 
 // TODO: Consider initializations inside the constructor. Those are not migrated right now
 // though, as they are writes.
@@ -36,6 +35,7 @@ export function convertToSignalInput(
   }: ConvertInputPreparation,
   checker: ts.TypeChecker,
   importManager: ImportManager,
+  result: MigrationResult,
 ): string {
   let optionsLiteral: ts.ObjectLiteralExpression | null = null;
 
@@ -87,7 +87,9 @@ export function convertToSignalInput(
     typeArguments.push(resolvedType);
 
     if (metadata.transform !== null) {
-      typeArguments.push(metadata.transform.type.node);
+      // Note: The TCB code generation may use the same type node and attach
+      // synthetic comments for error reporting. We remove those explicitly here.
+      typeArguments.push(ts.setSyntheticTrailingComments(metadata.transform.type.node, undefined));
     }
   }
 
@@ -124,7 +126,7 @@ export function convertToSignalInput(
     modifiersWithoutInputDecorator.push(ts.factory.createModifier(ts.SyntaxKind.ReadonlyKeyword));
   }
 
-  const result = ts.factory.createPropertyDeclaration(
+  const newNode = ts.factory.createPropertyDeclaration(
     modifiersWithoutInputDecorator,
     node.name,
     undefined,
@@ -132,7 +134,7 @@ export function convertToSignalInput(
     inputInitializer,
   );
 
-  return printer.printNode(ts.EmitHint.Unspecified, result, node.getSourceFile());
+  return result.printer.printNode(ts.EmitHint.Unspecified, newNode, node.getSourceFile());
 }
 
 /**

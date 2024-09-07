@@ -12,7 +12,7 @@ import {getProjectTsConfigPaths} from '../../utils/project_tsconfig_paths';
 import {canMigrateFile, createMigrationProgram} from '../../utils/typescript/compiler_host';
 import {migrateFile} from './migration';
 
-export default function (): Rule {
+export function migrate(): Rule {
   return async (tree: Tree) => {
     const {buildPaths, testPaths} = await getProjectTsConfigPaths(tree);
     const basePath = process.cwd();
@@ -20,7 +20,7 @@ export default function (): Rule {
 
     if (!allPaths.length) {
       throw new SchematicsException(
-        'Could not find any tsconfig file. Cannot run the afterRender phase migration.',
+        'Could not find any tsconfig file. Cannot run the standalone:false migration.',
       );
     }
 
@@ -49,7 +49,7 @@ function runMigration(tree: Tree, tsconfigPath: string, basePath: string) {
         update.insertLeft(startPos, text);
       }
     };
-    migrateFile(sourceFile, program.getTypeChecker(), rewriter);
+    migrateFile(sourceFile, rewriter);
 
     if (update !== null) {
       tree.commitUpdate(update);

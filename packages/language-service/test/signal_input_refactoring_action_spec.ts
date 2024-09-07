@@ -34,8 +34,9 @@ describe('Signal input refactoring action', () => {
     appFile.moveCursorToText('bl¦a');
     const refactorings = project.getRefactoringsAtPosition('app.ts', appFile.cursor);
 
-    expect(refactorings.length).toBe(1);
-    expect(refactorings[0].name).toBe('convert-to-signal-input');
+    expect(refactorings.length).toBe(2);
+    expect(refactorings[0].name).toBe('convert-to-signal-input-safe-mode');
+    expect(refactorings[1].name).toBe('convert-to-signal-input-best-effort-mode');
   });
 
   it('should not support refactoring a non-Angular property', () => {
@@ -95,8 +96,9 @@ describe('Signal input refactoring action', () => {
     appFile.moveCursorToText('bl¦a');
 
     const refactorings = project.getRefactoringsAtPosition('app.ts', appFile.cursor);
-    expect(refactorings.length).toBe(1);
-    expect(refactorings[0].name).toBe('convert-to-signal-input');
+    expect(refactorings.length).toBe(2);
+    expect(refactorings[0].name).toBe('convert-to-signal-input-safe-mode');
+    expect(refactorings[1].name).toBe('convert-to-signal-input-best-effort-mode');
 
     const edits = await project.applyRefactoring(
       'app.ts',
@@ -107,7 +109,7 @@ describe('Signal input refactoring action', () => {
     expect(edits?.notApplicableReason).toBeUndefined();
     expect(edits?.edits).toEqual([
       {
-        fileName: 'app.ts',
+        fileName: '/test/app.ts',
         textChanges: [
           // Input declaration.
           {
@@ -115,7 +117,7 @@ describe('Signal input refactoring action', () => {
             span: {start: 127, length: '@Input() bla = true;'.length},
           },
           // Import (since there is just a single input).
-          {newText: '{ Directive, input }', span: {start: 16, length: 18}},
+          {newText: '{Directive, input}', span: {start: 16, length: 18}},
         ],
       },
     ]);

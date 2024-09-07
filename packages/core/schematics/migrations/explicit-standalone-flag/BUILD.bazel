@@ -1,4 +1,4 @@
-load("//tools:defaults.bzl", "esbuild_no_sourcemaps", "ts_library")
+load("//tools:defaults.bzl", "ts_library")
 
 package(
     default_visibility = [
@@ -9,26 +9,13 @@ package(
 )
 
 ts_library(
-    name = "invalid-two-way-bindings",
+    name = "explicit-standalone-flag",
     srcs = glob(["**/*.ts"]),
     tsconfig = "//packages/core/schematics:tsconfig.json",
     deps = [
-        "//packages/compiler",
         "//packages/core/schematics/utils",
         "@npm//@angular-devkit/schematics",
         "@npm//@types/node",
         "@npm//typescript",
     ],
-)
-
-esbuild_no_sourcemaps(
-    name = "bundle",
-    entry_point = ":index.ts",
-    external = [
-        "@angular-devkit/*",
-        "typescript",
-    ],
-    format = "cjs",
-    platform = "node",
-    deps = [":invalid-two-way-bindings"],
 )

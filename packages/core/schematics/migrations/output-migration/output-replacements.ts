@@ -1,0 +1,116 @@
+/**
+ * @license
+ * Copyright Google LLC All Rights Reserved.
+ *
+ * Use of this source code is governed by an MIT-style license that can be
+ * found in the LICENSE file at https://angular.io/license
+ */
+
+import ts from 'typescript';
+
+import {ImportManager} from '../../../../compiler-cli/private/migrations';
+import {ProgramInfo, projectFile, ProjectFileID, Replacement, TextUpdate} from '../../utils/tsurge';
+import {applyImportManagerChanges} from '../../utils/tsurge/helpers/apply_import_manager';
+
+const printer = ts.createPrinter();
+
+export function calculateDeclarationReplacement(
+  info: ProgramInfo,
+  node: ts.PropertyDeclaration,
+  aliasParam?: ts.Expression,
+): Replacement {
+  const sf = node.getSourceFile();
+  const payloadTypes =
+    node.initializer !== undefined && ts.isNewExpression(node.initializer)
+      ? node.initializer?.typeArguments
+      : undefined;
+
+  const outputCall = ts.factory.createCallExpression(
+    ts.factory.createIdentifier('output'),
+    payloadTypes,
+    aliasParam ? [aliasParam] : [],
+  );
+
+  const existingModifiers = (node.modifiers ?? []).filter(
+    (modifier) => !ts.isDecorator(modifier) && modifier.kind !== ts.SyntaxKind.ReadonlyKeyword,
+  );
+
+  const updatedOutputDeclaration = ts.factory.updatePropertyDeclaration(
+    node,
+    // Think: this logic of dealing with modifiers is applicable to all signal-based migrations
+    ts.factory.createNodeArray([
+      ...existingModifiers,
+      ts.factory.createModifier(ts.SyntaxKind.ReadonlyKeyword),
+    ]),
+    node.name,
+    undefined,
+    undefined,
+    outputCall,
+  );
+
+  return prepareTextReplacement(
+    info,
+    node,
+    printer.printNode(ts.EmitHint.Unspecified, updatedOutputDeclaration, sf),
+  );
+}
+
+export function calculateImportReplacements(info: ProgramInfo, sourceFiles: Set<ts.SourceFile>) {
+  const importReplacements: Record<
+    ProjectFileID,
+    {add: Replacement[]; addAndRemove: Replacement[]}
+  > = {};
+
+  const importManager = new ImportManager();
+
+  for (const sf of sourceFiles) {
+    const addOnly: Replacement[] = [];
+    const addRemove: Replacement[] = [];
+    const file = projectFile(sf, info);
+
+    importManager.addImport({
+      requestedFile: sf,
+      exportModuleSpecifier: '@angular/core',
+      exportSymbolName: 'output',
+    });
+    applyImportManagerChanges(importManager, addOnly, [sf], info);
+
+    importManager.removeImport(sf, 'Output', '@angular/core');
+    importManager.removeImport(sf, 'EventEmitter', '@angular/core');
+    applyImportManagerChanges(importManager, addRemove, [sf], info);
+
+    importReplacements[file.id] = {
+      add: addOnly,
+      addAndRemove: addRemove,
+    };
+  }
+
+  return importReplacements;
+}
+
+export function calculateNextFnReplacement(info: ProgramInfo, node: ts.MemberName): Replacement {
+  return prepareTextReplacement(info, node, 'emit');
+}
+
+export function calculateCompleteCallReplacement(
+  info: ProgramInfo,
+  node: ts.ExpressionStatement,
+): Replacement {
+  return prepareTextReplacement(info, node, '');
+}
+
+function prepareTextReplacement(
+  info: ProgramInfo,
+  node: ts.Node,
+  replacement: string,
+): Replacement {
+  const sf = node.getSourceFile();
+  return new Replacement(
+    projectFile(sf, info),
+    new TextUpdate({
+      position: node.getStart(),
+      end: node.getEnd(),
+      toInsert: replacement,
+    }),
+  );
+}

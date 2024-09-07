@@ -10,8 +10,7 @@ import ts from 'typescript';
 import {KnownInputs} from '../input_detection/known_inputs';
 import {MigrationResult} from '../result';
 import {isTsInputClassTypeReference} from '../utils/input_reference';
-import {AbsoluteFsPath} from '@angular/compiler-cli/src/ngtsc/file_system';
-import {projectRelativePath, Replacement, TextUpdate} from '../../../../utils/tsurge/replacement';
+import {ProgramInfo, projectFile, Replacement, TextUpdate} from '../../../../utils/tsurge';
 import assert from 'assert';
 import {ImportManager} from '@angular/compiler-cli/src/ngtsc/translator';
 
@@ -25,7 +24,7 @@ export function pass9__migrateTypeScriptTypeReferences(
   result: MigrationResult,
   knownInputs: KnownInputs,
   importManager: ImportManager,
-  projectDirAbsPath: AbsoluteFsPath,
+  info: ProgramInfo,
 ) {
   const seenTypeNodes = new WeakSet<ts.TypeReferenceNode>();
 
@@ -34,8 +33,8 @@ export function pass9__migrateTypeScriptTypeReferences(
     if (!isTsInputClassTypeReference(reference)) {
       continue;
     }
-    // Skip references to classes that are not migrated.
-    if (knownInputs.getDirectiveInfoForClass(reference.target)!.isClassSkippedForMigration()) {
+    // Skip references to classes that are not fully migrated.
+    if (knownInputs.getDirectiveInfoForClass(reference.target)?.hasIncompatibleMembers()) {
       continue;
     }
     // Skip duplicate references. E.g. in batching.
@@ -59,17 +58,17 @@ export function pass9__migrateTypeScriptTypeReferences(
 
       result.replacements.push(
         new Replacement(
-          projectRelativePath(sf, projectDirAbsPath),
+          projectFile(sf, info),
           new TextUpdate({
             position: firstArg.getStart(),
             end: firstArg.getStart(),
-            toInsert: `${ts.createPrinter().printNode(ts.EmitHint.Unspecified, unwrapImportExpr, sf)}<`,
+            toInsert: `${result.printer.printNode(ts.EmitHint.Unspecified, unwrapImportExpr, sf)}<`,
           }),
         ),
       );
       result.replacements.push(
         new Replacement(
-          projectRelativePath(sf, projectDirAbsPath),
+          projectFile(sf, info),
           new TextUpdate({position: firstArg.getEnd(), end: firstArg.getEnd(), toInsert: '>'}),
         ),
       );
