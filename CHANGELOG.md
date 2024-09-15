@@ -1,3 +1,47 @@
+<a name="19.0.0-next.5"></a>
+# 19.0.0-next.5 (2024-09-11)
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [c93b510f9b](https://github.com/angular/angular/commit/c93b510f9b2e23aa7a3848a04c05249fde14a9b1) | feat | allow passing `undefined` without needing to include it in the type argument of `input` ([#57621](https://github.com/angular/angular/pull/57621)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="18.2.4"></a>
+# 18.2.4 (2024-09-11)
+### compiler
+| Commit | Type | Description |
+| -- | -- | -- |
+| [b619d6987e](https://github.com/angular/angular/commit/b619d6987efe054b9b37c24e578f58792b25d146) | fix | produce less noisy errors when parsing control flow ([#57711](https://github.com/angular/angular/pull/57711)) |
+### migrations
+| Commit | Type | Description |
+| -- | -- | -- |
+| [9895e4492f](https://github.com/angular/angular/commit/9895e4492fbe357b584ca5a6dd86d2c9d50d9fda) | fix | replace leftover modules with their exports during pruning ([#57684](https://github.com/angular/angular/pull/57684)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="19.0.0-next.4"></a>
+# 19.0.0-next.4 (2024-09-09)
+### compiler
+| Commit | Type | Description |
+| -- | -- | -- |
+| [40ff18f87a](https://github.com/angular/angular/commit/40ff18f87a04fd1c00dea9fee1568bfe52acf25c) | fix | produce less noisy errors when parsing control flow ([#57711](https://github.com/angular/angular/pull/57711)) |
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [6ea8e1e9aa](https://github.com/angular/angular/commit/6ea8e1e9aae028572873cf97aa1949c8153f458f) | feat | Add a schematics to migrate to `standalone: false`. ([#57643](https://github.com/angular/angular/pull/57643)) |
+### migrations
+| Commit | Type | Description |
+| -- | -- | -- |
+| [cbec46a51d](https://github.com/angular/angular/commit/cbec46a51d22a1238cc8bf1ebdf343d031b8f0ba) | feat | migrate .pipe calls in outputs used in tests ([#57691](https://github.com/angular/angular/pull/57691)) |
+| [68e5370a66](https://github.com/angular/angular/commit/68e5370a66633f4b069d6adffa95c2ea94291820) | feat | remove complete calls for migrated outputs ([#57671](https://github.com/angular/angular/pull/57671)) |
+| [9da21f798d](https://github.com/angular/angular/commit/9da21f798de2033af9d39a8a9b255ef2fe74f948) | feat | replace .next usage on outputs ([#57654](https://github.com/angular/angular/pull/57654)) |
+| [71f5ef2aa5](https://github.com/angular/angular/commit/71f5ef2aa53a74bab7d0543f98870d81c44c4978) | fix | change imports to be G3 compatible ([#57654](https://github.com/angular/angular/pull/57654)) |
+| [3a264db866](https://github.com/angular/angular/commit/3a264db86611cba9b69780d7f01ee25787278320) | fix | properly handle comments in output migration ([#57691](https://github.com/angular/angular/pull/57691)) |
+| [fc95a9adff](https://github.com/angular/angular/commit/fc95a9adff42da53dfeee5df8c42be25e8559708) | fix | replace leftover modules with their exports during pruning ([#57684](https://github.com/angular/angular/pull/57684)) |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
 <a name="19.0.0-next.3"></a>
 # 19.0.0-next.3 (2024-09-04)
 ## Breaking Changes
