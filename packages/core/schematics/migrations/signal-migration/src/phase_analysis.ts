@@ -38,7 +38,7 @@ export function executeAnalysisPhase(
   result: MigrationResult,
   {
     sourceFiles,
-    programFiles,
+    fullProgramSourceFiles,
     reflector,
     dtsMetadataReader,
     typeChecker,
@@ -49,7 +49,7 @@ export function executeAnalysisPhase(
   }: AnalysisProgramInfo,
 ) {
   // Pass 1
-  programFiles.forEach(
+  fullProgramSourceFiles.forEach(
     (sf) =>
       // Shim shim files. Those are unnecessary and might cause unexpected slowness.
       // e.g. `ngtypecheck` files.
@@ -67,6 +67,14 @@ export function executeAnalysisPhase(
       ),
   );
 
+  const fieldNamesToConsiderForReferenceLookup = new Set<string>();
+  for (const input of knownInputs.knownInputIds.values()) {
+    if (host.config.shouldMigrateInput?.(input) === false) {
+      continue;
+    }
+    fieldNamesToConsiderForReferenceLookup.add(input.descriptor.node.name.text);
+  }
+
   // A graph starting with source files is sufficient. We will resolve into
   // declaration files if a source file depends on such.
   const inheritanceGraph = new InheritanceGraph(typeChecker).expensivePopulate(sourceFiles);
@@ -83,10 +91,10 @@ export function executeAnalysisPhase(
     pass2And3SourceFileVisitor,
     knownInputs,
     result,
+    fieldNamesToConsiderForReferenceLookup,
   );
   // Register pass 3. Check incompatible patterns pass.
   pass3__checkIncompatiblePatterns(
-    host,
     inheritanceGraph,
     typeChecker,
     pass2And3SourceFileVisitor,
@@ -99,14 +107,14 @@ export function executeAnalysisPhase(
   // Determine incompatible inputs based on resolved references.
   for (const reference of result.references) {
     if (isTsReference(reference) && reference.from.isWrite) {
-      knownInputs.markInputAsIncompatible(reference.target, {
+      knownInputs.markFieldIncompatible(reference.target, {
         reason: InputIncompatibilityReason.WriteAssignment,
         context: reference.from.node,
       });
     }
     if (isTemplateReference(reference) || isHostBindingReference(reference)) {
       if (reference.from.isWrite) {
-        knownInputs.markInputAsIncompatible(reference.target, {
+        knownInputs.markFieldIncompatible(reference.target, {
           reason: InputIncompatibilityReason.WriteAssignment,
           // No TS node context available for template or host bindings.
           context: null,
@@ -118,7 +126,7 @@ export function executeAnalysisPhase(
     // https://github.com/angular/angular/pull/55456.
     if (isTemplateReference(reference)) {
       if (reference.from.isLikelyPartOfNarrowing) {
-        knownInputs.markInputAsIncompatible(reference.target, {
+        knownInputs.markFieldIncompatible(reference.target, {
           reason: InputIncompatibilityReason.PotentiallyNarrowedInTemplateButNoSupportYet,
           context: null,
         });

@@ -219,6 +219,9 @@
     "name": "EVENT_MANAGER_PLUGINS"
   },
   {
+    "name": "EffectScheduler"
+  },
+  {
     "name": "ElementInstructionMap"
   },
   {
@@ -438,7 +441,7 @@
     "name": "PRESERVE_HOST_CONTENT"
   },
   {
-    "name": "PendingTasks"
+    "name": "PendingTasksInternal"
   },
   {
     "name": "R3Injector"
@@ -565,6 +568,9 @@
   },
   {
     "name": "ZONELESS_SCHEDULER_DISABLED"
+  },
+  {
+    "name": "ZoneAwareEffectScheduler"
   },
   {
     "name": "ZoneStablePendingTask"
@@ -1387,6 +1393,9 @@
   },
   {
     "name": "roundOffset"
+  },
+  {
+    "name": "runEffectsInView"
   },
   {
     "name": "saveNameToExportMap"

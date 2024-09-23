@@ -447,7 +447,9 @@ export interface CreateComputedOptions<T> {
 
 // @public
 export interface CreateEffectOptions {
+    // @deprecated (undocumented)
     allowSignalWrites?: boolean;
+    forceRoot?: true;
     injector?: Injector;
     manualCleanup?: boolean;
 }
@@ -706,14 +708,6 @@ export interface ExistingProvider extends ExistingSansProvider {
 // @public
 export interface ExistingSansProvider {
     useExisting: any;
-}
-
-// @public
-export class ExperimentalPendingTasks {
-    add(): () => void;
-    run<T>(fn: () => Promise<T>): Promise<T>;
-    // (undocumented)
-    static ɵprov: unknown;
 }
 
 // @public
@@ -1348,6 +1342,14 @@ export interface OutputRefSubscription {
 
 // @public @deprecated
 export const PACKAGE_ROOT_URL: InjectionToken<string>;
+
+// @public
+export class PendingTasks {
+    add(): () => void;
+    run<T>(fn: () => Promise<T>): Promise<T>;
+    // (undocumented)
+    static ɵprov: unknown;
+}
 
 // @public
 export interface Pipe {

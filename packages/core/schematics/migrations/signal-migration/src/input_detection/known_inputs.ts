@@ -11,11 +11,17 @@ import {InputDescriptor} from '../utils/input_id';
 import {ExtractedInput} from './input_decorator';
 import {InputNode} from './input_node';
 import {DirectiveInfo} from './directive_info';
-import {ClassIncompatibilityReason, InputMemberIncompatibility} from './incompatibility';
+import {
+  ClassIncompatibilityReason,
+  InputIncompatibilityReason,
+  InputMemberIncompatibility,
+} from './incompatibility';
 import {ClassFieldUniqueKey, KnownFields} from '../passes/reference_resolution/known_fields';
 import {attemptRetrieveInputFromSymbol} from './nodes_to_input';
-import {ProgramInfo} from '../../../../utils/tsurge';
+import {ProgramInfo, projectFile, ProjectFile} from '../../../../utils/tsurge';
 import {MigrationConfig} from '../migration_config';
+import {ProblematicFieldRegistry} from '../passes/problematic_patterns/problematic_field_registry';
+import {InheritanceTracker} from '../passes/problematic_patterns/check_inheritance';
 
 /**
  * Public interface describing a single known `@Input()` in the
@@ -25,9 +31,11 @@ import {MigrationConfig} from '../migration_config';
  * loaded into the program.
  */
 export type KnownInputInfo = {
+  file: ProjectFile;
   metadata: ExtractedInput;
   descriptor: InputDescriptor;
   container: DirectiveInfo;
+  extendsFrom: InputDescriptor | null;
   isIncompatible: () => boolean;
 };
 
@@ -37,14 +45,16 @@ export type KnownInputInfo = {
  *  A known `@Input()` may be defined in sources, or inside some `d.ts` files
  * loaded into the program.
  */
-export class KnownInputs implements KnownFields<InputDescriptor> {
+export class KnownInputs
+  implements
+    KnownFields<InputDescriptor>,
+    ProblematicFieldRegistry<InputDescriptor>,
+    InheritanceTracker<InputDescriptor>
+{
   /**
    * Known inputs from the whole program.
    */
   knownInputIds = new Map<ClassFieldUniqueKey, KnownInputInfo>();
-
-  // TODO: perf comment
-  fieldNamesToConsiderForReferenceLookup: Set<string> = new Set<string>();
 
   /** Known container classes of inputs. */
   private _allClasses = new Set<ts.ClassDeclaration>();
@@ -88,9 +98,11 @@ export class KnownInputs implements KnownFields<InputDescriptor> {
     }
     const directiveInfo = this._classToDirectiveInfo.get(data.node.parent)!;
     const inputInfo: KnownInputInfo = {
+      file: projectFile(data.node.getSourceFile(), this.programInfo),
       metadata: data.metadata,
       descriptor: data.descriptor,
       container: directiveInfo,
+      extendsFrom: null,
       isIncompatible: () => directiveInfo.isInputMemberIncompatible(data.descriptor),
     };
 
@@ -100,14 +112,15 @@ export class KnownInputs implements KnownFields<InputDescriptor> {
     });
     this.knownInputIds.set(data.descriptor.key, inputInfo);
     this._allClasses.add(data.node.parent);
+  }
 
-    if (this.config.shouldMigrateInput?.(inputInfo) ?? true) {
-      this.fieldNamesToConsiderForReferenceLookup.add(data.descriptor.node.name.text);
-    }
+  /** Whether the given input is incompatible for migration. */
+  isFieldIncompatible(descriptor: InputDescriptor): boolean {
+    return !!this.get(descriptor)?.isIncompatible();
   }
 
   /** Marks the given input as incompatible for migration. */
-  markInputAsIncompatible(input: InputDescriptor, incompatibility: InputMemberIncompatibility) {
+  markFieldIncompatible(input: InputDescriptor, incompatibility: InputMemberIncompatibility) {
     if (!this.knownInputIds.has(input.key)) {
       throw new Error(`Input cannot be marked as incompatible because it's not registered.`);
     }
@@ -117,10 +130,7 @@ export class KnownInputs implements KnownFields<InputDescriptor> {
   }
 
   /** Marks the given class as incompatible for migration. */
-  markDirectiveAsIncompatible(
-    clazz: ts.ClassDeclaration,
-    incompatibility: ClassIncompatibilityReason,
-  ) {
+  markClassIncompatible(clazz: ts.ClassDeclaration, incompatibility: ClassIncompatibilityReason) {
     if (!this._classToDirectiveInfo.has(clazz)) {
       throw new Error(`Class cannot be marked as incompatible because it's not known.`);
     }
@@ -131,7 +141,31 @@ export class KnownInputs implements KnownFields<InputDescriptor> {
     return attemptRetrieveInputFromSymbol(this.programInfo, symbol, this)?.descriptor ?? null;
   }
 
-  shouldTrackReferencesToClass(clazz: ts.ClassDeclaration): boolean {
+  shouldTrackClassReference(clazz: ts.ClassDeclaration): boolean {
     return this.isInputContainingClass(clazz);
+  }
+
+  captureKnownFieldInheritanceRelationship(
+    derived: InputDescriptor,
+    parent: InputDescriptor,
+  ): void {
+    if (!this.has(derived)) {
+      throw new Error(`Expected input to exist in registry: ${derived.key}`);
+    }
+    this.get(derived)!.extendsFrom = parent;
+  }
+
+  captureUnknownDerivedField(field: InputDescriptor): void {
+    this.markFieldIncompatible(field, {
+      context: null,
+      reason: InputIncompatibilityReason.OverriddenByDerivedClass,
+    });
+  }
+
+  captureUnknownParentField(field: InputDescriptor): void {
+    this.markFieldIncompatible(field, {
+      context: null,
+      reason: InputIncompatibilityReason.TypeConflictWithBaseClass,
+    });
   }
 }

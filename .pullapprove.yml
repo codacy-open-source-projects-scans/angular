@@ -613,6 +613,7 @@ groups:
         - devversion
         - atscott
         - pkozlowski-opensource
+        - MarkTechson
         - ~JeanMeche
 
   # =========================================================
@@ -632,7 +633,7 @@ groups:
         - dgp1130
         - josephperrott
         - mgechev
-        - twerske
+        - MarkTechson
         - ~JeanMeche
 
   # =========================================================
@@ -681,10 +682,22 @@ groups:
           'tools/{*,.*}',
           '**/*.bzl'
           ])
+      - author not in ["angular-robot"]
     reviewers:
       users:
         - devversion
         - josephperrott
+
+  # =========================================================
+  #  Renovate Changes
+  # =========================================================
+  renovate-changes:
+    <<: *defaults
+    conditions:
+      - author in ["angular-robot"]
+    reviewers:
+      teams:
+        - framework-team
 
   # =========================================================
   #  Public API
