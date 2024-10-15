@@ -602,12 +602,12 @@ export class AppComponent {
         if (isAudi(car)) {
           console.log(car.__audi);
         }
-        const narrowableMultipleTimes = ctx.narrowableMultipleTimes();
-        if (!isCar(narrowableMultipleTimes!) || !isAudi(narrowableMultipleTimes)) {
+        const narrowableMultipleTimesValue = ctx.narrowableMultipleTimes();
+        if (!isCar(narrowableMultipleTimesValue!) || !isAudi(narrowableMultipleTimesValue)) {
           return;
         }
 
-        narrowableMultipleTimes.__audi;
+        narrowableMultipleTimesValue.__audi;
       }
 
       // iife
@@ -1134,7 +1134,7 @@ import {Input} from '@angular/core';
 
 class MyComp {
   // TODO: Skipped for migration because:
-  //  A jasmine `spyOn` call spies on this input. This breaks with signal inputs.
+  //  A jasmine `spyOn` call spies on this field. This breaks with signals.
   @Input() myInput = () => {};
 }
 
@@ -1248,6 +1248,69 @@ class TwoWayBinding {
   //  Your application code writes to the input. This prevents migration.
   @Input() inputC = false;
   readonly inputD = input(false);
+}
+@@@@@@ temporary_variables.ts @@@@@@
+
+// tslint:disable
+
+import {Directive, input} from '@angular/core';
+
+export class OtherCmp {
+  readonly name = input(false);
+}
+
+@Directive()
+export class MyComp {
+  readonly name = input('');
+  other: OtherCmp = null!;
+
+  click() {
+    const name = this.name();
+    if (name) {
+      console.error(name);
+    }
+
+    const nameValue = this.other.name();
+    if (nameValue) {
+      console.error(nameValue);
+    }
+  }
+}
+@@@@@@ ternary_narrowing.ts @@@@@@
+
+// tslint:disable
+
+import {Component, Input, input} from '@angular/core';
+
+@Component({
+  template: `
+    {{ narrowed ? narrowed.substring(0, 1) : 'Empty' }}
+    {{ justChecked() ? 'true' : 'false' }}
+
+    {{ other?.safeRead ? other.safeRead : 'Empty' }}
+    {{ other?.safeRead2 ? other?.safeRead2 : 'Empty' }}
+  `,
+})
+export class TernaryNarrowing {
+  // TODO: Skipped for migration because:
+  //  This input is used in a control flow expression (e.g. `@if` or `*ngIf`)
+  //  and migrating would break narrowing currently.
+  @Input() narrowed: string | undefined = undefined;
+  readonly justChecked = input(true);
+
+  other?: OtherComponent;
+}
+
+@Component({template: ''})
+export class OtherComponent {
+  // TODO: Skipped for migration because:
+  //  This input is used in a control flow expression (e.g. `@if` or `*ngIf`)
+  //  and migrating would break narrowing currently.
+  @Input() safeRead: string = '';
+  // TODO: Skipped for migration because:
+  //  This input is used in a control flow expression (e.g. `@if` or `*ngIf`)
+  //  and migrating would break narrowing currently.
+  @Input() safeRead2: string = '';
 }
 @@@@@@ transform_functions.ts @@@@@@
 

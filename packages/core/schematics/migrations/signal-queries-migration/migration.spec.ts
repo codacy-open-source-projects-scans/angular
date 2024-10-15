@@ -771,6 +771,47 @@ describe('signal queries migration', () => {
     `);
   });
 
+  it('should not update `toArray` function calls if query is incompatible', async () => {
+    const {fs} = await runTsurgeMigration(new SignalQueriesMigration(), [
+      {
+        name: absoluteFrom('/app.component.ts'),
+        isProgramRootFile: true,
+        contents: dedent`
+          import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+          @Component({
+            template: ''
+          })
+          class MyComp {
+            @ViewChildren('label') labels = new QueryList<ElementRef>();
+
+            click() {
+              this.labels.destroy();
+              this.labels.toArray().some(bla);
+            }
+          }
+        `,
+      },
+    ]);
+
+    const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+    expect(actual).toMatchWithDiff(`
+      import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+      @Component({
+        template: ''
+      })
+      class MyComp {
+        @ViewChildren('label') labels = new QueryList<ElementRef>();
+
+        click() {
+          this.labels.destroy();
+          this.labels.toArray().some(bla);
+        }
+      }
+    `);
+  });
+
   it('should replace `get` function calls for multi queries', async () => {
     const {fs} = await runTsurgeMigration(new SignalQueriesMigration(), [
       {
@@ -1205,6 +1246,219 @@ describe('signal queries migration', () => {
         }
       }
     `);
+  });
+
+  it('should preserve existing property comments', async () => {
+    const {fs} = await runTsurgeMigration(new SignalQueriesMigration(), [
+      {
+        name: absoluteFrom('/app.component.ts'),
+        isProgramRootFile: true,
+        contents: dedent`
+          import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+          @Component({
+            template: '',
+          })
+          class MyComp {
+            /** works */
+            @ViewChildren('label') labels = new QueryList<ElementRef>();
+          }
+        `,
+      },
+    ]);
+
+    const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+    expect(actual).toMatchWithDiff(`
+      import {ElementRef, Component, viewChildren} from '@angular/core';
+
+      @Component({
+        template: '',
+      })
+      class MyComp {
+        /** works */
+        readonly labels = viewChildren<ElementRef>('label');
+      }
+    `);
+  });
+
+  it('should not break at runtime if there is an invalid query', async () => {
+    await expectAsync(
+      runTsurgeMigration(new SignalQueriesMigration(), [
+        {
+          name: absoluteFrom('/app.component.ts'),
+          isProgramRootFile: true,
+          contents: dedent`
+          import {ContentChild, QueryList, ElementRef, Component} from '@angular/core';
+
+          @Component({
+            template: '',
+          })
+          class MyComp {
+            // missing predicate/selector.
+            @ContentChild() labels = new QueryList<ElementRef>();
+          }
+        `,
+        },
+      ]),
+    ).not.toBeRejected();
+  });
+
+  describe('--best-effort-mode', () => {
+    it('should be possible to forcibly migrate even with a detected `.changes` access', async () => {
+      const {fs} = await runTsurgeMigration(new SignalQueriesMigration({bestEffortMode: true}), [
+        {
+          name: absoluteFrom('/app.component.ts'),
+          isProgramRootFile: true,
+          contents: dedent`
+            import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+            @Component({
+              template: '',
+            })
+            class MyComp {
+              @ViewChildren('label') labels = new QueryList<ElementRef>();
+
+              click() {
+                this.labels.changes.subscribe();
+              }
+            }
+          `,
+        },
+      ]);
+
+      const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+      expect(actual).toMatchWithDiff(`
+        import {ElementRef, Component, viewChildren} from '@angular/core';
+
+        @Component({
+          template: '',
+        })
+        class MyComp {
+          readonly labels = viewChildren<ElementRef>('label');
+
+          click() {
+            this.labels().changes.subscribe();
+          }
+        }
+      `);
+    });
+
+    it(`should not forcibly migrate if it's an accessor field`, async () => {
+      const {fs} = await runTsurgeMigration(new SignalQueriesMigration({bestEffortMode: true}), [
+        {
+          name: absoluteFrom('/app.component.ts'),
+          isProgramRootFile: true,
+          contents: dedent`
+            import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+            @Component({
+              template: '',
+            })
+            class MyComp {
+              @ViewChildren('label')
+              set labels(list: QueryList<ElementRef>) {}
+            }
+          `,
+        },
+      ]);
+
+      const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+      expect(actual).toMatchWithDiff(`
+        import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+        @Component({
+          template: '',
+        })
+        class MyComp {
+          @ViewChildren('label')
+          set labels(list: QueryList<ElementRef>) {}
+        }
+      `);
+    });
+  });
+
+  describe('--insert-todos-for-skipped-fields', () => {
+    it('should add a TODO for queries accessing QueryList#changes', async () => {
+      const {fs} = await runTsurgeMigration(
+        new SignalQueriesMigration({insertTodosForSkippedFields: true}),
+        [
+          {
+            name: absoluteFrom('/app.component.ts'),
+            isProgramRootFile: true,
+            contents: dedent`
+              import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+              @Component({
+                template: '',
+              })
+              class MyComp {
+                @ViewChildren('label') labels = new QueryList<ElementRef>();
+
+                click() {
+                  this.labels.changes.subscribe();
+                }
+              }
+          `,
+          },
+        ],
+      );
+
+      const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+      expect(actual).toMatchWithDiff(`
+        import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+        @Component({
+          template: '',
+        })
+        class MyComp {
+          // TODO: Skipped for migration because:
+          //  There are references to this query that cannot be migrated automatically.
+          @ViewChildren('label') labels = new QueryList<ElementRef>();
+
+          click() {
+            this.labels.changes.subscribe();
+          }
+        }
+      `);
+    });
+
+    it(`should add a TODO for incompatible accessor fields`, async () => {
+      const {fs} = await runTsurgeMigration(
+        new SignalQueriesMigration({insertTodosForSkippedFields: true}),
+        [
+          {
+            name: absoluteFrom('/app.component.ts'),
+            isProgramRootFile: true,
+            contents: dedent`
+              import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+              @Component({
+                template: '',
+              })
+              class MyComp {
+                @ViewChildren('label')
+                set labels(list: QueryList<ElementRef>) {}
+              }
+          `,
+          },
+        ],
+      );
+
+      const actual = fs.readFile(absoluteFrom('/app.component.ts'));
+      expect(actual).toMatchWithDiff(`
+        import {ViewChildren, QueryList, ElementRef, Component} from '@angular/core';
+
+        @Component({
+          template: '',
+        })
+        class MyComp {
+          // TODO: Skipped for migration because:
+          //  Accessor queries cannot be migrated as they are too complex.
+          @ViewChildren('label')
+          set labels(list: QueryList<ElementRef>) {}
+        }
+      `);
+    });
   });
 });
 
