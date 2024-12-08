@@ -8,12 +8,14 @@
       "type": "array",
       "default": [
         "inputs",
+        "outputs",
         "queries"
       ],
       "items": {
         "type": "string",
         "enum": [
           "inputs",
+          "outputs",
           "queries"
         ]
       },
@@ -26,6 +28,10 @@
           {
             "value": "inputs",
             "label": "Convert `@Input` to the signal-based `input`"
+          },
+          {
+            "value": "outputs",
+            "label": "Convert `@Output` to the new `output` function"
           },
           {
             "value": "queries",

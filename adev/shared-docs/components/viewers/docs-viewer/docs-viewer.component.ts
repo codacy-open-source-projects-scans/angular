@@ -26,8 +26,7 @@ import {
   ViewContainerRef,
   ViewEncapsulation,
   ɵPendingTasks as PendingTasks,
-  EventEmitter,
-  Output,
+  output,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {TOC_SKIP_CONTENT_MARKER, NavigationState} from '../../../services/index';
@@ -55,7 +54,6 @@ export const GITHUB_CONTENT_URL =
 
 @Component({
   selector: DOCS_VIEWER_SELECTOR,
-  standalone: true,
   imports: [CommonModule],
   template: '',
   styleUrls: ['docs-viewer.component.scss'],
@@ -68,7 +66,7 @@ export const GITHUB_CONTENT_URL =
 export class DocViewer implements OnChanges {
   @Input() docContent?: string;
   @Input() hasToc = false;
-  @Output() contentLoaded = new EventEmitter<void>();
+  readonly contentLoaded = output<void>();
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
@@ -134,7 +132,7 @@ export class DocViewer implements OnChanges {
     // Render ToC
     this.renderTableOfContents(contentContainer);
 
-    this.contentLoaded.next();
+    this.contentLoaded.emit();
   }
 
   /**

@@ -181,6 +181,7 @@ import {
 import {getTemplateDiagnostics} from '../../../typecheck';
 import {JitDeclarationRegistry} from '../../common/src/jit_declaration_registry';
 import {extractHmrMetatadata, getHmrUpdateDeclaration} from '../../../hmr';
+import {getProjectRelativePath} from '../../../util/src/path';
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -258,6 +259,7 @@ export class ComponentDecoratorHandler
     private readonly i18nPreserveSignificantWhitespace: boolean,
     private readonly strictStandalone: boolean,
     private readonly enableHmr: boolean,
+    private readonly implicitStandaloneValue: boolean,
   ) {
     this.extractTemplateOptions = {
       enableI18nLegacyMessageIdFormat: this.enableI18nLegacyMessageIdFormat,
@@ -464,6 +466,7 @@ export class ComponentDecoratorHandler
       this.compilationMode,
       this.elementSchemaRegistry.getDefaultComponentElementName(),
       this.strictStandalone,
+      this.implicitStandaloneValue,
     );
     // `extractDirectiveMetadata` returns `jitForced = true` when the `@Component` has
     // set `jit: true`. In this case, compilation of the decorator is skipped. Returning
@@ -712,6 +715,11 @@ export class ComponentDecoratorHandler
           path: absoluteFrom(template.declaration.resolvedTemplateUrl),
           expression: template.sourceMapping.node,
         };
+    const relativeTemplatePath = getProjectRelativePath(
+      templateResource.path ?? ts.getOriginalNode(node).getSourceFile().fileName,
+      this.rootDirs,
+      this.compilerHost,
+    );
 
     // Figure out the set of styles. The ordering here is important: external resources (styleUrls)
     // precede inline styles, and styles defined in the template override styles defined in the
@@ -866,6 +874,7 @@ export class ComponentDecoratorHandler
           i18nUseExternalIds: this.i18nUseExternalIds,
           relativeContextFilePath,
           rawImports: rawImports !== null ? new o.WrappedNodeExpr(rawImports) : undefined,
+          relativeTemplatePath,
         },
         typeCheckMeta: extractDirectiveTypeCheckMeta(node, inputs, this.reflector),
         classMetadata: this.includeClassMetadata

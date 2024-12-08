@@ -245,11 +245,6 @@ export interface DehydratedView {
    * removed from the DOM during hydration cleanup.
    */
   dehydratedIcuData?: Map<number, DehydratedIcuData>;
-
-  /**
-   * A mapping of defer block unique ids to the defer block data
-   */
-  dehydratedDeferBlockData?: Record<string, SerializedDeferBlock>;
 }
 
 /**
@@ -279,4 +274,21 @@ export interface DehydratedIcuData {
    * AST to be used to clean up dehydrated nodes.
    */
   node: I18nICUNode;
+}
+
+/**
+ * Summarizes the presence of specific types of triggers anywhere in the DOM
+ */
+export interface BlockSummary {
+  data: SerializedDeferBlock;
+  hydrate: {idle: boolean; immediate: boolean; viewport: boolean; timer: number | null};
+}
+
+/**
+ * The details of a specific element's trigger and how it is associated to a block
+ */
+export interface ElementTrigger {
+  el: HTMLElement;
+  blockName: string;
+  delay?: number;
 }

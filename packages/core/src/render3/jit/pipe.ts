@@ -13,11 +13,10 @@ import {
 } from '../../compiler/compiler_facade';
 import {reflectDependencies} from '../../di/jit/util';
 import {Type} from '../../interface/type';
-import {Pipe} from '../../metadata/directives';
+import type {Pipe} from '../../metadata/directives';
 import {NG_FACTORY_DEF, NG_PIPE_DEF} from '../fields';
 
 import {angularCoreEnv} from './environment';
-import {NG_STANDALONE_DEFAULT_VALUE} from '../standalone-default-value';
 
 export function compilePipe(type: Type<any>, meta: Pipe): void {
   let ngPipeDef: any = null;
@@ -74,6 +73,6 @@ function getPipeMetadata(type: Type<any>, meta: Pipe): R3PipeMetadataFacade {
     name: type.name,
     pipeName: meta.name,
     pure: meta.pure !== undefined ? meta.pure : true,
-    isStandalone: meta.standalone === undefined ? NG_STANDALONE_DEFAULT_VALUE : !!meta.standalone,
+    isStandalone: meta.standalone === undefined ? true : !!meta.standalone,
   };
 }

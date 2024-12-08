@@ -6,13 +6,13 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
+import {TracingService} from '../../application/tracing';
 import {assertInInjectionContext} from '../../di';
 import {Injector} from '../../di/injector';
 import {inject} from '../../di/injector_compatibility';
 import {DestroyRef} from '../../linker/destroy_ref';
 import {performanceMarkFeature} from '../../util/performance';
 import {assertNotInReactiveContext} from '../reactivity/asserts';
-import {isPlatformBrowser} from '../util/misc_utils';
 import {AfterRenderPhase, AfterRenderRef} from './api';
 import {
   AfterRenderHooks,
@@ -55,7 +55,7 @@ export interface AfterRenderOptions {
   /**
    * The phase the callback should be invoked in.
    *
-   * <div class="alert is-critical">
+   * <div class="docs-alert docs-alert-critical">
    *
    * Defaults to `AfterRenderPhase.MixedReadWrite`. You should choose a more specific
    * phase instead. See `AfterRenderPhase` for more information.
@@ -83,7 +83,7 @@ export interface AfterRenderOptions {
  * - `read`
  *    Use this phase to **read** from the DOM. **Never** write to the DOM in this phase.
  *
- * <div class="alert is-critical">
+ * <div class="docs-alert docs-alert-critical">
  *
  * You should prefer using the `read` and `write` phases over the `earlyRead` and `mixedReadWrite`
  * phases when possible, to avoid performance degradation.
@@ -110,7 +110,7 @@ export interface AfterRenderOptions {
  * manual DOM access, ensuring the best experience for the end users of your application
  * or library.
  *
- * <div class="alert is-important">
+ * <div class="docs-alert docs-alert-important">
  *
  * Components are not guaranteed to be [hydrated](guide/hydration) before the callback runs.
  * You must use caution when directly reading or writing the DOM and layout.
@@ -125,7 +125,7 @@ export interface AfterRenderOptions {
  * Use `afterRender` to read or write the DOM after each render.
  *
  * ### Example
- * ```ts
+ * ```angular-ts
  * @Component({
  *   selector: 'my-cmp',
  *   template: `<span #content>{{ ... }}</span>`,
@@ -159,7 +159,7 @@ export function afterRender<E = never, W = never, M = never>(
  * Register a callback to be invoked each time the application finishes rendering, during the
  * `mixedReadWrite` phase.
  *
- * <div class="alert is-critical">
+ * <div class="docs-alert docs-alert-critical">
  *
  * You should prefer specifying an explicit phase for the callback instead, or you risk significant
  * performance degradation.
@@ -172,7 +172,7 @@ export function afterRender<E = never, W = never, M = never>(
  * - on browser platforms only
  * - during the `mixedReadWrite` phase
  *
- * <div class="alert is-important">
+ * <div class="docs-alert docs-alert-important">
  *
  * Components are not guaranteed to be [hydrated](guide/hydration) before the callback runs.
  * You must use caution when directly reading or writing the DOM and layout.
@@ -187,7 +187,7 @@ export function afterRender<E = never, W = never, M = never>(
  * Use `afterRender` to read or write the DOM after each render.
  *
  * ### Example
- * ```ts
+ * ```angular-ts
  * @Component({
  *   selector: 'my-cmp',
  *   template: `<span #content>{{ ... }}</span>`,
@@ -230,7 +230,7 @@ export function afterRender(
   !options?.injector && assertInInjectionContext(afterRender);
   const injector = options?.injector ?? inject(Injector);
 
-  if (!isPlatformBrowser(injector)) {
+  if (typeof ngServerMode !== 'undefined' && ngServerMode) {
     return NOOP_AFTER_RENDER_REF;
   }
 
@@ -254,7 +254,7 @@ export function afterRender(
  * - `read`
  *    Use this phase to **read** from the DOM. **Never** write to the DOM in this phase.
  *
- * <div class="alert is-critical">
+ * <div class="docs-alert docs-alert-critical">
  *
  * You should prefer using the `read` and `write` phases over the `earlyRead` and `mixedReadWrite`
  * phases when possible, to avoid performance degradation.
@@ -281,7 +281,7 @@ export function afterRender(
  * manual DOM access, ensuring the best experience for the end users of your application
  * or library.
  *
- * <div class="alert is-important">
+ * <div class="docs-alert docs-alert-important">
  *
  * Components are not guaranteed to be [hydrated](guide/hydration) before the callback runs.
  * You must use caution when directly reading or writing the DOM and layout.
@@ -297,7 +297,7 @@ export function afterRender(
  * for example to initialize a non-Angular library.
  *
  * ### Example
- * ```ts
+ * ```angular-ts
  * @Component({
  *   selector: 'my-chart-cmp',
  *   template: `<div #chart>{{ ... }}</div>`,
@@ -332,7 +332,7 @@ export function afterNextRender<E = never, W = never, M = never>(
  * Register a callback to be invoked the next time the application finishes rendering, during the
  * `mixedReadWrite` phase.
  *
- * <div class="alert is-critical">
+ * <div class="docs-alert docs-alert-critical">
  *
  * You should prefer specifying an explicit phase for the callback instead, or you risk significant
  * performance degradation.
@@ -344,7 +344,7 @@ export function afterNextRender<E = never, W = never, M = never>(
  * - on browser platforms only
  * - during the `mixedReadWrite` phase
  *
- * <div class="alert is-important">
+ * <div class="docs-alert docs-alert-important">
  *
  * Components are not guaranteed to be [hydrated](guide/hydration) before the callback runs.
  * You must use caution when directly reading or writing the DOM and layout.
@@ -360,7 +360,7 @@ export function afterNextRender<E = never, W = never, M = never>(
  * for example to initialize a non-Angular library.
  *
  * ### Example
- * ```ts
+ * ```angular-ts
  * @Component({
  *   selector: 'my-chart-cmp',
  *   template: `<div #chart>{{ ... }}</div>`,
@@ -400,7 +400,7 @@ export function afterNextRender(
   !options?.injector && assertInInjectionContext(afterNextRender);
   const injector = options?.injector ?? inject(Injector);
 
-  if (!isPlatformBrowser(injector)) {
+  if (typeof ngServerMode !== 'undefined' && ngServerMode) {
     return NOOP_AFTER_RENDER_REF;
   }
 
@@ -455,6 +455,8 @@ function afterRenderImpl(
   // tree-shaken if `afterRender` and `afterNextRender` aren't used.
   manager.impl ??= injector.get(AfterRenderImpl);
 
+  const tracing = injector.get(TracingService, null, {optional: true});
+
   const hooks = options?.phase ?? AfterRenderPhase.MixedReadWrite;
   const destroyRef = options?.manualCleanup !== true ? injector.get(DestroyRef) : null;
   const sequence = new AfterRenderSequence(
@@ -462,6 +464,7 @@ function afterRenderImpl(
     getHooks(callbackOrSpec, hooks),
     once,
     destroyRef,
+    tracing?.snapshot(null),
   );
   manager.impl.register(sequence);
   return sequence;

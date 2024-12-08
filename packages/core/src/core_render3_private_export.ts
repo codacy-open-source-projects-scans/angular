@@ -176,7 +176,6 @@ export {
   ɵɵsetComponentScope,
   ɵɵsetNgModuleScope,
   ɵɵgetComponentDepsFactory,
-  ɵɵStandaloneFeature,
   ɵɵExternalStylesFeature,
   ɵɵstyleMap,
   ɵɵstyleMapInterpolate1,
@@ -250,6 +249,7 @@ export {
   ɵɵstoreLet,
   ɵɵreadContextLet,
   ɵɵreplaceMetadata,
+  ɵɵattachSourceLocations,
 } from './render3/index';
 export {CONTAINER_HEADER_OFFSET as ɵCONTAINER_HEADER_OFFSET} from './render3/interfaces/container';
 export {LContext as ɵLContext} from './render3/interfaces/context';
@@ -310,4 +310,3 @@ export {
 } from './render3/deps_tracker/deps_tracker';
 export {generateStandaloneInDeclarationsError as ɵgenerateStandaloneInDeclarationsError} from './render3/jit/module';
 export {getAsyncClassMetadataFn as ɵgetAsyncClassMetadataFn} from './render3/metadata';
-export {NG_STANDALONE_DEFAULT_VALUE as ɵNG_STANDALONE_DEFAULT_VALUE} from './render3/standalone-default-value';

@@ -41,7 +41,6 @@ import {
   Type,
   ViewEncapsulation,
   ɵPendingTasks as PendingTasks,
-  ɵwhenStable as whenStable,
   APP_INITIALIZER,
   inject,
   getPlatform,
@@ -574,10 +573,6 @@ class HiddenModule {}
       destroyPlatform();
     });
 
-    afterAll(() => {
-      destroyPlatform();
-    });
-
     it('should bootstrap', async () => {
       const platform = platformServer([
         {provide: INITIAL_CONFIG, useValue: {document: '<app></app>'}},
@@ -786,7 +781,7 @@ class HiddenModule {}
 
         const moduleRef = await platform.bootstrapModule(AsyncServerModule);
         const applicationRef = moduleRef.injector.get(ApplicationRef);
-        await whenStable(applicationRef);
+        await applicationRef.whenStable();
         // Note: the `ng-server-context` is not present in this output, since
         // `renderModule` or `renderApplication` functions are not used here.
         const expectedOutput =
@@ -955,12 +950,12 @@ class HiddenModule {}
           })
           class SimpleApp {}
 
-          const bootstrap = renderApplication(
+          const output = await renderApplication(
             getStandaloneBootstrapFn(SimpleApp, [provideClientHydration()]),
             {document: doc},
           );
+
           // HttpClient cache and DOM hydration are enabled by default.
-          const output = await bootstrap;
           expect(output).toContain(`<body><!--${SSR_CONTENT_INTEGRITY_MARKER}-->`);
         });
 

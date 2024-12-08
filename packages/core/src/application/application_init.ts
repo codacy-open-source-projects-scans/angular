@@ -15,7 +15,6 @@ import {
   InjectionToken,
   Injector,
   makeEnvironmentProviders,
-  Provider,
   runInInjectionContext,
 } from '../di';
 import {RuntimeError, RuntimeErrorCode} from '../errors';
@@ -36,7 +35,7 @@ import {isPromise, isSubscribable} from '../util/lang';
  *
  * Note that the provided initializer is run in the injection context.
  *
- * @deprecated from v18.1.0, use provideAppInitializer instead
+ * @deprecated from v19.0.0, use provideAppInitializer instead
  *
  * @see {@link ApplicationInitStatus}
  * @see {@link provideAppInitializer}
@@ -46,7 +45,7 @@ import {isPromise, isSubscribable} from '../util/lang';
  * The following example illustrates how to configure a multi-provider using `APP_INITIALIZER` token
  * and a function returning a promise.
  * ### Example with NgModule-based application
- * ```
+ * ```ts
  *  function initializeApp(): Promise<any> {
  *    const http = inject(HttpClient);
  *    return firstValueFrom(
@@ -70,7 +69,7 @@ import {isPromise, isSubscribable} from '../util/lang';
  * ```
  *
  * ### Example with standalone application
- * ```
+ * ```ts
  * function initializeApp() {
  *   const http = inject(HttpClient);
  *   return firstValueFrom(
@@ -100,7 +99,7 @@ import {isPromise, isSubscribable} from '../util/lang';
  * through DI.
  *
  * ### Example with NgModule-based application
- * ```
+ * ```ts
  * function initializeApp() {
  *   const http = inject(HttpClient);
  *   return firstValueFrom(
@@ -124,7 +123,7 @@ import {isPromise, isSubscribable} from '../util/lang';
  * ```
  *
  * ### Example with standalone application
- * ```
+ * ```ts
  * function initializeApp() {
  *   const http = inject(HttpClient);
  *   return firstValueFrom(
@@ -172,7 +171,7 @@ export const APP_INITIALIZER = new InjectionToken<
  * @usageNotes
  * The following example illustrates how to configure an initialization function using
  * `provideAppInitializer()`
- * ```
+ * ```ts
  * bootstrapApplication(App, {
  *   providers: [
  *     provideAppInitializer(() => {

@@ -6,14 +6,7 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {
-  Component,
-  destroyPlatform,
-  ErrorHandler,
-  getPlatform,
-  PLATFORM_ID,
-  Type,
-} from '@angular/core';
+import {Component, destroyPlatform, ErrorHandler, PLATFORM_ID, Type} from '@angular/core';
 import {
   withEventReplay,
   bootstrapApplication,
@@ -78,7 +71,7 @@ describe('event replay', () => {
   });
 
   beforeEach(() => {
-    if (getPlatform()) destroyPlatform();
+    destroyPlatform();
   });
 
   afterAll(() => {
@@ -143,7 +136,7 @@ describe('event replay', () => {
     const btn = doc.getElementById('btn')!;
     btn.click();
     const appRef = await hydrate(doc, AppComponent, {
-      hydrationFeatures: [withEventReplay()],
+      hydrationFeatures: () => [withEventReplay()],
     });
     appRef.tick();
     expect(onClickSpy).toHaveBeenCalled();
@@ -191,9 +184,9 @@ describe('event replay', () => {
     const inner = doc.getElementById('inner-button')!;
     outer.click();
     inner.click();
-    const appRef = await hydrate(doc, AppComponent, {
+    await hydrate(doc, AppComponent, {
       envProviders: [{provide: PLATFORM_ID, useValue: 'browser'}],
-      hydrationFeatures: [withEventReplay()],
+      hydrationFeatures: () => [withEventReplay()],
     });
     expect(outerOnClickSpy).toHaveBeenCalledBefore(innerOnClickSpy);
   });
@@ -221,8 +214,8 @@ describe('event replay', () => {
     expect(el.hasAttribute('jsaction')).toBeTrue();
     expect((el.firstChild as Element).hasAttribute('jsaction')).toBeTrue();
     resetTViewsFor(SimpleComponent);
-    const appRef = await hydrate(doc, SimpleComponent, {
-      hydrationFeatures: [withEventReplay()],
+    await hydrate(doc, SimpleComponent, {
+      hydrationFeatures: () => [withEventReplay()],
     });
     expect(el.hasAttribute('jsaction')).toBeFalse();
     expect((el.firstChild as Element).hasAttribute('jsaction')).toBeFalse();
@@ -273,9 +266,9 @@ describe('event replay', () => {
       resetTViewsFor(SimpleComponent);
       const bottomEl = doc.getElementById('bottom')!;
       bottomEl.click();
-      const appRef = await hydrate(doc, SimpleComponent, {
+      await hydrate(doc, SimpleComponent, {
         envProviders: [{provide: PLATFORM_ID, useValue: 'browser'}],
-        hydrationFeatures: [withEventReplay()],
+        hydrationFeatures: () => [withEventReplay()],
       });
       expect(onClickSpy).toHaveBeenCalledTimes(2);
       onClickSpy.calls.reset();
@@ -307,8 +300,8 @@ describe('event replay', () => {
       resetTViewsFor(SimpleComponent);
       const bottomEl = doc.getElementById('bottom')!;
       bottomEl.click();
-      const appRef = await hydrate(doc, SimpleComponent, {
-        hydrationFeatures: [withEventReplay()],
+      await hydrate(doc, SimpleComponent, {
+        hydrationFeatures: () => [withEventReplay()],
       });
       expect(onClickSpy).toHaveBeenCalledTimes(1);
       onClickSpy.calls.reset();
@@ -346,7 +339,7 @@ describe('event replay', () => {
       bottomEl.click();
       await hydrate(doc, SimpleComponent, {
         envProviders: [{provide: PLATFORM_ID, useValue: 'browser'}],
-        hydrationFeatures: [withEventReplay()],
+        hydrationFeatures: () => [withEventReplay()],
       });
       const replayedEvent = currentEvent;
       expect(replayedEvent.target).not.toBeNull();
@@ -401,7 +394,7 @@ describe('event replay', () => {
           // that has no events, but enables Event Replay feature.
           withStrictErrorHandler(),
         ],
-        hydrationFeatures: [withEventReplay()],
+        hydrationFeatures: () => [withEventReplay()],
       });
     });
 

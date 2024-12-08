@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {ChangeDetectorRef, Component, EventEmitter, OnDestroy, OnInit, Output} from '@angular/core';
+import {ChangeDetectorRef, Component, inject, OnDestroy, OnInit, output} from '@angular/core';
 
 import {Todo} from './todo';
 import {TodoFilter, TodosFilter} from './todos.pipe';
@@ -25,7 +25,6 @@ const fib = (n: number): number => {
 @Component({
   templateUrl: 'todos.component.html',
   selector: 'app-todos',
-  standalone: true,
   imports: [RouterLink, TodoComponent, TooltipDirective, SamplePipe, TodosFilter],
 })
 export class TodosComponent implements OnInit, OnDestroy {
@@ -42,13 +41,12 @@ export class TodosComponent implements OnInit, OnDestroy {
     },
   ];
 
-  @Output() update = new EventEmitter();
-  @Output() delete = new EventEmitter();
-  @Output() add = new EventEmitter();
+  readonly update = output<Todo>();
+  readonly delete = output<Todo>();
+  readonly add = output<Todo>();
 
   private hashListener!: EventListenerOrEventListenerObject;
-
-  constructor(private cdRef: ChangeDetectorRef) {}
+  private cdRef = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
     if (typeof window !== 'undefined') {

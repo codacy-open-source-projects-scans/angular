@@ -57,7 +57,7 @@
 version: 3
 
 availability:
-  users_unavailable: ['atscott']
+  users_unavailable: ['atscott', 'devversion']
 
 # Meta field that goes unused by PullApprove to allow for defining aliases to be
 # used throughout the config.
@@ -189,6 +189,7 @@ groups:
         - devversion
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   # =========================================================
   #  Framework: Common
@@ -208,6 +209,7 @@ groups:
         - atscott
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   # =========================================================
   #  Framework: Http
@@ -227,6 +229,7 @@ groups:
         - atscott
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   # =========================================================
   #  Framework: Elements
@@ -246,6 +249,7 @@ groups:
         - atscott
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   # =========================================================
   #  Framework: Forms
@@ -300,6 +304,7 @@ groups:
       - >
         contains_any_globs(files, [
           'packages/platform-server/**/{*,.*}',
+          'packages/ssr/**/{*,.*}',
           ])
     reviewers:
       users:
@@ -375,6 +380,7 @@ groups:
         - atscott
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   # =========================================================
   #  Framework: Benchmarks
@@ -536,6 +542,7 @@ groups:
         - atscott
         - thePunderWoman
         - josephperrott
+        - kirjs
 
   # =========================================================
   #  Docs: Packaging, Tooling, Releasing
@@ -603,6 +610,7 @@ groups:
         - pkozlowski-opensource
         - MarkTechson
         - ~JeanMeche
+        - kirjs
 
   # =========================================================
   #  Angular DevTools
@@ -633,7 +641,6 @@ groups:
       - >
         contains_any_globs(files.exclude('.pullapprove.yml'), [
           '{*,.*}',
-          '.circleci/**/{*,.*}',
           '.devcontainer/**/{*,.*}',
           '.github/**/{*,.*}',
           '.husky/**/{*,.*}',
@@ -684,6 +691,8 @@ groups:
     conditions:
       - author in ["angular-robot"]
     reviewers:
+      users:
+        - ~alan-agius4
       teams:
         - framework-team
 
@@ -707,6 +716,7 @@ groups:
         - ~jelbourn
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
         - ~iteriani
         - ~tbondwilkinson
         - ~rahatarmanahmed
@@ -732,6 +742,7 @@ groups:
         - alxhub
         - AndrewKushnir
         - atscott
+        - kirjs
         - ~jelbourn
         - thePunderWoman
         - pkozlowski-opensource
@@ -760,6 +771,7 @@ groups:
         - ~jelbourn
         - thePunderWoman
         - pkozlowski-opensource
+        - kirjs
 
   ####################################################################################
   #  Special Cases
@@ -824,7 +836,6 @@ groups:
         - eduhmc # Eduardo Huerta-Mercado
         - ehlemur # Edward Lesmes
         - ellenyuan # Ellen Yuan
-        - jatraman # Jatin Ramanathan
         - jesse-good # Jesse Costello-Good
         - mturco # Matt Turco
         - neonstalwart # Ben Hockey

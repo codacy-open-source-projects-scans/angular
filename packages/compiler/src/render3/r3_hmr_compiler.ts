@@ -21,15 +21,31 @@ export interface R3HmrMetadata {
   /** File path of the component class. */
   filePath: string;
 
-  /** Name under which `@angular/core` should be referred to in the compiled HMR code. */
-  coreName: string;
+  /**
+   * When the compiler generates new imports, they get produced as namespace imports
+   * (e.g. import * as i0 from '@angular/core'). These namespaces have to be captured and passed
+   * along to the update callback.
+   */
+  namespaceDependencies: R3HmrNamespaceDependency[];
 
   /**
    * HMR update functions cannot contain imports so any locals the generated code depends on
    * (e.g. references to imports within the same file or imported symbols) have to be passed in
    * as function parameters. This array contains the names of those local symbols.
    */
-  locals: string[];
+  localDependencies: string[];
+}
+
+/** HMR dependency on a namespace import. */
+export interface R3HmrNamespaceDependency {
+  /** Module name of the import. */
+  moduleName: string;
+
+  /**
+   * Name under which to refer to the namespace inside
+   * HMR-related code. Must be a valid JS identifier.
+   */
+  assignedName: string;
 }
 
 /**
@@ -41,34 +57,64 @@ export function compileHmrInitializer(meta: R3HmrMetadata): o.Expression {
   const urlPartial = `/@ng/component?c=${id}&t=`;
   const moduleName = 'm';
   const dataName = 'd';
-  const locals = meta.locals.map((localName) => o.variable(localName));
+  const timestampName = 't';
+  const importCallbackName = `${meta.className}_HmrLoad`;
+  const locals = meta.localDependencies.map((localName) => o.variable(localName));
+  const namespaces = meta.namespaceDependencies.map((dep) => {
+    return new o.ExternalExpr({moduleName: dep.moduleName, name: null});
+  });
 
-  // ɵɵreplaceMetadata(Comp, m.default, [...]);
-  const replaceMetadata = o
+  // m.default
+  const defaultRead = o.variable(moduleName).prop('default');
+
+  // ɵɵreplaceMetadata(Comp, m.default, [...namespaces], [...locals]);
+  const replaceCall = o
     .importExpr(R3.replaceMetadata)
-    .callFn([meta.type, o.variable(moduleName).prop('default'), o.literalArr(locals)]);
+    .callFn([meta.type, defaultRead, o.literalArr(namespaces), o.literalArr(locals)]);
 
-  // (m) => ɵɵreplaceMetadata(...)
-  const replaceCallback = o.arrowFn([new o.FnParam(moduleName)], replaceMetadata);
+  // (m) => m.default && ɵɵreplaceMetadata(...)
+  const replaceCallback = o.arrowFn([new o.FnParam(moduleName)], defaultRead.and(replaceCall));
 
-  // '<urlPartial>' + encodeURIComponent(d.timestamp)
+  // '<urlPartial>' + encodeURIComponent(t)
   const urlValue = o
     .literal(urlPartial)
-    .plus(o.variable('encodeURIComponent').callFn([o.variable(dataName).prop('timestamp')]));
+    .plus(o.variable('encodeURIComponent').callFn([o.variable(timestampName)]));
 
-  // import(/* @vite-ignore */ url).then(() => replaceMetadata(...));
-  // The vite-ignore special comment is required to avoid Vite from generating a superfluous
-  // warning for each usage within the development code. If Vite provides a method to
-  // programmatically avoid this warning in the future, this added comment can be removed here.
-  const dynamicImport = new o.DynamicImportExpr(urlValue, null, '@vite-ignore')
-    .prop('then')
-    .callFn([replaceCallback]);
-
-  // (d) => { if (d.id === <id>) { replaceMetadata(...) } }
-  const listenerCallback = o.arrowFn(
-    [new o.FnParam(dataName)],
-    [o.ifStmt(o.variable(dataName).prop('id').equals(o.literal(id)), [dynamicImport.toStmt()])],
+  // function Cmp_HmrLoad(t) {
+  //   import(/* @vite-ignore */ url).then((m) => m.default && replaceMetadata(...));
+  // }
+  const importCallback = new o.DeclareFunctionStmt(
+    importCallbackName,
+    [new o.FnParam(timestampName)],
+    [
+      // The vite-ignore special comment is required to prevent Vite from generating a superfluous
+      // warning for each usage within the development code. If Vite provides a method to
+      // programmatically avoid this warning in the future, this added comment can be removed here.
+      new o.DynamicImportExpr(urlValue, null, '@vite-ignore')
+        .prop('then')
+        .callFn([replaceCallback])
+        .toStmt(),
+    ],
+    null,
+    o.StmtModifier.Final,
   );
+
+  // (d) => d.id === <id> && Cmp_HmrLoad(d.timestamp)
+  const updateCallback = o.arrowFn(
+    [new o.FnParam(dataName)],
+    o
+      .variable(dataName)
+      .prop('id')
+      .identical(o.literal(id))
+      .and(o.variable(importCallbackName).callFn([o.variable(dataName).prop('timestamp')])),
+  );
+
+  // Cmp_HmrLoad(Date.now());
+  // Initial call to kick off the loading in order to avoid edge cases with components
+  // coming from lazy chunks that change before the chunk has loaded.
+  const initialCall = o
+    .variable(importCallbackName)
+    .callFn([o.variable('Date').prop('now').callFn([])]);
 
   // import.meta.hot
   const hotRead = o.variable('import').prop('meta').prop('hot');
@@ -77,10 +123,21 @@ export function compileHmrInitializer(meta: R3HmrMetadata): o.Expression {
   const hotListener = hotRead
     .clone()
     .prop('on')
-    .callFn([o.literal('angular:component-update'), listenerCallback]);
+    .callFn([o.literal('angular:component-update'), updateCallback]);
 
-  // import.meta.hot && import.meta.hot.on(...)
-  return o.arrowFn([], [devOnlyGuardedExpression(hotRead.and(hotListener)).toStmt()]).callFn([]);
+  return o
+    .arrowFn(
+      [],
+      [
+        // function Cmp_HmrLoad() {...}.
+        importCallback,
+        // ngDevMode && Cmp_HmrLoad(Date.now());
+        devOnlyGuardedExpression(initialCall).toStmt(),
+        // ngDevMode && import.meta.hot && import.meta.hot.on(...)
+        devOnlyGuardedExpression(hotRead.and(hotListener)).toStmt(),
+      ],
+    )
+    .callFn([]);
 }
 
 /**
@@ -95,11 +152,25 @@ export function compileHmrUpdateCallback(
   constantStatements: o.Statement[],
   meta: R3HmrMetadata,
 ): o.DeclareFunctionStmt {
-  // The class name should always be first and core should be second.
-  const params = [meta.className, meta.coreName, ...meta.locals].map(
+  const namespaces = 'ɵɵnamespaces';
+  const params = [meta.className, namespaces, ...meta.localDependencies].map(
     (name) => new o.FnParam(name, o.DYNAMIC_TYPE),
   );
-  const body: o.Statement[] = [...constantStatements];
+  const body: o.Statement[] = [];
+
+  // Declare variables that read out the individual namespaces.
+  for (let i = 0; i < meta.namespaceDependencies.length; i++) {
+    body.push(
+      new o.DeclareVarStmt(
+        meta.namespaceDependencies[i].assignedName,
+        o.variable(namespaces).key(o.literal(i)),
+        o.DYNAMIC_TYPE,
+        o.StmtModifier.Final,
+      ),
+    );
+  }
+
+  body.push(...constantStatements);
 
   for (const field of definitions) {
     if (field.initializer !== null) {

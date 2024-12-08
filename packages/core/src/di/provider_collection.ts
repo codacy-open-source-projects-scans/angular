@@ -8,7 +8,7 @@
 
 import {RuntimeError, RuntimeErrorCode} from '../errors';
 import {Type} from '../interface/type';
-import {getComponentDef} from '../render3/definition';
+import {getComponentDef} from '../render3/def_getters';
 import {getFactoryDef} from '../render3/definition_factory';
 import {throwCyclicDependencyError, throwInvalidProviderError} from '../render3/errors_di';
 import {stringifyForError} from '../render3/util/stringify_utils';
@@ -63,10 +63,10 @@ export function makeEnvironmentProviders(
  * @usageNotes
  * The following example illustrates how to configure an initialization function using
  * `provideEnvironmentInitializer()`
- * ```
+ * ```ts
  * createEnvironmentInjector(
  *   [
- *     provideEnvironmentInjector(() => {
+ *     provideEnvironmentInitializer(() => {
  *       console.log('environment initialized');
  *     }),
  *   ],
@@ -115,7 +115,7 @@ type WalkProviderTreeVisitor = (
  * @usageNotes
  * The results of the `importProvidersFrom` call can be used in the `bootstrapApplication` call:
  *
- * ```typescript
+ * ```ts
  * await bootstrapApplication(RootComponent, {
  *   providers: [
  *     importProvidersFrom(NgModuleOne, NgModuleTwo)
@@ -126,7 +126,7 @@ type WalkProviderTreeVisitor = (
  * You can also use the `importProvidersFrom` results in the `providers` field of a route, when a
  * standalone component is used:
  *
- * ```typescript
+ * ```ts
  * export const ROUTES: Route[] = [
  *   {
  *     path: 'foo',

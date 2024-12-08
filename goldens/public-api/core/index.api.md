@@ -134,6 +134,7 @@ export class ApplicationModule {
 
 // @public
 export class ApplicationRef {
+    constructor();
     attachView(viewRef: ViewRef): void;
     bootstrap<C>(component: Type<C>, rootSelectorOrNode?: string | any): ComponentRef<C>;
     // @deprecated
@@ -1123,12 +1124,12 @@ export class KeyValueDiffers {
     static ɵprov: unknown;
 }
 
-// @public (undocumented)
+// @public
 export function linkedSignal<D>(computation: () => D, options?: {
     equal?: ValueEqualityFn<NoInfer<D>>;
 }): WritableSignal<D>;
 
-// @public (undocumented)
+// @public
 export function linkedSignal<S, D>(options: {
     source: () => S;
     computation: (source: NoInfer<S>, previous?: {
@@ -1563,6 +1564,12 @@ export interface RendererType2 {
 }
 
 // @public
+export const REQUEST: InjectionToken<Request | null>;
+
+// @public
+export const REQUEST_CONTEXT: InjectionToken<unknown>;
+
+// @public
 export function resolveForwardRef<T>(type: T): T;
 
 // @public
@@ -1617,6 +1624,9 @@ export enum ResourceStatus {
     Reloading = 3,
     Resolved = 4
 }
+
+// @public
+export const RESPONSE_INIT: InjectionToken<ResponseInit | null>;
 
 // @public
 export function runInInjectionContext<ReturnT>(injector: Injector, fn: () => ReturnT): ReturnT;

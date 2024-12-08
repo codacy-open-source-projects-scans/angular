@@ -18,7 +18,7 @@ import {getDocument} from '../render3/interfaces/document';
  * (for example, using `bootstrapApplication` calls). In this case, ensure that those applications
  * have different `APP_ID` value setup. For example:
  *
- * ```
+ * ```ts
  * bootstrapApplication(ComponentA, {
  *   providers: [
  *     { provide: APP_ID, useValue: 'app-a' },
@@ -50,7 +50,7 @@ const DEFAULT_APP_ID = 'ng';
 /**
  * A function that is executed when a platform is initialized.
  *
- * @deprecated from v18.1.0, use providePlatformInitializer instead
+ * @deprecated from v19.0.0, use providePlatformInitializer instead
  *
  * @see {@link providePlatformInitializer}
  *

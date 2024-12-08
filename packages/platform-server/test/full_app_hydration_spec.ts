@@ -32,7 +32,6 @@ import {
   ElementRef,
   EnvironmentInjector,
   ErrorHandler,
-  getPlatform,
   inject,
   Input,
   NgZone,
@@ -46,12 +45,11 @@ import {
   ViewChild,
   ViewContainerRef,
   ViewEncapsulation,
-  ɵwhenStable as whenStable,
 } from '@angular/core';
 import {NoopNgZone} from '@angular/core/src/zone/ng_zone';
 import {TestBed} from '@angular/core/testing';
 import {clearTranslations, loadTranslations} from '@angular/localize';
-import {HydrationFeature, withI18nSupport} from '@angular/platform-browser';
+import {withI18nSupport} from '@angular/platform-browser';
 import {provideRouter, RouterOutlet, Routes} from '@angular/router';
 
 import {
@@ -83,7 +81,6 @@ import {
   withDebugConsole,
   withNoopErrorHandler,
   verifyEmptyConsole,
-  DebugConsole,
   clearConsole,
 } from './hydration_utils';
 
@@ -101,16 +98,18 @@ describe('platform-server full application hydration integration', () => {
         }
       }
     }
-    if (getPlatform()) destroyPlatform();
   });
 
-  afterAll(() => destroyPlatform());
+  afterEach(() => {
+    destroyPlatform();
+  });
 
   describe('hydration', () => {
     let doc: Document;
 
     beforeEach(() => {
       doc = TestBed.inject(DOCUMENT);
+      clearConsole(TestBed.inject(ApplicationRef));
     });
 
     afterEach(() => {
@@ -1302,7 +1301,7 @@ describe('platform-server full application hydration integration', () => {
             // because component host node also acted as a ViewContainerRef anchor,
             // thus there are elements after this node (as next siblings).
             const clientRootNode = compRef.location.nativeElement.parentNode;
-            await whenStable(appRef);
+            await appRef.whenStable();
 
             verifyAllChildNodesClaimedForHydration(clientRootNode);
             verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -1345,7 +1344,7 @@ describe('platform-server full application hydration integration', () => {
             // because component host node also acted as a ViewContainerRef anchor,
             // thus there are elements after this node (as next siblings).
             const clientRootNode = compRef.location.nativeElement.parentNode;
-            await whenStable(appRef);
+            await appRef.whenStable();
 
             verifyAllChildNodesClaimedForHydration(clientRootNode);
             verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -1458,7 +1457,7 @@ describe('platform-server full application hydration integration', () => {
             // because component host node also acted as a ViewContainerRef anchor,
             // thus there are elements after this node (as next siblings).
             const clientRootNode = compRef.location.nativeElement.parentNode;
-            await whenStable(appRef);
+            await appRef.whenStable();
 
             verifyAllChildNodesClaimedForHydration(clientRootNode);
             verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -1520,7 +1519,7 @@ describe('platform-server full application hydration integration', () => {
               // because component host node also acted as a ViewContainerRef anchor,
               // thus there are elements after this node (as next siblings).
               const clientRootNode = compRef.location.nativeElement.parentNode;
-              await whenStable(appRef);
+              await appRef.whenStable();
 
               verifyAllChildNodesClaimedForHydration(clientRootNode);
               verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -1581,7 +1580,7 @@ describe('platform-server full application hydration integration', () => {
               // because component host node also acted as a ViewContainerRef anchor,
               // thus there are elements after this node (as next siblings).
               const clientRootNode = compRef.location.nativeElement.parentNode;
-              await whenStable(appRef);
+              await appRef.whenStable();
 
               verifyAllChildNodesClaimedForHydration(clientRootNode);
               verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -1792,7 +1791,7 @@ describe('platform-server full application hydration integration', () => {
             vcr = inject(ViewContainerRef);
           }
 
-          const hydrationFeatures = [] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
 
           const ssrContents = getAppContents(html);
@@ -1813,7 +1812,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1832,7 +1831,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1848,7 +1847,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1865,7 +1864,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1884,7 +1883,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1921,7 +1920,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -1968,7 +1967,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
 
           const ssrContents = getAppContents(html);
@@ -2015,7 +2014,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2061,7 +2060,7 @@ describe('platform-server full application hydration integration', () => {
             count = 0;
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2115,7 +2114,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2154,7 +2153,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2197,7 +2196,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2240,7 +2239,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2283,7 +2282,7 @@ describe('platform-server full application hydration integration', () => {
             }
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2321,7 +2320,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2357,7 +2356,7 @@ describe('platform-server full application hydration integration', () => {
             case = 0;
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2390,7 +2389,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2421,7 +2420,7 @@ describe('platform-server full application hydration integration', () => {
             isServer = isPlatformServer(inject(PLATFORM_ID)) + '';
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           let ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2442,7 +2441,7 @@ describe('platform-server full application hydration integration', () => {
 
           const clientRootNode = compRef.location.nativeElement;
 
-          await whenStable(appRef);
+          await appRef.whenStable();
 
           const clientContents = stripExcessiveSpaces(
             stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -2464,7 +2463,7 @@ describe('platform-server full application hydration integration', () => {
             secondCase = 1;
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2509,7 +2508,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class AppComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(AppComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2547,7 +2546,7 @@ describe('platform-server full application hydration integration', () => {
           })
           class SimpleComponent {}
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2585,7 +2584,7 @@ describe('platform-server full application hydration integration', () => {
             items = [1, 2, 3];
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2624,7 +2623,7 @@ describe('platform-server full application hydration integration', () => {
             items = [1, 2, 3];
           }
 
-          const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+          const hydrationFeatures = () => [withI18nSupport()];
           const html = await ssr(SimpleComponent, {hydrationFeatures});
           const ssrContents = getAppContents(html);
           expect(ssrContents).toContain('<app ngh');
@@ -2671,7 +2670,7 @@ describe('platform-server full application hydration integration', () => {
             })
             class SimpleComponent {}
 
-            const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+            const hydrationFeatures = () => [withI18nSupport()];
             const html = await ssr(SimpleComponent, {hydrationFeatures});
             const ssrContents = getAppContents(html);
             expect(ssrContents).toContain('<app ngh');
@@ -2717,7 +2716,7 @@ describe('platform-server full application hydration integration', () => {
             })
             class SimpleComponent {}
 
-            const hydrationFeatures = [withI18nSupport()] as unknown as HydrationFeature<any>[];
+            const hydrationFeatures = () => [withI18nSupport()];
             const html = await ssr(SimpleComponent, {hydrationFeatures});
             const ssrContents = getAppContents(html);
             expect(ssrContents).toContain('<app ngh');
@@ -3037,7 +3036,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
 
@@ -3106,7 +3105,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
         verifyAllNodesClaimedForHydration(clientRootNode);
@@ -3157,7 +3156,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
         verifyAllNodesClaimedForHydration(clientRootNode);
@@ -3277,7 +3276,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
 
@@ -3355,7 +3354,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
 
@@ -4491,7 +4490,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -4538,7 +4537,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -4610,7 +4609,7 @@ describe('platform-server full application hydration integration', () => {
 
           const clientRootNode = compRef.location.nativeElement;
 
-          await whenStable(appRef);
+          await appRef.whenStable();
 
           const clientContents = stripExcessiveSpaces(
             stripUtilAttributes(clientRootNode.parentNode.outerHTML, false),
@@ -4671,7 +4670,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -4719,7 +4718,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         // Post-cleanup should *not* contain dehydrated views.
         const postCleanupContents = stripExcessiveSpaces(clientRootNode.outerHTML);
@@ -4793,7 +4792,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -4838,7 +4837,7 @@ describe('platform-server full application hydration integration', () => {
         expect(observedChildCountLog).toEqual([]);
 
         const appRef = await prepareEnvironmentAndHydrate(doc, html, SimpleComponent);
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         // afterRender should be triggered by:
         //   1.) Bootstrap
@@ -4892,7 +4891,7 @@ describe('platform-server full application hydration integration', () => {
         //   2.) Microtask empty event
         expect(observedChildCountLog).toEqual([2, 2]);
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         // afterRender should be triggered by:
         //   3.) Microtask empty event
@@ -7041,7 +7040,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -7123,7 +7122,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
         verifyAllNodesClaimedForHydration(clientRootNode);
@@ -7181,7 +7180,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -7230,7 +7229,7 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientContents = stripExcessiveSpaces(
           stripUtilAttributes(clientRootNode.outerHTML, false),
@@ -7351,7 +7350,7 @@ describe('platform-server full application hydration integration', () => {
           const compRef = getComponentRef<SimpleComponent>(appRef);
           appRef.tick();
 
-          await whenStable(appRef);
+          await appRef.whenStable();
 
           const clientRootNode = compRef.location.nativeElement;
 
@@ -7403,7 +7402,7 @@ describe('platform-server full application hydration integration', () => {
           const compRef = getComponentRef<SimpleComponent>(appRef);
           appRef.tick();
 
-          await whenStable(appRef);
+          await appRef.whenStable();
 
           const clientRootNode = compRef.location.nativeElement;
 
@@ -7451,7 +7450,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
 
@@ -7506,7 +7505,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const root: HTMLElement = compRef.location.nativeElement;
         const divs = root.querySelectorAll('div');
@@ -7829,6 +7828,46 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('foo');
       });
+
+      it('should handle let declaration inside a projected control flow node', async () => {
+        @Component({
+          selector: 'test',
+          template: 'Main: <ng-content/> Slot: <ng-content slot="foo"/>',
+        })
+        class TestComponent {}
+
+        @Component({
+          selector: 'app',
+          imports: [TestComponent],
+          template: `
+            <test>
+              @let a = 1;
+              @let b = a + 1;
+              <span foo>{{b}}</span>
+            </test>
+          `,
+        })
+        class SimpleComponent {}
+
+        const html = await ssr(SimpleComponent);
+        const ssrContents = getAppContents(html);
+
+        expect(ssrContents).toContain('<app ngh');
+        expect(ssrContents).toContain(
+          'Main: <!--ngtns--> Slot: <span foo="">2</span></test></app>',
+        );
+
+        resetTViewsFor(SimpleComponent);
+
+        const appRef = await prepareEnvironmentAndHydrate(doc, html, SimpleComponent);
+        const compRef = getComponentRef<SimpleComponent>(appRef);
+        appRef.tick();
+
+        const clientRootNode = compRef.location.nativeElement;
+        verifyAllNodesClaimedForHydration(clientRootNode);
+        verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
+        expect(clientRootNode.textContent).toContain('Main:  Slot: 2');
+      });
     });
 
     describe('zoneless', () => {
@@ -7930,7 +7969,70 @@ describe('platform-server full application hydration integration', () => {
 
         const clientRootNode = compRef.location.nativeElement;
 
-        await whenStable(appRef);
+        await appRef.whenStable();
+
+        verifyAllNodesClaimedForHydration(clientRootNode);
+        verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
+      });
+
+      it('should wait for lazy routes before triggering post-hydration cleanup in zoneless mode', async () => {
+        const ngZone = TestBed.inject(NgZone);
+
+        @Component({
+          standalone: true,
+          selector: 'lazy',
+          template: `LazyCmp content`,
+        })
+        class LazyCmp {}
+
+        const routes: Routes = [
+          {
+            path: '',
+            loadComponent: () => {
+              return ngZone.runOutsideAngular(() => {
+                return new Promise((resolve) => {
+                  setTimeout(() => resolve(LazyCmp), 100);
+                });
+              });
+            },
+          },
+        ];
+
+        @Component({
+          standalone: true,
+          selector: 'app',
+          imports: [RouterOutlet],
+          template: `
+            Works!
+            <router-outlet />
+          `,
+        })
+        class SimpleComponent {}
+
+        const envProviders = [
+          provideExperimentalZonelessChangeDetection(),
+          {provide: PlatformLocation, useClass: MockPlatformLocation},
+          provideRouter(routes),
+        ] as unknown as Provider[];
+        const html = await ssr(SimpleComponent, {envProviders});
+        const ssrContents = getAppContents(html);
+
+        expect(ssrContents).toContain(`<app ${NGH_ATTR_NAME}`);
+
+        // Expect serialization to happen once a lazy-loaded route completes loading
+        // and a lazy component is rendered.
+        expect(ssrContents).toContain(`<lazy ${NGH_ATTR_NAME}="0">LazyCmp content</lazy>`);
+
+        resetTViewsFor(SimpleComponent, LazyCmp);
+
+        const appRef = await prepareEnvironmentAndHydrate(doc, html, SimpleComponent, {
+          envProviders,
+        });
+        const compRef = getComponentRef<SimpleComponent>(appRef);
+        appRef.tick();
+
+        const clientRootNode = compRef.location.nativeElement;
+        await appRef.whenStable();
 
         verifyAllNodesClaimedForHydration(clientRootNode);
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
@@ -7989,7 +8091,7 @@ describe('platform-server full application hydration integration', () => {
         const compRef = getComponentRef<SimpleComponent>(appRef);
         appRef.tick();
 
-        await whenStable(appRef);
+        await appRef.whenStable();
 
         const clientRootNode = compRef.location.nativeElement;
 

@@ -13,7 +13,7 @@ import {platform} from 'os';
 import ts from 'typescript';
 
 import {ErrorCode, ngErrorCode} from '../../src/ngtsc/diagnostics';
-import {absoluteFrom, NgtscCompilerHost} from '../../src/ngtsc/file_system';
+import {absoluteFrom} from '../../src/ngtsc/file_system';
 import {runInEachFileSystem} from '../../src/ngtsc/file_system/testing';
 import {loadStandardTestFiles} from '../../src/ngtsc/testing';
 import {
@@ -1215,6 +1215,43 @@ runInEachFileSystem((os: string) => {
       );
     });
 
+    it(
+      'should not throw, but issue a diagnostic when an `NgModule` from `d.ts` references ' +
+        'non-existent classes',
+      () => {
+        env.tsconfig();
+        env.write(
+          'test.ts',
+          `
+          import {NgModule} from '@angular/core';
+          import {MyModule} from './lib';
+
+          @NgModule({
+            imports: [MyModule],
+          })
+          export class Mod {}
+        `,
+        );
+        env.write(
+          'lib.d.ts',
+          `
+          import * as i0 from '@angular/core';
+          import {InvalidRef} from 'other-lib';
+
+          export declare class MyModule {
+            static ɵmod: i0.ɵɵNgModuleDeclaration<Module, [], never, [typeof InvalidRef]>
+          }
+        `,
+        );
+
+        const diagnostics = env.driveDiagnostics();
+        expect(diagnostics.length).toBe(1);
+        expect(diagnostics[0].messageText).toBe(
+          'This import contains errors, which may affect components that depend on this NgModule.',
+        );
+      },
+    );
+
     it('should respect imported module order while processing Directives and Components', () => {
       env.tsconfig({});
       env.write(
@@ -1401,7 +1438,7 @@ runInEachFileSystem((os: string) => {
 
       const jsContents = env.getContents('test.js');
       expect(jsContents).toContain(
-        'i0.ɵɵdefineDirective({ type: TestBase, inputs: { input: "input" }, standalone: true });',
+        'i0.ɵɵdefineDirective({ type: TestBase, inputs: { input: "input" } });',
       );
 
       const dtsContents = env.getContents('test.d.ts');
@@ -2112,7 +2149,7 @@ runInEachFileSystem((os: string) => {
       const dtsContents = env.getContents('test.d.ts');
 
       expect(jsContents).toContain(
-        'TestPipe.ɵpipe = /*@__PURE__*/ i0.ɵɵdefinePipe({ name: "test-pipe", type: TestPipe, pure: false })',
+        'TestPipe.ɵpipe = /*@__PURE__*/ i0.ɵɵdefinePipe({ name: "test-pipe", type: TestPipe, pure: false, standalone: false })',
       );
       expect(jsContents).toContain(
         'TestPipe.ɵfac = function TestPipe_Factory(__ngFactoryType__) { return new (__ngFactoryType__ || TestPipe)(); }',
@@ -2143,7 +2180,7 @@ runInEachFileSystem((os: string) => {
       const dtsContents = env.getContents('test.d.ts');
 
       expect(jsContents).toContain(
-        'TestPipe.ɵpipe = /*@__PURE__*/ i0.ɵɵdefinePipe({ name: "test-pipe", type: TestPipe, pure: true })',
+        'TestPipe.ɵpipe = /*@__PURE__*/ i0.ɵɵdefinePipe({ name: "test-pipe", type: TestPipe, pure: true, standalone: false })',
       );
       expect(jsContents).toContain(
         'TestPipe.ɵfac = function TestPipe_Factory(__ngFactoryType__) { return new (__ngFactoryType__ || TestPipe)(); }',
@@ -5077,9 +5114,7 @@ runInEachFileSystem((os: string) => {
       );
 
       const errors = env.driveDiagnostics();
-      expect(getDiagnosticSourceCode(errors[0])).toBe(`{
-            '(click)': 'act() | pipe',
-          }`);
+      expect(getDiagnosticSourceCode(errors[0])).toBe(`'act() | pipe'`);
       expect(errors[0].messageText).toContain('/test.ts@7:17');
     });
 
@@ -5121,10 +5156,12 @@ runInEachFileSystem((os: string) => {
             class FooCmp {}
          `,
       );
-      const errors = env.driveDiagnostics();
-      expect(trim(errors[0].messageText as string)).toContain(
+      const diags = env.driveDiagnostics();
+      expect(diags.length).toBe(1);
+      expect(trim(diags[0].messageText as string)).toContain(
         'Host binding expression cannot contain pipes',
       );
+      expect(getDiagnosticSourceCode(diags[0])).toBe(`'id | myPipe'`);
     });
 
     it('should generate host bindings for directives', () => {
@@ -5851,6 +5888,7 @@ runInEachFileSystem((os: string) => {
         MyComp.ɵcmp = /*@__PURE__*/ i0.ɵɵdefineComponent({
           type: MyComp,
           selectors: [["comp"]],
+          standalone: false,
           decls: 1,
           vars: 0,
           template: function MyComp_Template(rf, ctx) {
@@ -10469,9 +10507,7 @@ runInEachFileSystem((os: string) => {
         const dtsContents = env.getContents('test.d.ts');
 
         expect(jsContents).toContain('inputs: { value: [2, "value", "value", toNumber] }');
-        expect(jsContents).toContain(
-          'features: [i0.ɵɵInputTransformsFeature, i0.ɵɵStandaloneFeature]',
-        );
+        expect(jsContents).toContain('features: [i0.ɵɵInputTransformsFeature]');
         expect(dtsContents).toContain('static ngAcceptInputType_value: boolean | string;');
       });
 
@@ -10927,6 +10963,121 @@ runInEachFileSystem((os: string) => {
         expect(emitSkipped).toBe(false);
 
         expect(env.getContents('/test.js')).toContain(`* @fileoverview Closure comment`);
+      });
+    });
+
+    describe('standalone by default opt-out', () => {
+      it('should consider declarations as standalone by default', () => {
+        env.write(
+          '/test.ts',
+          `
+            import {Directive, Component, Pipe, NgModule} from '@angular/core';
+
+            @Directive()
+            export class TestDir {}
+
+            @Component({template: ''})
+            export class TestComp {}
+
+            @Pipe({name: 'test'})
+            export class TestPipe {}
+
+            @NgModule({
+              declarations: [TestDir, TestComp, TestPipe]
+            })
+            export class TestModule {}
+          `,
+        );
+
+        const diags = env.driveDiagnostics();
+        expect(diags.length).toBe(3);
+        expect(diags[0].messageText).toContain(
+          'Directive TestDir is standalone, and cannot be declared in an NgModule.',
+        );
+        expect(diags[1].messageText).toContain(
+          'Component TestComp is standalone, and cannot be declared in an NgModule.',
+        );
+        expect(diags[2].messageText).toContain(
+          'Pipe TestPipe is standalone, and cannot be declared in an NgModule.',
+        );
+      });
+
+      it('should consider declarations as standalone by default in v19 pre-release versions', () => {
+        env.tsconfig({
+          _angularCoreVersion: '19.1.0-next.0',
+        });
+
+        env.write(
+          '/test.ts',
+          `
+            import {Directive, Component, Pipe, NgModule} from '@angular/core';
+
+            @Directive()
+            export class TestDir {}
+
+            @Component({template: ''})
+            export class TestComp {}
+
+            @Pipe({name: 'test'})
+            export class TestPipe {}
+
+            @NgModule({
+              declarations: [TestDir, TestComp, TestPipe]
+            })
+            export class TestModule {}
+          `,
+        );
+
+        const diags = env.driveDiagnostics();
+        expect(diags.length).toBe(3);
+        expect(diags[0].messageText).toContain(
+          'Directive TestDir is standalone, and cannot be declared in an NgModule.',
+        );
+        expect(diags[1].messageText).toContain(
+          'Component TestComp is standalone, and cannot be declared in an NgModule.',
+        );
+        expect(diags[2].messageText).toContain(
+          'Pipe TestPipe is standalone, and cannot be declared in an NgModule.',
+        );
+      });
+
+      it('should disable standalone by default on versions older than 19', () => {
+        env.tsconfig({
+          _angularCoreVersion: '18.2.10',
+        });
+
+        env.write(
+          '/test.ts',
+          `
+            import {Directive, Component, Pipe, NgModule} from '@angular/core';
+
+            @Directive()
+            export class TestDir {}
+
+            @Component({template: ''})
+            export class TestComp {}
+
+            @Pipe({name: 'test'})
+            export class TestPipe {}
+
+            @NgModule({
+              imports: [TestDir, TestComp, TestPipe]
+            })
+            export class TestModule {}
+          `,
+        );
+
+        const diags = env.driveDiagnostics();
+        expect(diags.length).toBe(3);
+        expect(diags[0].messageText).toContain(
+          `The directive 'TestDir' appears in 'imports', but is not standalone`,
+        );
+        expect(diags[1].messageText).toContain(
+          `The component 'TestComp' appears in 'imports', but is not standalone`,
+        );
+        expect(diags[2].messageText).toContain(
+          `The pipe 'TestPipe' appears in 'imports', but is not standalone`,
+        );
       });
     });
   });

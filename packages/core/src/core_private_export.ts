@@ -7,16 +7,18 @@
  */
 
 export {setAlternateWeakRefImpl as ɵsetAlternateWeakRefImpl} from '../primitives/signals';
-export {
-  detectChangesInViewIfRequired as ɵdetectChangesInViewIfRequired,
-  whenStable as ɵwhenStable,
-} from './application/application_ref';
+export {detectChangesInViewIfRequired as ɵdetectChangesInViewIfRequired} from './application/application_ref';
 export {INTERNAL_APPLICATION_ERROR_HANDLER as ɵINTERNAL_APPLICATION_ERROR_HANDLER} from './error_handler';
 export {
   IMAGE_CONFIG as ɵIMAGE_CONFIG,
   IMAGE_CONFIG_DEFAULTS as ɵIMAGE_CONFIG_DEFAULTS,
   ImageConfig as ɵImageConfig,
 } from './application/application_tokens';
+export {
+  TracingAction as ɵTracingAction,
+  TracingService as ɵTracingService,
+  TracingSnapshot as ɵTracingSnapshot,
+} from './application/tracing';
 export {internalCreateApplication as ɵinternalCreateApplication} from './application/create_application';
 export {
   defaultIterableDiffers as ɵdefaultIterableDiffers,
@@ -37,10 +39,8 @@ export {
   DeferBlockDetails as ɵDeferBlockDetails,
   getDeferBlocks as ɵgetDeferBlocks,
 } from './defer/discovery';
-export {
-  renderDeferBlockState as ɵrenderDeferBlockState,
-  triggerResourceLoading as ɵtriggerResourceLoading,
-} from './defer/instructions';
+export {renderDeferBlockState as ɵrenderDeferBlockState} from './defer/rendering';
+export {triggerResourceLoading as ɵtriggerResourceLoading} from './defer/triggering';
 export {
   DeferBlockBehavior as ɵDeferBlockBehavior,
   DeferBlockConfig as ɵDeferBlockConfig,

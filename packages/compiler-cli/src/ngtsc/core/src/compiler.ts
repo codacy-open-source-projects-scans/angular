@@ -391,6 +391,7 @@ export class NgCompiler {
   private readonly enableLetSyntax: boolean;
   private readonly angularCoreVersion: string | null;
   private readonly enableHmr: boolean;
+  private readonly implicitStandaloneValue: boolean;
 
   /**
    * `NgCompiler` can be reused for multiple compilations (for resource-only changes), and each
@@ -455,6 +456,7 @@ export class NgCompiler {
     readonly usePoisonedData: boolean,
     private livePerfRecorder: ActivePerfRecorder,
   ) {
+    this.angularCoreVersion = options['_angularCoreVersion'] ?? null;
     this.delegatingPerfRecorder = new DelegatingPerfRecorder(this.perfRecorder);
     this.usePoisonedData = usePoisonedData || !!options._compilePoisonedComponents;
     this.enableTemplateTypeChecker =
@@ -462,7 +464,12 @@ export class NgCompiler {
     // TODO(crisbeto): remove this flag and base `enableBlockSyntax` on the `angularCoreVersion`.
     this.enableBlockSyntax = options['_enableBlockSyntax'] ?? true;
     this.enableLetSyntax = options['_enableLetSyntax'] ?? true;
-    this.angularCoreVersion = options['_angularCoreVersion'] ?? null;
+    // Standalone by default is enabled since v19. We need to toggle it here,
+    // because the language service extension may be running with the latest
+    // version of the compiler against an older version of Angular.
+    this.implicitStandaloneValue =
+      this.angularCoreVersion === null ||
+      coreVersionSupportsFeature(this.angularCoreVersion, '>= 19.0.0');
     this.enableHmr = !!options['_enableHmr'];
     this.constructionDiagnostics.push(
       ...this.adapter.constructionDiagnostics,
@@ -1020,6 +1027,7 @@ export class NgCompiler {
     const strictTemplates = !!this.options.strictTemplates;
 
     const useInlineTypeConstructors = this.programDriver.supportsInlineOperations;
+    const checkTwoWayBoundEvents = this.options['_checkTwoWayBoundEvents'] ?? false;
 
     // Check whether the loaded version of `@angular/core` in the `ts.Program` supports unwrapping
     // writable signals for type-checking. If this check fails to find a suitable .d.ts file, fall
@@ -1029,7 +1037,7 @@ export class NgCompiler {
     let allowSignalsInTwoWayBindings =
       coreHasSymbol(this.inputProgram, R3Identifiers.unwrapWritableSignal) ??
       (this.angularCoreVersion === null ||
-        coreVersionSupportsFeature(this.angularCoreVersion, '>= 17.2.0-0'));
+        coreVersionSupportsFeature(this.angularCoreVersion, '>= 17.2.0'));
 
     // First select a type-checking configuration, based on whether full template type-checking is
     // requested.
@@ -1073,6 +1081,7 @@ export class NgCompiler {
         unusedStandaloneImports:
           this.options.extendedDiagnostics?.defaultCategory || DiagnosticCategoryLabel.Warning,
         allowSignalsInTwoWayBindings,
+        checkTwoWayBoundEvents,
       };
     } else {
       typeCheckingConfig = {
@@ -1107,6 +1116,7 @@ export class NgCompiler {
         unusedStandaloneImports:
           this.options.extendedDiagnostics?.defaultCategory || DiagnosticCategoryLabel.Warning,
         allowSignalsInTwoWayBindings,
+        checkTwoWayBoundEvents,
       };
     }
 
@@ -1494,6 +1504,7 @@ export class NgCompiler {
         this.options.i18nPreserveWhitespaceForLegacyExtraction ?? true,
         !!this.options.strictStandalone,
         this.enableHmr,
+        this.implicitStandaloneValue,
       ),
 
       // TODO(alxhub): understand why the cast here is necessary (something to do with `null`
@@ -1517,6 +1528,7 @@ export class NgCompiler {
         compilationMode,
         jitDeclarationRegistry,
         !!this.options.strictStandalone,
+        this.implicitStandaloneValue,
       ) as Readonly<DecoratorHandler<unknown, unknown, SemanticSymbol | null, unknown>>,
       // Pipe handler must be before injectable handler in list so pipe factories are printed
       // before injectable factories (so injectable factories can delegate to them)
@@ -1532,6 +1544,7 @@ export class NgCompiler {
         compilationMode,
         !!this.options.generateExtraImportsInLocalMode,
         !!this.options.strictStandalone,
+        this.implicitStandaloneValue,
       ),
       new InjectableDecoratorHandler(
         reflector,

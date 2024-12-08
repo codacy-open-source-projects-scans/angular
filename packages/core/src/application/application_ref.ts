@@ -7,13 +7,14 @@
  */
 
 import '../util/ng_jit_mode';
+import '../util/ng_server_mode';
 
 import {
   setActiveConsumer,
   setThrowInvalidWriteToSignalError,
 } from '@angular/core/primitives/signals';
 import {Observable, Subject, Subscription} from 'rxjs';
-import {first, map} from 'rxjs/operators';
+import {map} from 'rxjs/operators';
 
 import {ZONELESS_ENABLED} from '../change_detection/scheduling/zoneless_scheduling';
 import {Console} from '../console';
@@ -33,17 +34,18 @@ import {PendingTasksInternal} from '../pending_tasks';
 import {RendererFactory2} from '../render/api';
 import {AfterRenderManager} from '../render3/after_render/manager';
 import {ComponentFactory as R3ComponentFactory} from '../render3/component_ref';
-import {isStandalone} from '../render3/definition';
+import {isStandalone} from '../render3/def_getters';
 import {ChangeDetectionMode, detectChangesInternal} from '../render3/instructions/change_detection';
-import {FLAGS, LView, LViewFlags} from '../render3/interfaces/view';
+import {LView} from '../render3/interfaces/view';
 import {publishDefaultGlobalUtils as _publishDefaultGlobalUtils} from '../render3/util/global_utils';
-import {removeLViewOnDestroy, requiresRefreshOrTraversal} from '../render3/util/view_utils';
+import {requiresRefreshOrTraversal} from '../render3/util/view_utils';
 import {ViewRef as InternalViewRef} from '../render3/view_ref';
 import {TESTABILITY} from '../testability/testability';
 import {isPromise} from '../util/lang';
 import {NgZone} from '../zone/ng_zone';
 
 import {ApplicationInitStatus} from './application_init';
+import {TracingAction, TracingService, TracingSnapshot} from './tracing';
 import {EffectScheduler} from '../render3/reactivity/root_effect_scheduler';
 
 /**
@@ -222,7 +224,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  * (here incrementing a counter, using RxJS `interval`),
  * and at the same time subscribe to `isStable`.
  *
- * ```
+ * ```ts
  * constructor(appRef: ApplicationRef) {
  *   appRef.isStable.pipe(
  *      filter(stable => stable)
@@ -237,7 +239,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  * you have to wait for the application to be stable
  * before starting your polling process.
  *
- * ```
+ * ```ts
  * constructor(appRef: ApplicationRef) {
  *   appRef.isStable.pipe(
  *     first(stable => stable),
@@ -257,7 +259,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  * you update a field of your component
  * and display it in its template.
  *
- * ```
+ * ```ts
  * constructor(appRef: ApplicationRef) {
  *   appRef.isStable.pipe(
  *     first(stable => stable),
@@ -271,7 +273,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  *
  * You'll have to manually trigger the change detection to update the template.
  *
- * ```
+ * ```ts
  * constructor(appRef: ApplicationRef, cd: ChangeDetectorRef) {
  *   appRef.isStable.pipe(
  *     first(stable => stable),
@@ -285,7 +287,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  *
  * Or make the subscription callback run inside the zone.
  *
- * ```
+ * ```ts
  * constructor(appRef: ApplicationRef, zone: NgZone) {
  *   appRef.isStable.pipe(
  *     first(stable => stable),
@@ -298,8 +300,6 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  */
 @Injectable({providedIn: 'root'})
 export class ApplicationRef {
-  /** @internal */
-  private _bootstrapListeners: ((compRef: ComponentRef<any>) => void)[] = [];
   /** @internal */
   _runningTick: boolean = false;
   private _destroyed = false;
@@ -327,6 +327,16 @@ export class ApplicationRef {
    * @internal
    */
   deferredDirtyFlags = ApplicationRefDirtyFlags.None;
+
+  /**
+   * Most recent snapshot from the `TracingService`, if any.
+   *
+   * This snapshot attempts to capture the context when `tick()` was first
+   * scheduled. It then runs wrapped in this context.
+   *
+   * @internal
+   */
+  tracingSnapshot: TracingSnapshot | null = null;
 
   // Needed for ComponentFixture temporarily during migration of autoDetect behavior
   // Eventually the hostView of the fixture should just attach to ApplicationRef.
@@ -363,6 +373,11 @@ export class ApplicationRef {
     map((pending) => !pending),
   );
 
+  constructor() {
+    // Inject the tracing service to initialize it.
+    inject(TracingService, {optional: true});
+  }
+
   /**
    * @returns A promise that resolves when the application becomes stable
    */
@@ -382,6 +397,8 @@ export class ApplicationRef {
   }
 
   private readonly _injector = inject(EnvironmentInjector);
+  private _rendererFactory: RendererFactory2 | null = null;
+
   /**
    * The `EnvironmentInjector` used to create this application.
    */
@@ -580,7 +597,19 @@ export class ApplicationRef {
   }
 
   /** @internal */
-  _tick(): void {
+  _tick = (): void => {
+    if (this.tracingSnapshot !== null) {
+      const snapshot = this.tracingSnapshot;
+      this.tracingSnapshot = null;
+
+      // Ensure we always run `_tick()` in the context of the most recent snapshot,
+      // if one exists. Snapshots may be reference counted by the implementation so
+      // we want to ensure that if we request a snapshot that we use it.
+      snapshot.run(TracingAction.CHANGE_DETECTION, this._tick);
+      snapshot.dispose();
+      return;
+    }
+
     (typeof ngDevMode === 'undefined' || ngDevMode) && this.warnIfDestroyed();
     if (this._runningTick) {
       throw new RuntimeError(
@@ -607,16 +636,15 @@ export class ApplicationRef {
       setActiveConsumer(prevConsumer);
       this.afterTick.next();
     }
-  }
+  };
 
   /**
    * Performs the core work of synchronizing the application state with the UI, resolving any
    * pending dirtiness (potentially in a loop).
    */
   private synchronize(): void {
-    let rendererFactory: RendererFactory2 | null = null;
-    if (!(this._injector as R3Injector).destroyed) {
-      rendererFactory = this._injector.get(RendererFactory2, null, {optional: true});
+    if (this._rendererFactory === null && !(this._injector as R3Injector).destroyed) {
+      this._rendererFactory = this._injector.get(RendererFactory2, null, {optional: true});
     }
 
     // When beginning synchronization, all deferred dirtiness becomes active dirtiness.
@@ -625,7 +653,7 @@ export class ApplicationRef {
 
     let runs = 0;
     while (this.dirtyFlags !== ApplicationRefDirtyFlags.None && runs++ < MAXIMUM_REFRESH_RERUNS) {
-      this.synchronizeOnce(rendererFactory);
+      this.synchronizeOnce();
     }
 
     if ((typeof ngDevMode === 'undefined' || ngDevMode) && runs >= MAXIMUM_REFRESH_RERUNS) {
@@ -642,7 +670,7 @@ export class ApplicationRef {
   /**
    * Perform a single synchronization pass.
    */
-  private synchronizeOnce(rendererFactory: RendererFactory2 | null): void {
+  private synchronizeOnce(): void {
     // If we happened to loop, deferred dirtiness can be processed as active dirtiness again.
     this.dirtyFlags |= this.deferredDirtyFlags;
     this.deferredDirtyFlags = ApplicationRefDirtyFlags.None;
@@ -694,8 +722,8 @@ export class ApplicationRef {
     } else {
       // If we skipped refreshing views above, there might still be unflushed animations
       // because we never called `detectChangesInternal` on the views.
-      rendererFactory?.begin?.();
-      rendererFactory?.end?.();
+      this._rendererFactory?.begin?.();
+      this._rendererFactory?.end?.();
     }
 
     // Even if there were no dirty views, afterRender hooks might still be dirty.
@@ -771,7 +799,7 @@ export class ApplicationRef {
           '`multi: true` provider.',
       );
     }
-    [...this._bootstrapListeners, ...listeners].forEach((listener) => listener(componentRef));
+    listeners.forEach((listener) => listener(componentRef));
   }
 
   /** @internal */
@@ -790,7 +818,6 @@ export class ApplicationRef {
 
       // Release all references.
       this._views = [];
-      this._bootstrapListeners = [];
       this._destroyListeners = [];
     }
   }
@@ -888,30 +915,6 @@ export const enum ApplicationRefDirtyFlags {
    * Effects at the `ApplicationRef` level.
    */
   RootEffects = 0b00010000,
-}
-
-let whenStableStore: WeakMap<ApplicationRef, Promise<void>> | undefined;
-/**
- * Returns a Promise that resolves when the application becomes stable after this method is called
- * the first time.
- */
-export function whenStable(applicationRef: ApplicationRef): Promise<void> {
-  whenStableStore ??= new WeakMap();
-  const cachedWhenStable = whenStableStore.get(applicationRef);
-  if (cachedWhenStable) {
-    return cachedWhenStable;
-  }
-
-  const whenStablePromise = applicationRef.isStable
-    .pipe(first((isStable) => isStable))
-    .toPromise()
-    .then(() => void 0);
-  whenStableStore.set(applicationRef, whenStablePromise);
-
-  // Be a good citizen and clean the store `onDestroy` even though we are using `WeakMap`.
-  applicationRef.onDestroy(() => whenStableStore?.delete(applicationRef));
-
-  return whenStablePromise;
 }
 
 export function detectChangesInViewIfRequired(

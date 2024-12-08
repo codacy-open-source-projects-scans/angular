@@ -18,8 +18,8 @@ import {
 import {resolveForwardRef} from '../../di/forward_ref';
 import {getReflect, reflectDependencies} from '../../di/jit/util';
 import {Type} from '../../interface/type';
-import {Query} from '../../metadata/di';
-import {Component, Directive, Input} from '../../metadata/directives';
+import type {Query} from '../../metadata/di';
+import type {Component, Directive, Input} from '../../metadata/directives';
 import {
   componentNeedsResolution,
   maybeQueueResolutionOfComponentResources,
@@ -28,7 +28,7 @@ import {ViewEncapsulation} from '../../metadata/view';
 import {flatten} from '../../util/array_utils';
 import {EMPTY_ARRAY, EMPTY_OBJ} from '../../util/empty';
 import {initNgDevMode} from '../../util/ng_dev_mode';
-import {getComponentDef, getDirectiveDef, getNgModuleDef, getPipeDef} from '../definition';
+import {getComponentDef, getDirectiveDef, getNgModuleDef, getPipeDef} from '../def_getters';
 import {depsTracker, USE_RUNTIME_DEPS_TRACKER_FOR_JIT} from '../deps_tracker/deps_tracker';
 import {NG_COMP_DEF, NG_DIR_DEF, NG_FACTORY_DEF} from '../fields';
 import {ComponentDef, ComponentType, DirectiveDefList, PipeDefList} from '../interfaces/definition';
@@ -41,7 +41,6 @@ import {
   patchComponentDefWithScope,
   transitiveScopesFor,
 } from './module';
-import {NG_STANDALONE_DEFAULT_VALUE} from '../standalone-default-value';
 import {isComponent, verifyStandaloneImport} from './util';
 
 /**
@@ -453,8 +452,7 @@ export function directiveMetadata(type: Type<any>, metadata: Directive): R3Direc
     exportAs: extractExportAs(metadata.exportAs),
     providers: metadata.providers || null,
     viewQueries: extractQueriesMetadata(type, propMetadata, isViewQuery),
-    isStandalone:
-      metadata.standalone === undefined ? NG_STANDALONE_DEFAULT_VALUE : !!metadata.standalone,
+    isStandalone: metadata.standalone === undefined ? true : !!metadata.standalone,
     isSignal: !!metadata.signals,
     hostDirectives:
       metadata.hostDirectives?.map((directive) =>

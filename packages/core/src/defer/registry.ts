@@ -5,28 +5,68 @@
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {ɵɵdefineInjectable} from '../di';
-import {DeferBlock} from './interfaces';
+import {inject} from '../di';
+import {InjectionToken} from '../di/injection_token';
+import {ɵɵdefineInjectable} from '../di/interface/defs';
+import {
+  EventContractDetails,
+  JSACTION_EVENT_CONTRACT,
+  removeListenersFromBlocks,
+} from '../event_delegation_utils';
+import {JSACTION_BLOCK_ELEMENT_MAP} from '../hydration/tokens';
+import {DehydratedDeferBlock} from './interfaces';
 
-// TODO(incremental-hydration): refactor this so that it's not used in CSR cases
-export class DeferBlockRegistry {
-  private registry = new Map<string, DeferBlock>();
+/**
+ * An internal injection token to reference `DehydratedBlockRegistry` implementation
+ * in a tree-shakable way.
+ */
+export const DEHYDRATED_BLOCK_REGISTRY = new InjectionToken<DehydratedBlockRegistry>(
+  ngDevMode ? 'DEHYDRATED_BLOCK_REGISTRY' : '',
+);
+
+/**
+ * The DehydratedBlockRegistry is used for incremental hydration purposes. It keeps
+ * track of the Defer Blocks that need hydration so we can effectively
+ * navigate up to the top dehydrated defer block and fire appropriate cleanup
+ * functions post hydration.
+ */
+export class DehydratedBlockRegistry {
+  private registry = new Map<string, DehydratedDeferBlock>();
   private cleanupFns = new Map<string, Function[]>();
-  add(blockId: string, info: any) {
+  private jsActionMap: Map<string, Set<Element>> = inject(JSACTION_BLOCK_ELEMENT_MAP);
+  private contract: EventContractDetails = inject(JSACTION_EVENT_CONTRACT);
+
+  add(blockId: string, info: DehydratedDeferBlock) {
     this.registry.set(blockId, info);
   }
-  get(blockId: string) {
+
+  get(blockId: string): DehydratedDeferBlock | null {
     return this.registry.get(blockId) ?? null;
   }
-  // TODO(incremental-hydration): we need to determine when this should be invoked
-  // to prevent leaking memory in SSR cases
-  remove(blockId: string) {
-    this.registry.delete(blockId);
+
+  has(blockId: string): boolean {
+    return this.registry.has(blockId);
   }
+
+  cleanup(hydratedBlocks: string[]) {
+    removeListenersFromBlocks(hydratedBlocks, this.jsActionMap);
+    for (let blockId of hydratedBlocks) {
+      this.registry.delete(blockId);
+      this.jsActionMap.delete(blockId);
+      this.invokeTriggerCleanupFns(blockId);
+      this.hydrating.delete(blockId);
+    }
+    if (this.size === 0) {
+      this.contract.instance?.cleanUp();
+    }
+  }
+
   get size(): number {
     return this.registry.size;
   }
 
+  // we have to leave the lowest block Id in the registry
+  // unless that block has no children
   addCleanupFn(blockId: string, fn: Function) {
     let cleanupFunctions: Function[] = [];
     if (this.cleanupFns.has(blockId)) {
@@ -36,22 +76,21 @@ export class DeferBlockRegistry {
     this.cleanupFns.set(blockId, cleanupFunctions);
   }
 
-  invokeCleanupFns(blockId: string) {
-    // TODO(incremental-hydration): determine if we can safely remove entries from
-    // the cleanupFns after they've been invoked
+  invokeTriggerCleanupFns(blockId: string) {
     const fns = this.cleanupFns.get(blockId) ?? [];
     for (let fn of fns) {
       fn();
     }
+    this.cleanupFns.delete(blockId);
   }
 
   // Blocks that are being hydrated.
-  hydrating = new Set();
+  hydrating = new Map<string, PromiseWithResolvers<void>>();
 
   /** @nocollapse */
-  static ɵprov = /** @pureOrBreakMyCode */ ɵɵdefineInjectable({
-    token: DeferBlockRegistry,
-    providedIn: 'root',
-    factory: () => new DeferBlockRegistry(),
+  static ɵprov = /** @pureOrBreakMyCode */ /* @__PURE__ */ ɵɵdefineInjectable({
+    token: DehydratedBlockRegistry,
+    providedIn: null,
+    factory: () => new DehydratedBlockRegistry(),
   });
 }

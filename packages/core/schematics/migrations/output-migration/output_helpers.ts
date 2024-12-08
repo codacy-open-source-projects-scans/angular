@@ -11,10 +11,10 @@ import {
   ReflectionHost,
   ClassDeclaration,
   Decorator,
-} from '../../../../compiler-cli/src/ngtsc/reflection';
-import {DtsMetadataReader} from '../../../../compiler-cli/src/ngtsc/metadata';
-import {Reference} from '../../../../compiler-cli/src/ngtsc/imports';
-import {getAngularDecorators} from '../../../../compiler-cli/src/ngtsc/annotations';
+} from '@angular/compiler-cli/src/ngtsc/reflection';
+import {DtsMetadataReader} from '@angular/compiler-cli/src/ngtsc/metadata';
+import {Reference} from '@angular/compiler-cli/src/ngtsc/imports';
+import {getAngularDecorators} from '@angular/compiler-cli/src/ngtsc/annotations';
 
 import {ProgramInfo, projectFile} from '../../utils/tsurge';
 import {
@@ -33,28 +33,7 @@ export interface ExtractedOutput {
   aliasParam?: ts.Expression;
 }
 
-/**
- * Determines if the given node refers to a decorator-based output, and
- * returns its resolved metadata if possible.
- */
-export function extractSourceOutputDefinition(
-  node: ts.PropertyDeclaration,
-  reflector: ReflectionHost,
-  info: ProgramInfo,
-): ExtractedOutput | null {
-  const outputDecorator = getOutputDecorator(node, reflector);
-
-  if (outputDecorator !== null && isOutputDeclarationEligibleForMigration(node)) {
-    return {
-      id: getUniqueIdForProperty(info, node),
-      aliasParam: outputDecorator.args?.at(0),
-    };
-  }
-
-  return null;
-}
-
-function isOutputDeclarationEligibleForMigration(node: ts.PropertyDeclaration) {
+export function isOutputDeclarationEligibleForMigration(node: ts.PropertyDeclaration) {
   return (
     node.initializer !== undefined &&
     ts.isNewExpression(node.initializer) &&
@@ -142,7 +121,7 @@ export function getTargetPropertyDeclaration(
 }
 
 /** Returns Angular `@Output` decorator or null when a given property declaration is not an @Output */
-function getOutputDecorator(
+export function getOutputDecorator(
   node: ts.PropertyDeclaration,
   reflector: ReflectionHost,
 ): Decorator | null {

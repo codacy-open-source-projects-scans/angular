@@ -81,6 +81,7 @@ export const enum RuntimeErrorCode {
   MISSING_HYDRATION_ANNOTATIONS = -505,
   HYDRATION_STABLE_TIMEDOUT = -506,
   MISSING_SSR_CONTENT_INTEGRITY_MARKER = -507,
+  MISCONFIGURED_INCREMENTAL_HYDRATION = 508,
 
   // Signal Errors
   SIGNAL_WRITE_FROM_ILLEGAL_CONTEXT = 600,
@@ -143,7 +144,7 @@ export const enum RuntimeErrorCode {
  * Formats and outputs the error message in a consistent way.
  *
  * Example:
- * ```
+ * ```ts
  *  throw new RuntimeError(
  *    RuntimeErrorCode.INJECTOR_ALREADY_DESTROYED,
  *    ngDevMode && 'Injector has already been destroyed.');

@@ -46,6 +46,24 @@ describe('Provide initializer migration', () => {
     expect(content).toContain(`import { input, provideAppInitializer } from '@angular/core';`);
   });
 
+  it('should not duplicate imported symbols with several APP_INITIALIZER', async () => {
+    const content = await migrateCode(`
+      import { APP_INITIALIZER, input } from '@angular/core';
+
+      const providers = [{
+        provide: APP_INITIALIZER,
+        useValue: () => { console.log('hello'); },
+        multi: true,
+      },{
+        provide: APP_INITIALIZER,
+        useValue: () => { console.log('world'); },
+        multi: true,
+      }];
+    `);
+
+    expect(content).toContain(`import { input, provideAppInitializer } from '@angular/core';`);
+  });
+
   it('should reuse provideAppInitializer if already imported', async () => {
     const content = await migrateCode(`
       import { APP_INITIALIZER, input, provideAppInitializer } from '@angular/core';
@@ -75,6 +93,7 @@ describe('Provide initializer migration', () => {
       `const providers = [provideAppInitializer(async () => { await Promise.resolve(); return 42; })]`,
     );
   });
+
   it('should transform APP_INITIALIZER + useValue symbol into provideAppInitializer', async () => {
     const content = await migrateCode(`
       import { APP_INITIALIZER } from '@angular/core';
@@ -91,6 +110,29 @@ describe('Provide initializer migration', () => {
     expect(content).toContain(`const providers = [provideAppInitializer(initializerFn)];`);
   });
 
+  it('should transform APP_INITIALIZER + useFactory shorthand into provideAppInitializer', async () => {
+    const content = await migrateCode(`
+      import { APP_INITIALIZER } from '@angular/core';
+
+      const providers = [{
+        provide: APP_INITIALIZER,
+        useFactory() {
+          const service = inject(Service);
+          return () => service.init();
+        },
+        multi: true,
+      }];
+    `);
+
+    expect(content).toContain(`const providers = [provideAppInitializer(() => {
+        const initializerFn = (() => {
+          const service = inject(Service);
+          return () => service.init();
+        })();
+        return initializerFn();
+      })];`);
+  });
+
   it('should transform APP_INITIALIZER + useFactory into provideAppInitializer', async () => {
     const content = await migrateCode(`
       import { APP_INITIALIZER } from '@angular/core';
@@ -105,10 +147,13 @@ describe('Provide initializer migration', () => {
       }];
     `);
 
-    expect(content).toContain(`const providers = [provideAppInitializer(() => { return (() => {
+    expect(content).toContain(`const providers = [provideAppInitializer(() => {
+        const initializerFn = (() => {
           const service = inject(Service);
           return () => service.init();
-        })(); })];`);
+        })();
+        return initializerFn();
+      })];`);
   });
 
   it('should transform APP_INITIALIZER + useExisting into provideAppInitializer', async () => {
@@ -128,6 +173,31 @@ describe('Provide initializer migration', () => {
     );
   });
 
+  it('should transform APP_INITIALIZER + deps + useFactory shorthand into provideAppInitializer', async () => {
+    const content = await migrateCode(`
+      import { APP_INITIALIZER } from '@angular/core';
+
+      const providers = [{
+        provide: APP_INITIALIZER,
+        useFactory(a: ServiceA, b: ServiceB) {
+          return () => a.init();
+        },
+        deps: [ServiceA, ServiceB],
+        multi: true,
+      }];
+    `);
+
+    expect(content).toContain(`import { inject, provideAppInitializer } from '@angular/core';`);
+    expect(content).toContain(
+      `const providers = [provideAppInitializer(() => {
+        const initializerFn = ((a: ServiceA, b: ServiceB) => {
+          return () => a.init();
+        })(inject(ServiceA), inject(ServiceB));
+        return initializerFn();
+      })];`,
+    );
+  });
+
   it('should transform APP_INITIALIZER + deps into provideAppInitializer', async () => {
     const content = await migrateCode(`
       import { APP_INITIALIZER } from '@angular/core';
@@ -144,9 +214,12 @@ describe('Provide initializer migration', () => {
 
     expect(content).toContain(`import { inject, provideAppInitializer } from '@angular/core';`);
     expect(content).toContain(
-      `const providers = [provideAppInitializer(() => { return ((a: ServiceA, b: ServiceB) => {
+      `const providers = [provideAppInitializer(() => {
+        const initializerFn = ((a: ServiceA, b: ServiceB) => {
           return () => a.init();
-        })(inject(ServiceA), inject(ServiceB)); })];`,
+        })(inject(ServiceA), inject(ServiceB));
+        return initializerFn();
+      })];`,
     );
   });
 

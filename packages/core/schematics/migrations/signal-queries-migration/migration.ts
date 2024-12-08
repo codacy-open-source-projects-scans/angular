@@ -100,10 +100,16 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
   }
 
   override async analyze(info: ProgramInfo): Promise<Serializable<CompilationUnitData>> {
-    assert(info.ngCompiler !== null, 'Expected queries migration to have an Angular program.');
-
     // Pre-Analyze the program and get access to the template type checker.
-    const {templateTypeChecker} = info.ngCompiler['ensureAnalyzed']();
+    const {templateTypeChecker} = info.ngCompiler?.['ensureAnalyzed']() ?? {
+      templateTypeChecker: null,
+    };
+    const resourceLoader = info.ngCompiler?.['resourceManager'] ?? null;
+
+    // Generate all type check blocks, if we have Angular template information.
+    if (templateTypeChecker !== null) {
+      templateTypeChecker.generateAllTypeCheckBlocks();
+    }
 
     const {sourceFiles, program} = info;
     const checker = program.getTypeChecker();
@@ -205,8 +211,7 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
         // Ignore references to non-query class fields.
         if (
           this.config.assumeNonBatch &&
-          descriptor !== null &&
-          !filteredQueriesForCompilationUnit.has(descriptor.key)
+          (descriptor === null || !filteredQueriesForCompilationUnit.has(descriptor.key))
         ) {
           return null;
         }
@@ -225,7 +230,7 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
         info,
         checker,
         reflector,
-        info.ngCompiler['resourceManager'],
+        resourceLoader,
         evaluator,
         templateTypeChecker,
         allFieldsOrKnownQueries,
@@ -309,44 +314,54 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
     return confirmAsSerializable(res);
   }
 
-  override async merge(units: CompilationUnitData[]): Promise<Serializable<GlobalUnitData>> {
-    const merged: GlobalUnitData = {
+  override async combine(
+    unitA: CompilationUnitData,
+    unitB: CompilationUnitData,
+  ): Promise<Serializable<CompilationUnitData>> {
+    const combined: CompilationUnitData = {
       knownQueryFields: {},
-      problematicQueries: {},
+      potentialProblematicQueries: {},
+      potentialProblematicReferenceForMultiQueries: {},
       reusableAnalysisReferences: null,
     };
 
-    for (const unit of units) {
+    for (const unit of [unitA, unitB]) {
       for (const [id, value] of Object.entries(unit.knownQueryFields)) {
-        merged.knownQueryFields[id as ClassFieldUniqueKey] = value;
+        combined.knownQueryFields[id as ClassFieldUniqueKey] = value;
       }
+
       for (const [id, info] of Object.entries(unit.potentialProblematicQueries)) {
         if (info.fieldReason !== null) {
           markFieldIncompatibleInMetadata(
-            merged.problematicQueries,
+            combined.potentialProblematicQueries,
             id as ClassFieldUniqueKey,
             info.fieldReason,
           );
         }
         if (info.classReason !== null) {
-          merged.problematicQueries[id as ClassFieldUniqueKey] ??= {
+          combined.potentialProblematicQueries[id as ClassFieldUniqueKey] ??= {
             classReason: null,
             fieldReason: null,
           };
-          merged.problematicQueries[id as ClassFieldUniqueKey].classReason = info.classReason;
+          combined.potentialProblematicQueries[id as ClassFieldUniqueKey].classReason =
+            info.classReason;
         }
       }
+
+      for (const id of Object.keys(unit.potentialProblematicReferenceForMultiQueries)) {
+        combined.potentialProblematicReferenceForMultiQueries[id as ClassFieldUniqueKey] = true;
+      }
+
       if (unit.reusableAnalysisReferences !== null) {
-        assert(units.length === 1, 'Expected migration to not run in batch mode');
-        merged.reusableAnalysisReferences = unit.reusableAnalysisReferences;
+        combined.reusableAnalysisReferences = unit.reusableAnalysisReferences;
       }
     }
 
-    for (const unit of units) {
+    for (const unit of [unitA, unitB]) {
       for (const id of Object.keys(unit.potentialProblematicReferenceForMultiQueries)) {
-        if (merged.knownQueryFields[id as ClassFieldUniqueKey]?.isMulti) {
+        if (combined.knownQueryFields[id as ClassFieldUniqueKey]?.isMulti) {
           markFieldIncompatibleInMetadata(
-            merged.problematicQueries,
+            combined.potentialProblematicQueries,
             id as ClassFieldUniqueKey,
             FieldIncompatibilityReason.SignalQueries__QueryListProblematicFieldAccessed,
           );
@@ -354,14 +369,39 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
       }
     }
 
-    return confirmAsSerializable(merged);
+    return confirmAsSerializable(combined);
+  }
+
+  override async globalMeta(
+    combinedData: CompilationUnitData,
+  ): Promise<Serializable<GlobalUnitData>> {
+    const globalUnitData: GlobalUnitData = {
+      knownQueryFields: combinedData.knownQueryFields,
+      problematicQueries: combinedData.potentialProblematicQueries,
+      reusableAnalysisReferences: combinedData.reusableAnalysisReferences,
+    };
+
+    for (const id of Object.keys(combinedData.potentialProblematicReferenceForMultiQueries)) {
+      if (combinedData.knownQueryFields[id as ClassFieldUniqueKey]?.isMulti) {
+        markFieldIncompatibleInMetadata(
+          globalUnitData.problematicQueries,
+          id as ClassFieldUniqueKey,
+          FieldIncompatibilityReason.SignalQueries__QueryListProblematicFieldAccessed,
+        );
+      }
+    }
+
+    return confirmAsSerializable(globalUnitData);
   }
 
   override async migrate(globalMetadata: GlobalUnitData, info: ProgramInfo) {
-    assert(info.ngCompiler !== null, 'Expected queries migration to have an Angular program.');
-
     // Pre-Analyze the program and get access to the template type checker.
-    const {templateTypeChecker, metaReader} = info.ngCompiler['ensureAnalyzed']();
+    const {templateTypeChecker, metaReader} = info.ngCompiler?.['ensureAnalyzed']() ?? {
+      templateTypeChecker: null,
+      metaReader: null,
+    };
+    const resourceLoader = info.ngCompiler?.['resourceManager'] ?? null;
+
     const {program, sourceFiles} = info;
     const checker = program.getTypeChecker();
     const reflector = new TypeScriptReflectionHost(checker);
@@ -416,8 +456,6 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
       ts.forEachChild(node, queryWholeProgramVisitor);
     };
 
-    this.config.reportProgressFn?.(40, 'Tracking query declarations..');
-
     for (const sf of info.fullProgramSourceFiles) {
       ts.forEachChild(sf, queryWholeProgramVisitor);
     }
@@ -441,7 +479,7 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
           info,
           checker,
           reflector,
-          info.ngCompiler['resourceManager'],
+          resourceLoader,
           evaluator,
           templateTypeChecker,
           knownQueries,
@@ -461,14 +499,14 @@ export class SignalQueriesMigration extends TsurgeComplexMigration<
       isClassWithKnownFields: (clazz) => knownQueries.getQueryFieldsOfClass(clazz) !== undefined,
     });
 
-    this.config.reportProgressFn?.(70, 'Checking inheritance..');
+    this.config.reportProgressFn?.(80, 'Checking inheritance..');
     groupedAstVisitor.execute();
 
     if (this.config.bestEffortMode) {
       filterBestEffortIncompatibilities(knownQueries);
     }
 
-    this.config.reportProgressFn?.(80, 'Migrating queries..');
+    this.config.reportProgressFn?.(90, 'Migrating queries..');
 
     // Migrate declarations.
     for (const extractedQuery of sourceQueries) {

@@ -10,7 +10,6 @@ import ts from 'typescript';
 
 import {ChangeTracker} from '../../utils/change_tracker';
 import {getImportSpecifier} from '../../utils/typescript/imports';
-import {closestNode} from '../../utils/typescript/nodes';
 
 export type RewriteFn = (startPos: number, width: number, text: string) => void;
 
@@ -22,9 +21,9 @@ export function migrateFile(sourceFile: ts.SourceFile, rewriteFn: RewriteFn) {
 
     if (provider) {
       replaceProviderWithNewApi({
-        sourceFile: sourceFile,
-        node: node,
-        provider: provider,
+        sourceFile,
+        node,
+        provider,
         changeTracker,
       });
       return;
@@ -73,29 +72,14 @@ function replaceProviderWithNewApi({
     `${provideInitializerFunctionName}(${initializerCode})`,
   );
 
-  // Import declaration and named imports are necessarily there.
-  const namedImports = closestNode(initializerTokenSpecifier, ts.isNamedImports)!;
-
-  // `provide*Initializer` function is already imported.
-  const hasProvideInitializeFunction = namedImports.elements.some(
-    (element) => element.name.getText() === provideInitializerFunctionName,
-  );
-
-  const newNamedImports = ts.factory.updateNamedImports(namedImports, [
-    // Remove the `*_INITIALIZER` token from imports.
-    ...namedImports.elements.filter((element) => element !== initializerTokenSpecifier),
-    // Add the `inject` function to imports if needed.
-    ...(importInject ? [createImportSpecifier('inject')] : []),
-    // Add the `provide*Initializer` function to imports.
-    ...(!hasProvideInitializeFunction
-      ? [createImportSpecifier(provideInitializerFunctionName)]
-      : []),
-  ]);
-  changeTracker.replaceNode(namedImports, newNamedImports);
-}
-
-function createImportSpecifier(name: string): ts.ImportSpecifier {
-  return ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier(name));
+  // Remove the `*_INITIALIZER` token from imports.
+  changeTracker.removeImport(sourceFile, initializerToken, angularCoreModule);
+  // Add the `inject` function to imports if needed.
+  if (importInject) {
+    changeTracker.addImport(sourceFile, 'inject', angularCoreModule);
+  }
+  // Add the `provide*Initializer` function to imports.
+  changeTracker.addImport(sourceFile, provideInitializerFunctionName, angularCoreModule);
 }
 
 function tryParseProviderExpression(node: ts.Node): ProviderInfo | undefined {
@@ -106,36 +90,40 @@ function tryParseProviderExpression(node: ts.Node): ProviderInfo | undefined {
   let deps: string[] = [];
   let initializerToken: string | undefined;
   let useExisting: ts.Expression | undefined;
-  let useFactory: ts.Expression | undefined;
+  let useFactoryCode: string | undefined;
   let useValue: ts.Expression | undefined;
   let multi = false;
 
   for (const property of node.properties) {
-    if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(property.name)) {
-      continue;
+    if (ts.isPropertyAssignment(property) && ts.isIdentifier(property.name)) {
+      switch (property.name.text) {
+        case 'deps':
+          if (ts.isArrayLiteralExpression(property.initializer)) {
+            deps = property.initializer.elements.map((el) => el.getText());
+          }
+          break;
+        case 'provide':
+          initializerToken = property.initializer.getText();
+          break;
+        case 'useExisting':
+          useExisting = property.initializer;
+          break;
+        case 'useFactory':
+          useFactoryCode = property.initializer.getText();
+          break;
+        case 'useValue':
+          useValue = property.initializer;
+          break;
+        case 'multi':
+          multi = property.initializer.kind === ts.SyntaxKind.TrueKeyword;
+          break;
+      }
     }
 
-    switch (property.name.text) {
-      case 'deps':
-        if (ts.isArrayLiteralExpression(property.initializer)) {
-          deps = property.initializer.elements.map((el) => el.getText());
-        }
-        break;
-      case 'provide':
-        initializerToken = property.initializer.getText();
-        break;
-      case 'useExisting':
-        useExisting = property.initializer;
-        break;
-      case 'useFactory':
-        useFactory = property.initializer;
-        break;
-      case 'useValue':
-        useValue = property.initializer;
-        break;
-      case 'multi':
-        multi = property.initializer.kind === ts.SyntaxKind.TrueKeyword;
-        break;
+    // Handle the `useFactory() {}` shorthand case.
+    if (ts.isMethodDeclaration(property) && property.name.getText() === 'useFactory') {
+      const params = property.parameters.map((param) => param.getText()).join(', ');
+      useFactoryCode = `(${params}) => ${property.body?.getText()}`;
     }
   }
 
@@ -162,12 +150,15 @@ function tryParseProviderExpression(node: ts.Node): ProviderInfo | undefined {
     };
   }
 
-  if (useFactory) {
+  if (useFactoryCode) {
     const args = deps.map((dep) => `inject(${dep})`);
     return {
       ...info,
       importInject: deps.length > 0,
-      initializerCode: `() => { return (${useFactory.getText()})(${args.join(', ')}); }`,
+      initializerCode: `() => {
+        const initializerFn = (${useFactoryCode})(${args.join(', ')});
+        return initializerFn();
+      }`,
     };
   }
 

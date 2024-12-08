@@ -9,7 +9,7 @@
 import {computeMsgId} from '../i18n/digest';
 import {Message} from '../i18n/i18n_ast';
 import {ParseSourceSpan} from '../parse_util';
-import {I18nMeta} from '../render3/view/i18n/meta';
+import type {I18nMeta} from '../render3/view/i18n/meta';
 
 //// Types
 export enum TypeModifier {
@@ -886,8 +886,7 @@ export class ExternalExpr extends Expression {
     return (
       e instanceof ExternalExpr &&
       this.value.name === e.value.name &&
-      this.value.moduleName === e.value.moduleName &&
-      this.value.runtime === e.value.runtime
+      this.value.moduleName === e.value.moduleName
     );
   }
 
@@ -908,7 +907,6 @@ export class ExternalReference {
   constructor(
     public moduleName: string | null,
     public name: string | null,
-    public runtime?: any | null,
   ) {}
   // Note: no isEquivalent method here as we use this as an interface too.
 }

@@ -559,22 +559,22 @@ export function isStandaloneDecorator(decorator: ts.Decorator): boolean | null {
       continue;
     }
     // TODO(dylhunn): What if this is a dynamically evaluated expression?
-    if (property.name.getText() === 'standalone' && property.initializer.getText() === 'true') {
-      return true;
+    if (property.name.getText() === 'standalone' && property.initializer.getText() === 'false') {
+      return false;
     }
   }
-  return false;
+  return true;
 }
 
 /**
  * Generate a new import. Follows the format:
- * ```
+ * ```ts
  * import {exportedSpecifierName as localName} from 'rawModuleSpecifier';
  * ```
  *
  * If the component is exported by default, follows the format:
  *
- * ```
+ * ```ts
  * import exportedSpecifierName from 'rawModuleSpecifier';
  * ```
  *

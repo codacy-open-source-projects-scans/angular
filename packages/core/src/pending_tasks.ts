@@ -55,7 +55,7 @@ export class PendingTasksInternal implements OnDestroy {
   }
 
   /** @nocollapse */
-  static ɵprov = /** @pureOrBreakMyCode */ ɵɵdefineInjectable({
+  static ɵprov = /** @pureOrBreakMyCode */ /* @__PURE__ */ ɵɵdefineInjectable({
     token: PendingTasksInternal,
     providedIn: 'root',
     factory: () => new PendingTasksInternal(),
@@ -74,7 +74,7 @@ export class PendingTasksInternal implements OnDestroy {
  * - tests might want to delay assertions until the application becomes stable;
  *
  * @usageNotes
- * ```typescript
+ * ```ts
  * const pendingTasks = inject(PendingTasks);
  * const taskCleanup = pendingTasks.add();
  * // do work that should block application's stability and then:
@@ -134,7 +134,7 @@ export class PendingTasks {
   }
 
   /** @nocollapse */
-  static ɵprov = /** @pureOrBreakMyCode */ ɵɵdefineInjectable({
+  static ɵprov = /** @pureOrBreakMyCode */ /* @__PURE__ */ ɵɵdefineInjectable({
     token: PendingTasks,
     providedIn: 'root',
     factory: () => new PendingTasks(),
