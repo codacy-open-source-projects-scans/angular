@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import type {Signal, WritableSignal} from '@angular/core';
+import {computed, type Signal, type WritableSignal} from '@angular/core';
 import type {Field} from '../api/field_directive';
 import {
   AggregateMetadataKey,
@@ -19,7 +19,7 @@ import {
   REQUIRED,
 } from '../api/metadata';
 import type {DisabledReason, FieldContext, FieldState, FieldTree} from '../api/types';
-import type {ValidationError, ValidationErrorWithField} from '../api/validation_errors';
+import type {ValidationError} from '../api/validation_errors';
 import {LogicNode} from '../schema/logic_node';
 import {FieldPathNode} from '../schema/path_node';
 import {FieldNodeContext} from './context';
@@ -37,6 +37,7 @@ import {
 } from './structure';
 import {FieldSubmitState} from './submit';
 import {ValidationState} from './validation';
+
 /**
  * Internal node in the form tree for a given field.
  *
@@ -90,11 +91,11 @@ export class FieldNode implements FieldState<unknown> {
     return this.structure.keyInParent;
   }
 
-  get errors(): Signal<ValidationErrorWithField[]> {
+  get errors(): Signal<ValidationError.WithField[]> {
     return this.validationState.errors;
   }
 
-  get errorSummary(): Signal<ValidationErrorWithField[]> {
+  get errorSummary(): Signal<ValidationError.WithField[]> {
     return this.validationState.errorSummary;
   }
 
@@ -166,12 +167,12 @@ export class FieldNode implements FieldState<unknown> {
     return this.metadataOrUndefined(MIN_LENGTH);
   }
 
-  get pattern(): Signal<readonly RegExp[]> | undefined {
-    return this.metadataOrUndefined(PATTERN);
+  get pattern(): Signal<readonly RegExp[]> {
+    return this.metadataOrUndefined(PATTERN) ?? EMPTY;
   }
 
-  get required(): Signal<boolean> | undefined {
-    return this.metadataOrUndefined(REQUIRED);
+  get required(): Signal<boolean> {
+    return this.metadataOrUndefined(REQUIRED) ?? FALSE;
   }
 
   metadata<M>(key: AggregateMetadataKey<M, any>): Signal<M>;
@@ -253,6 +254,9 @@ export class FieldNode implements FieldState<unknown> {
         );
   }
 }
+
+const EMPTY = computed(() => []);
+const FALSE = computed(() => false);
 
 /**
  * Field node of a field that has children.

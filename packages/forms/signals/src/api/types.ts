@@ -7,14 +7,10 @@
  */
 
 import {Signal, ɵFieldState} from '@angular/core';
+import {AbstractControl} from '@angular/forms';
 import type {Field} from './field_directive';
 import {AggregateMetadataKey, MetadataKey} from './metadata';
-import type {
-  ValidationError,
-  ValidationErrorWithField,
-  ValidationErrorWithOptionalField,
-  ValidationErrorWithoutField,
-} from './validation_errors';
+import type {ValidationError} from './validation_errors';
 
 /**
  * Symbol used to retain generic type information when it would otherwise be lost.
@@ -107,7 +103,7 @@ export type ValidationSuccess = null | undefined | void;
  * @experimental 21.0.0
  */
 export type TreeValidationResult<
-  E extends ValidationErrorWithOptionalField = ValidationErrorWithOptionalField,
+  E extends ValidationError.WithOptionalField = ValidationError.WithOptionalField,
 > = ValidationSuccess | OneOrMany<E>;
 
 /**
@@ -156,28 +152,43 @@ export type AsyncValidationResult<E extends ValidationError = ValidationError> =
  * @category types
  * @experimental 21.0.0
  */
-export type FieldTree<TValue, TKey extends string | number = string | number> = (() => FieldState<
-  TValue,
-  TKey
->) &
-  (TValue extends Array<infer U>
-    ? ReadonlyArrayLike<MaybeFieldTree<U, number>>
-    : TValue extends Record<string, any>
-      ? Subfields<TValue>
-      : unknown);
+export type FieldTree<TModel, TKey extends string | number = string | number> =
+  // Note: We use `[TModel]` in several places below to avoid the condition from being distributed
+  // over a recursive union type, which seems to result in infinite type recursion. By adding the
+  // tuple we're not testing a naked type parameter, and thus the condition is not distributed.
+  // (See https://typescriptlang.org/docs/handbook/2/conditional-types.html#distributive-conditional-types)
+  // The example below demonstrates the problematic situation we want to avoid:
+  //
+  // ```
+  // type RecursiveType = (number | RecursiveType)[]
+  // type Test = FieldTree<RecursiveType> // Infinite type recursion if condition distributes.
+  // ```
+  (() => [TModel] extends [AbstractControl]
+    ? CompatFieldState<TModel, TKey>
+    : FieldState<TModel, TKey>) &
+    // Children:
+    ([TModel] extends [AbstractControl]
+      ? unknown
+      : [TModel] extends [Array<infer U>]
+        ? ReadonlyArrayLike<MaybeFieldTree<U, number>>
+        : TModel extends Record<string, any>
+          ? Subfields<TModel>
+          : unknown);
 
 /**
- * The sub-fields that a user can navigate to from a `FieldTree<TValue>`.
+ * The sub-fields that a user can navigate to from a `FieldTree<TModel>`.
  *
- * @template TValue The type of the data which the parent field is wrapped around.
+ * @template TModel The type of the data which the parent field is wrapped around.
  *
  * @experimental 21.0.0
  */
-export type Subfields<TValue> = {
-  readonly [K in keyof TValue as TValue[K] extends Function ? never : K]: MaybeFieldTree<
-    TValue[K],
+export type Subfields<TModel> = {
+  readonly [K in keyof TModel as TModel[K] extends Function ? never : K]: MaybeFieldTree<
+    TModel[K],
     string
   >;
+} & {
+  [Symbol.iterator](): Iterator<[string, MaybeFieldTree<TModel[keyof TModel], string>]>;
 };
 
 /**
@@ -199,14 +210,14 @@ export type ReadonlyArrayLike<T> = Pick<
  * For example `MaybeField<{a: number} | undefined, TKey>` would be equivalent to
  * `undefined | FieldTree<{a: number}, TKey>`.
  *
- * @template TValue The type of the data which the field is wrapped around.
+ * @template TModel The type of the data which the field is wrapped around.
  * @template TKey The type of the property key which this field resides under in its parent.
  *
  * @experimental 21.0.0
  */
-export type MaybeFieldTree<TValue, TKey extends string | number = string | number> =
-  | (TValue & undefined)
-  | FieldTree<Exclude<TValue, undefined>, TKey>;
+export type MaybeFieldTree<TModel, TKey extends string | number = string | number> =
+  | (TModel & undefined)
+  | FieldTree<Exclude<TModel, undefined>, TKey>;
 
 /**
  * Contains all of the state (e.g. value, statuses, etc.) associated with a `FieldTree`, exposed as
@@ -236,12 +247,12 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
    */
   readonly hidden: Signal<boolean>;
   readonly disabledReasons: Signal<readonly DisabledReason[]>;
-  readonly errors: Signal<ValidationErrorWithField[]>;
+  readonly errors: Signal<ValidationError.WithField[]>;
 
   /**
    * A signal containing the {@link errors} of the field and its descendants.
    */
-  readonly errorSummary: Signal<ValidationErrorWithField[]>;
+  readonly errorSummary: Signal<ValidationError.WithField[]>;
 
   /**
    * A signal indicating whether the field's value is currently valid.
@@ -312,6 +323,38 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
 }
 
 /**
+ * This is FieldState also providing access to the wrapped FormControl.
+ *
+ * @category interop
+ * @experimental 21.0.0
+ */
+export type CompatFieldState<
+  TControl extends AbstractControl,
+  TKey extends string | number = string | number,
+> = FieldState<TControl extends AbstractControl<unknown, infer TValue> ? TValue : never, TKey> & {
+  control: Signal<TControl>;
+};
+
+/**
+ * Allows declaring whether the Rules are supported for a given path.
+ *
+ * @experimental 21.0.0
+ **/
+export type SchemaPathRules = SchemaPathRules.Supported | SchemaPathRules.Unsupported;
+
+export declare namespace SchemaPathRules {
+  /**
+   * Used for paths that support settings rules.
+   */
+  type Supported = 1;
+
+  /**
+   * Used for paths that do not support settings rules, e.g., compatPath.
+   */
+  type Unsupported = 2;
+}
+
+/**
  * An object that represents a location in the `FieldTree` tree structure and is used to bind logic to a
  * particular part of the structure prior to the creation of the form. Because the `FieldPath`
  * exists prior to the form's creation, it cannot be used to access any of the field state.
@@ -322,13 +365,63 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
  * @category types
  * @experimental 21.0.0
  */
-export type FieldPath<TValue, TPathKind extends PathKind = PathKind.Root> = {
-  [ɵɵTYPE]: [TValue, TPathKind];
-} & (TValue extends Array<unknown>
-  ? unknown
-  : TValue extends Record<string, any>
-    ? {[K in keyof TValue]: MaybeFieldPath<TValue[K], PathKind.Child>}
-    : unknown);
+export type SchemaPath<
+  TValue,
+  TSupportsRules extends SchemaPathRules = SchemaPathRules.Supported,
+  TPathKind extends PathKind = PathKind.Root,
+> = {
+  [ɵɵTYPE]: {
+    value: () => TValue;
+    supportsRules: TSupportsRules;
+    pathKind: TPathKind;
+  };
+};
+
+/**
+ * Schema path used if the value is an AbstractControl.
+ *
+ * @category interop
+ * @experimental 21.0.0
+ */
+export type CompatSchemaPath<
+  TControl extends AbstractControl,
+  TPathKind extends PathKind = PathKind.Root,
+> = SchemaPath<
+  TControl extends AbstractControl<unknown, infer TValue> ? TValue : never,
+  SchemaPathRules.Unsupported,
+  TPathKind
+> &
+  // & also we capture the control type, so that `stateOf(p)` can unwrap
+  // to a correctly typed `CompatFieldState`.
+  {
+    [ɵɵTYPE]: {control: TControl};
+  };
+
+/**
+ * Nested schema path.
+ *
+ * It mirrors the structure of a given data structure, and allows applying rules to the appropriate
+ * fields.
+ *
+ * @experimental 21.0.0
+ */
+export type SchemaPathTree<
+  TModel,
+  TPathKind extends PathKind = PathKind.Root,
+> = (TModel extends AbstractControl
+  ? CompatSchemaPath<TModel, TPathKind>
+  : SchemaPath<TModel, SchemaPathRules.Supported, TPathKind>) &
+  // Subpaths
+  (TModel extends AbstractControl
+    ? unknown
+    : // Array paths have no subpaths
+      TModel extends Array<any>
+      ? unknown
+      : // Object subfields
+        TModel extends Record<string, any>
+        ? {[K in keyof TModel]: MaybeSchemaPathTree<TModel[K], PathKind.Child>}
+        : // Primitive or other type - no subpaths
+          unknown);
 
 /**
  * Helper type for defining `FieldPath`. Given a type `TValue` that may include `undefined`, it
@@ -342,9 +435,9 @@ export type FieldPath<TValue, TPathKind extends PathKind = PathKind.Root> = {
  *
  * @experimental 21.0.0
  */
-export type MaybeFieldPath<TValue, TPathKind extends PathKind = PathKind.Root> =
-  | (TValue & undefined)
-  | FieldPath<Exclude<TValue, undefined>, TPathKind>;
+export type MaybeSchemaPathTree<TModel, TPathKind extends PathKind = PathKind.Root> =
+  | (TModel & undefined)
+  | SchemaPathTree<Exclude<TModel, undefined>, TPathKind>;
 
 /**
  * Defines logic for a form.
@@ -354,35 +447,35 @@ export type MaybeFieldPath<TValue, TPathKind extends PathKind = PathKind.Root> =
  * @category types
  * @experimental 21.0.0
  */
-export type Schema<in TValue> = {
-  [ɵɵTYPE]: SchemaFn<TValue, PathKind.Root>;
+export type Schema<in TModel> = {
+  [ɵɵTYPE]: SchemaFn<TModel, PathKind.Root>;
 };
 
 /**
  * Function that defines rules for a schema.
  *
- * @template TValue The type of data stored in the form that this schema function is attached to.
+ * @template TModel The type of data stored in the form that this schema function is attached to.
  * @template TPathKind The kind of path this schema function can be bound to.
  *
  * @category types
  * @experimental 21.0.0
  */
-export type SchemaFn<TValue, TPathKind extends PathKind = PathKind.Root> = (
-  p: FieldPath<TValue, TPathKind>,
+export type SchemaFn<TModel, TPathKind extends PathKind = PathKind.Root> = (
+  p: SchemaPathTree<TModel, TPathKind>,
 ) => void;
 
 /**
  * A schema or schema definition function.
  *
- * @template TValue The type of data stored in the form that this schema function is attached to.
+ * @template TModel The type of data stored in the form that this schema function is attached to.
  * @template TPathKind The kind of path this schema function can be bound to.
  *
  * @category types
  * @experimental 21.0.0
  */
-export type SchemaOrSchemaFn<TValue, TPathKind extends PathKind = PathKind.Root> =
-  | Schema<TValue>
-  | SchemaFn<TValue, TPathKind>;
+export type SchemaOrSchemaFn<TModel, TPathKind extends PathKind = PathKind.Root> =
+  | Schema<TModel>
+  | SchemaFn<TModel, TPathKind>;
 
 /**
  * A function that receives the `FieldContext` for the field the logic is bound to and returns
@@ -411,7 +504,7 @@ export type LogicFn<TValue, TReturn, TPathKind extends PathKind = PathKind.Root>
  */
 export type FieldValidator<TValue, TPathKind extends PathKind = PathKind.Root> = LogicFn<
   TValue,
-  ValidationResult<ValidationErrorWithoutField>,
+  ValidationResult<ValidationError.WithoutField>,
   TPathKind
 >;
 
@@ -476,12 +569,19 @@ export interface RootFieldContext<TValue> {
   readonly state: FieldState<TValue>;
   /** The current field. */
   readonly field: FieldTree<TValue>;
+
   /** Gets the value of the field represented by the given path. */
-  readonly valueOf: <P>(p: FieldPath<P>) => P;
+  valueOf<PValue>(p: SchemaPath<PValue, SchemaPathRules>): PValue;
+
   /** Gets the state of the field represented by the given path. */
-  readonly stateOf: <P>(p: FieldPath<P>) => FieldState<P>;
+  stateOf<PControl extends AbstractControl>(
+    p: CompatSchemaPath<PControl>,
+  ): CompatFieldState<PControl>;
+  stateOf<PValue>(p: SchemaPath<PValue, SchemaPathRules>): FieldState<PValue>;
   /** Gets the field represented by the given path. */
-  readonly fieldOf: <P>(p: FieldPath<P>) => FieldTree<P>;
+  fieldTreeOf<PModel>(p: SchemaPathTree<PModel>): FieldTree<PModel>;
+  /** The list of keys that lead from the root field to the current field. */
+  readonly pathKeys: Signal<readonly string[]>;
 }
 
 /**
@@ -504,3 +604,10 @@ export interface ItemFieldContext<TValue> extends ChildFieldContext<TValue> {
   /** The index of the current field in its parent field. */
   readonly index: Signal<number>;
 }
+
+/**
+ * Gets the item type of an object that is possibly an array.
+ *
+ * @experimental 21.0.0
+ */
+export type ItemType<T extends Object> = T extends ReadonlyArray<any> ? T[number] : T[keyof T];

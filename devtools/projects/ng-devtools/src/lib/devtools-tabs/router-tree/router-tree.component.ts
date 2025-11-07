@@ -25,11 +25,7 @@ import {ApplicationOperations} from '../../application-operations/index';
 import {RouteDetailsRowComponent} from './route-details-row.component';
 import {FrameManager} from '../../application-services/frame_manager';
 import {Events, MessageBus, Route} from '../../../../../protocol';
-import {
-  SvgD3Node,
-  SvgD3Link,
-  TreeVisualizerConfig,
-} from '../../shared/tree-visualizer/tree-visualizer';
+import {SvgD3Node, TreeVisualizerConfig} from '../../shared/tree-visualizer/tree-visualizer';
 import {
   RouterTreeD3Node,
   transformRoutesIntoVisTree,
@@ -122,8 +118,14 @@ export class RouterTreeComponent {
     const data = this.selectedRoute()?.data;
     // Check if the selected route is a lazy loaded route or a redirecting route.
     // These routes have no component associated with them.
-    if (data?.isLazy || data?.isRedirect) {
+    if (data?.isLazy || data?.redirectTo) {
       const message = 'Cannot view source for lazy loaded routes or redirecting routes.';
+      this.snackBar.open(message, 'Dismiss', {duration: 5000, horizontalPosition: 'left'});
+      return;
+    }
+
+    if (className === '[Function]') {
+      const message = 'Cannot view the source of functions defined inline (arrow or anonymous).';
       this.snackBar.open(message, 'Dismiss', {duration: 5000, horizontalPosition: 'left'});
       return;
     }
@@ -135,7 +137,7 @@ export class RouterTreeComponent {
     const data = this.selectedRoute()?.data;
     // Check if the selected route is a lazy loaded route or a redirecting route.
     // These routes have no component associated with them.
-    if (data?.isLazy || data?.isRedirect) {
+    if (data?.isLazy || data?.redirectTo) {
       const message = 'Cannot view source for lazy loaded routes or redirecting routes.';
       this.snackBar.open(message, 'Dismiss', {duration: 5000, horizontalPosition: 'left'});
       return;
@@ -146,6 +148,17 @@ export class RouterTreeComponent {
       'component',
       this.frameManager.selectedFrame()!,
     );
+  }
+
+  viewFunctionSource(functionName: string, type: 'title' | 'redirectTo'): void {
+    if (functionName === '[Function]') {
+      const message =
+        'Cannot view the source of redirect functions defined inline (arrow or anonymous).';
+      this.snackBar.open(message, 'Dismiss', {duration: 5000, horizontalPosition: 'left'});
+      return;
+    }
+
+    this.appOperations.viewSourceFromRouter(functionName, type, this.frameManager.selectedFrame()!);
   }
 
   navigateRoute(route: any): void {

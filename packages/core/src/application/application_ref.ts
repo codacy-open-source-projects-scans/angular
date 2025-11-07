@@ -38,7 +38,6 @@ import {AfterRenderManager} from '../render3/after_render/manager';
 import {ComponentFactory as R3ComponentFactory} from '../render3/component_ref';
 import {isStandalone} from '../render3/def_getters';
 import {ChangeDetectionMode, detectChangesInternal} from '../render3/instructions/change_detection';
-import {LView} from '../render3/interfaces/view';
 import {publishDefaultGlobalUtils as _publishDefaultGlobalUtils} from '../render3/util/global_utils';
 import {requiresRefreshOrTraversal} from '../render3/util/view_utils';
 import {ViewRef as InternalViewRef} from '../render3/view_ref';
@@ -46,7 +45,7 @@ import {TESTABILITY} from '../testability/testability';
 import {NgZone} from '../zone/ng_zone';
 
 import {profiler} from '../render3/profiler';
-import {ProfilerEvent} from '../render3/profiler_types';
+import {ProfilerEvent} from '../../primitives/profiler/src/profiler_types';
 import {EffectScheduler} from '../render3/reactivity/root_effect_scheduler';
 import {isReactiveLViewConsumer} from '../render3/reactive_lview_consumer';
 import {ApplicationInitStatus} from './application_init';

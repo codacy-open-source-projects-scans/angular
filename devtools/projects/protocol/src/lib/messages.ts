@@ -325,10 +325,10 @@ export interface Route {
   data?: any;
   path: string;
   component: string;
+  redirectTo?: string;
   isActive: boolean;
   isAux: boolean;
   isLazy: boolean;
-  isRedirect: boolean;
 }
 
 export interface AngularDetection {

@@ -13,7 +13,6 @@ import {InjectionToken} from '../di/injection_token';
 export const ANIMATIONS_DISABLED = new InjectionToken<boolean>(
   typeof ngDevMode !== 'undefined' && ngDevMode ? 'AnimationsDisabled' : '',
   {
-    providedIn: 'root',
     factory: () => false,
   },
 );
@@ -38,7 +37,6 @@ export type AnimationCallbackEvent = {target: Element; animationComplete: Functi
 export const MAX_ANIMATION_TIMEOUT = new InjectionToken<number>(
   typeof ngDevMode !== 'undefined' && ngDevMode ? 'MaxAnimationTimeout' : '',
   {
-    providedIn: 'root',
     factory: () => MAX_ANIMATION_TIMEOUT_DEFAULT,
   },
 );
@@ -52,23 +50,8 @@ const MAX_ANIMATION_TIMEOUT_DEFAULT = 4000;
  */
 export type AnimationFunction = (event: AnimationCallbackEvent) => void;
 
-export type AnimationEventFunction = (
-  el: Element,
-  value: AnimationFunction,
-) => AnimationRemoveFunction;
-export type AnimationClassFunction = (
-  el: Element,
-  value: Set<string> | null,
-  resolvers: Function[] | undefined,
-) => AnimationRemoveFunction;
-export type AnimationRemoveFunction = (removeFn: VoidFunction) => void;
-
-export interface AnimationDetails {
-  classes: Set<string> | null;
-  classFns?: Function[];
-  animateFn: AnimationRemoveFunction;
-  isEventBinding: boolean;
-}
+export type RunEnterAnimationFn = VoidFunction;
+export type RunLeaveAnimationFn = () => {promise: Promise<void>; resolve: VoidFunction};
 
 export interface LongestAnimation {
   animationName: string | undefined;
@@ -76,27 +59,34 @@ export interface LongestAnimation {
   duration: number;
 }
 
-export interface NodeAnimations {
-  animateFns: Function[];
+export interface EnterNodeAnimations {
+  animateFns: RunEnterAnimationFn[];
+  resolvers?: VoidFunction[];
+}
+export interface LeaveNodeAnimations {
+  animateFns: RunLeaveAnimationFn[];
   resolvers?: VoidFunction[];
 }
 
 export interface AnimationLViewData {
   // Enter animations that apply to nodes in this view
-  enter?: Map<number, NodeAnimations>;
+  enter?: Map<number, EnterNodeAnimations>;
 
   // Leave animations that apply to nodes in this view
-  leave?: Map<number, NodeAnimations>;
+  leave?: Map<number, LeaveNodeAnimations>;
 
   // Leave animations that apply to nodes in this view
   // We chose to use unknown instead of PromiseSettledResult<void> to avoid requiring the type
   running?: Promise<unknown>;
 
-  // Skip leave animations
-  // This flag is solely used when move operations occur. DOM Node move
-  // operations occur in lists, like `@for` loops, and use the same code
-  // path during move that detaching or removing does. So to prevent
-  // unexpected disappearing of moving nodes, we use this flag to skip
-  // the animations in that case.
-  skipLeaveAnimations?: boolean;
+  // Animation functions that have been queued for this view when the view is detached.
+  // This is used to later remove them from the global animation queue if the view
+  // is attached before the animation queue runs. This is used in cases where views are
+  // moved or swapped during list reconciliation.
+  detachedLeaveAnimationFns?: VoidFunction[];
 }
+
+/**
+ * Function that returns the class or class list binded to the animate instruction
+ */
+export type AnimationClassBindingFn = () => string | string[];
