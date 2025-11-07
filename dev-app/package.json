@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "ibazel run //dev-app:build.serve",
+    "dev:prod": "ibazel run //dev-app:build.production.serve",
     "dev:build": "bazel build //dev-app:build"
   },
   "dependencies": {
@@ -23,7 +24,7 @@
     "@angular/compiler-cli": "workspace:*",
     "@types/jasmine": "5.1.12",
     "@types/node": "^20.17.19",
-    "jasmine-core": "5.12.0",
+    "jasmine-core": "5.12.1",
     "jsdom": "^27.0.0",
     "karma": "~6.4.4",
     "karma-chrome-launcher": "3.2.0",
