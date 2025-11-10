@@ -746,7 +746,14 @@ class TcbGenericDirectiveTypeWithAnyParamsOp extends TcbDirectiveTypeOpBase {
  */
 abstract class TcbFieldDirectiveTypeBaseOp extends TcbOp {
   /** Bindings that aren't supported on signal form fields. */
-  private unsupportedBindingFields: Set<string>;
+  protected readonly unsupportedBindingFields = new Set([
+    ...formControlInputFields,
+    'value',
+    'checked',
+    'type',
+    'maxlength',
+    'minlength',
+  ]);
 
   constructor(
     protected tcb: Context,
@@ -755,32 +762,6 @@ abstract class TcbFieldDirectiveTypeBaseOp extends TcbOp {
     protected dir: TypeCheckableDirectiveMeta,
   ) {
     super();
-
-    // Should be kept in sync with the `FormUiControl` bindings,
-    // defined in `packages/forms/signals/src/api/control.ts`.
-    const commonUnsupportedNames = [
-      'value',
-      'checked',
-      'errors',
-      'invalid',
-      'disabled',
-      'disabledReasons',
-      'name',
-      'readonly',
-      'touched',
-      'max',
-      'maxlength',
-      'maxLength',
-      'min',
-      'minLength',
-      'minlength',
-      'pattern',
-      'required',
-      'type',
-    ];
-
-    // `type` can't be bound, but is allowed as a static attribute.
-    this.unsupportedBindingFields = new Set(commonUnsupportedNames);
   }
 
   override get optional() {
@@ -840,6 +821,23 @@ abstract class TcbFieldDirectiveTypeBaseOp extends TcbOp {
  * A `TcbOp` which constructs an instance of the signal forms `Field` directive on a native element.
  */
 class TcbNativeFieldDirectiveTypeOp extends TcbFieldDirectiveTypeBaseOp {
+  private readonly inputType: string | null;
+
+  constructor(tcb: Context, scope: Scope, node: DirectiveOwner, dir: TypeCheckableDirectiveMeta) {
+    super(tcb, scope, node, dir);
+
+    this.inputType =
+      (node instanceof TmplAstElement &&
+        node.name === 'input' &&
+        node.attributes.find((attr) => attr.name === 'type')?.value) ||
+      null;
+
+    // Radio control are allowed to set the `value`.
+    if (this.inputType === 'radio') {
+      this.unsupportedBindingFields.delete('value');
+    }
+  }
+
   protected override getExpectedType(): ts.TypeNode {
     if (this.node instanceof TmplAstElement) {
       return this.getExpectedTypeFromDomNode(this.node);
@@ -858,9 +856,7 @@ class TcbNativeFieldDirectiveTypeOp extends TcbFieldDirectiveTypeBaseOp {
       return this.getUnsupportedType();
     }
 
-    const inputType = node.attributes.find((attr) => attr.name === 'type')?.value;
-
-    switch (inputType) {
+    switch (this.inputType) {
       case 'checkbox':
         return ts.factory.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword);
 
@@ -975,7 +971,7 @@ class TcbCustomFieldDirectiveTypeOp extends TcbFieldDirectiveTypeBaseOp {
     const id = this.tcb.allocateId();
     const targetType = ts.factory.createTypeReferenceNode(
       targetTypeRef.typeName,
-      isCheckbox ? undefined : [ts.factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)],
+      isCheckbox ? undefined : [ts.factory.createKeywordTypeNode(ts.SyntaxKind.AnyKeyword)],
     );
     this.scope.addStatement(tsDeclareVariable(id, targetType));
 
@@ -1205,6 +1201,7 @@ class TcbDirectiveInputsOp extends TcbOp {
     private scope: Scope,
     private node: TmplAstTemplate | TmplAstElement | TmplAstComponent | TmplAstDirective,
     private dir: TypeCheckableDirectiveMeta,
+    private ignoredRequiredInputs: Set<string> | null,
   ) {
     super();
   }
@@ -1375,7 +1372,12 @@ class TcbDirectiveInputsOp extends TcbOp {
     const missing: BindingPropertyName[] = [];
 
     for (const input of this.dir.inputs) {
-      if (input.required && !seenRequiredInputs.has(input.classPropertyName)) {
+      if (
+        input.required &&
+        !seenRequiredInputs.has(input.classPropertyName) &&
+        (this.ignoredRequiredInputs === null ||
+          !this.ignoredRequiredInputs.has(input.bindingPropertyName))
+      ) {
         missing.push(input.bindingPropertyName);
       }
     }
@@ -3120,7 +3122,26 @@ class Scope {
     const directiveOp = this.getDirectiveOp(dir, node, allDirectiveMatches);
     const dirIndex = this.opQueue.push(directiveOp) - 1;
     dirMap.set(dir, dirIndex);
-    this.opQueue.push(new TcbDirectiveInputsOp(this.tcb, this, node, dir));
+
+    let ignoredRequiredInputs: Set<string> | null = null;
+
+    // The `Field` directive will bind implicitly to
+    // the relevant input so we don't need to check for it.
+    if (allDirectiveMatches.some(isFieldDirective)) {
+      const customFieldType = getCustomFieldDirectiveType(dir);
+
+      if (customFieldType !== null) {
+        ignoredRequiredInputs = new Set(formControlInputFields);
+
+        if (customFieldType === 'value') {
+          ignoredRequiredInputs.add('value');
+        } else if (customFieldType === 'checkbox') {
+          ignoredRequiredInputs.add('checked');
+        }
+      }
+    }
+
+    this.opQueue.push(new TcbDirectiveInputsOp(this.tcb, this, node, dir, ignoredRequiredInputs));
   }
 
   private getDirectiveOp(
@@ -3130,10 +3151,7 @@ class Scope {
   ): TcbOp {
     const dirRef = dir.ref as Reference<ClassDeclaration<ts.ClassDeclaration>>;
 
-    if (
-      dir.name === 'Field' &&
-      dirRef.bestGuessOwningModule?.specifier === '@angular/forms/signals'
-    ) {
+    if (isFieldDirective(dir)) {
       let customControl: {type: 'value' | 'checkbox'; meta: TypeCheckableDirectiveMeta} | null =
         null;
 
@@ -4066,22 +4084,61 @@ function getComponentTagName(node: TmplAstComponent): string {
   return node.tagName || 'ng-component';
 }
 
-/** Determines the type of signal form field control (if any) from a directive's metadata. */
-function getCustomFieldDirectiveType({
-  inputs,
-  outputs,
-}: TypeCheckableDirectiveMeta): 'value' | 'checkbox' | null {
-  if (
-    inputs.getByBindingPropertyName('value')?.some((v) => v.isSignal) &&
-    outputs.hasBindingPropertyName('valueChange')
-  ) {
-    return 'value';
+function isFieldDirective(meta: TypeCheckableDirectiveMeta): boolean {
+  if (meta.name !== 'Field') {
+    return false;
   }
 
-  if (
-    inputs.getByBindingPropertyName('checked')?.some((v) => v.isSignal) &&
-    outputs.hasBindingPropertyName('checkedChange')
-  ) {
+  // Fast path, relevant for all external users.
+  if (meta.ref.bestGuessOwningModule?.specifier === '@angular/forms/signals') {
+    return true;
+  }
+
+  // Slightly slower, but more accurate path.
+  return (
+    ts.isClassDeclaration(meta.ref.node) &&
+    meta.ref.node.members.some(
+      (member) =>
+        ts.isPropertyDeclaration(member) &&
+        ts.isComputedPropertyName(member.name) &&
+        ts.isIdentifier(member.name.expression) &&
+        member.name.expression.text === 'ɵCONTROL',
+    )
+  );
+}
+
+function hasModel(name: string, meta: TypeCheckableDirectiveMeta): boolean {
+  return (
+    !!meta.inputs.getByBindingPropertyName(name)?.some((v) => v.isSignal) &&
+    meta.outputs.hasBindingPropertyName(name + 'Change')
+  );
+}
+
+/** Names of the input fields on custom controls. */
+const formControlInputFields = [
+  // Should be kept in sync with the `FormUiControl` bindings,
+  // defined in `packages/forms/signals/src/api/control.ts`.
+  'errors',
+  'invalid',
+  'disabled',
+  'disabledReasons',
+  'name',
+  'readonly',
+  'touched',
+  'max',
+  'maxLength',
+  'min',
+  'minLength',
+  'pattern',
+  'required',
+] as const;
+
+function getCustomFieldDirectiveType(
+  meta: TypeCheckableDirectiveMeta,
+): 'value' | 'checkbox' | null {
+  if (hasModel('value', meta)) {
+    return 'value';
+  } else if (hasModel('checked', meta)) {
     return 'checkbox';
   }
 
