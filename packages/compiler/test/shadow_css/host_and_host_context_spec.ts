@@ -71,6 +71,9 @@ describe('ShadowCss, :host and :host-context', () => {
       expect(shim(':host:nth-child(8n+1) {}', 'contenta', 'a-host')).toEqualCss(
         '[a-host]:nth-child(8n+1) {}',
       );
+      expect(shim(':host(:nth-child(3n of :not(p, a))) {}', 'contenta', 'a-host')).toEqualCss(
+        '[a-host]:nth-child(3n of :not(p, a)) {}',
+      );
       expect(shim(':host:nth-of-type(8n+1) {}', 'contenta', 'a-host')).toEqualCss(
         '[a-host]:nth-of-type(8n+1) {}',
       );
@@ -106,6 +109,9 @@ describe('ShadowCss, :host and :host-context', () => {
       );
       expect(shim(':host(:not(.foo, .bar)) {}', 'contenta', 'a-host')).toEqualCss(
         '[a-host]:not(.foo, .bar) {}',
+      );
+      expect(shim(':host:has(> child-element:not(.foo)) {}', 'contenta', 'a-host')).toEqualCss(
+        '[a-host]:has(> child-element:not(.foo)) {}',
       );
     });
 

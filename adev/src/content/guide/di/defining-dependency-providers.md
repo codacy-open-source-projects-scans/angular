@@ -208,7 +208,7 @@ This hierarchy enables:
 
 In Angular, any element with a component or directive can provide values to all of its descendants.
 
-`mermaid
+```mermaid
 graph TD
     subgraph platform
         subgraph root
@@ -218,7 +218,7 @@ graph TD
             C --> D[FriendEntry]
         end
     end
-`
+```
 
 In the example above:
 
@@ -565,7 +565,11 @@ const apiClientFactory = () => {
   const http = inject(HttpClient);
   const userService = inject(UserService);
 
-  return new ApiClient(http, userService);
+  // Assuming userService provides these values
+  const baseUrl = userService.getApiBaseUrl();
+  const rateLimitMs = userService.getRateLimit();
+
+  return new ApiClient(http, baseUrl, rateLimitMs);
 };
 
 // Provider configuration

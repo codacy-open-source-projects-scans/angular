@@ -108,6 +108,12 @@ export class CustomValidationError implements ValidationError {
 }
 
 // @public
+export function debounce<TValue, TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<TValue, SchemaPathRules.Supported, TPathKind>, durationOrDebouncer: number | Debouncer<TValue, TPathKind>): void;
+
+// @public
+export type Debouncer<TValue, TPathKind extends PathKind = PathKind.Root> = (context: FieldContext<TValue, TPathKind>, abortSignal: AbortSignal) => Promise<void> | void;
+
+// @public
 export function disabled<TValue, TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<TValue, SchemaPathRules.Supported, TPathKind>, logic?: string | NoInfer<LogicFn<TValue, boolean | string, TPathKind>>): void;
 
 // @public
@@ -268,7 +274,7 @@ export type MapToErrorsFn<TValue, TResult, TPathKind extends PathKind = PathKind
 export const MAX: AggregateMetadataKey<number | undefined, number | undefined>;
 
 // @public
-export function max<TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<number, SchemaPathRules.Supported, TPathKind>, maxValue: number | LogicFn<number, number | undefined, TPathKind>, config?: BaseValidatorConfig<number, TPathKind>): void;
+export function max<TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<number | string | null, SchemaPathRules.Supported, TPathKind>, maxValue: number | LogicFn<number | string | null, number | undefined, TPathKind>, config?: BaseValidatorConfig<number | string | null, TPathKind>): void;
 
 // @public
 export const MAX_LENGTH: AggregateMetadataKey<number | undefined, number | undefined>;
@@ -329,7 +335,7 @@ export class MetadataKey<TValue> {
 export const MIN: AggregateMetadataKey<number | undefined, number | undefined>;
 
 // @public
-export function min<TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<number, SchemaPathRules.Supported, TPathKind>, minValue: number | LogicFn<number, number | undefined, TPathKind>, config?: BaseValidatorConfig<number, TPathKind>): void;
+export function min<TValue extends number | string | null, TPathKind extends PathKind = PathKind.Root>(path: SchemaPath<TValue, SchemaPathRules.Supported, TPathKind>, minValue: number | LogicFn<TValue, number | undefined, TPathKind>, config?: BaseValidatorConfig<TValue, TPathKind>): void;
 
 // @public
 export const MIN_LENGTH: AggregateMetadataKey<number | undefined, number | undefined>;
@@ -428,7 +434,7 @@ export function readonly<TValue, TPathKind extends PathKind = PathKind.Root>(pat
 export type ReadonlyArrayLike<T> = Pick<ReadonlyArray<T>, number | 'length' | typeof Symbol.iterator>;
 
 // @public
-export function reducedMetadataKey<TAcc, TItem>(reduce: (acc: TAcc, item: TItem) => TAcc, getInitial: () => TAcc): AggregateMetadataKey<TAcc, TItem>;
+export function reducedMetadataKey<TAcc, TItem>(reduce: (acc: TAcc, item: TItem) => TAcc, getInitial: NoInfer<() => TAcc>): AggregateMetadataKey<TAcc, TItem>;
 
 // @public
 export type RemoveStringIndexUnknownKey<K, V> = string extends K ? unknown extends V ? never : K : K;
@@ -499,7 +505,7 @@ export namespace SchemaPathRules {
 }
 
 // @public
-export type SchemaPathTree<TModel, TPathKind extends PathKind = PathKind.Root> = (TModel extends AbstractControl ? CompatSchemaPath<TModel, TPathKind> : SchemaPath<TModel, SchemaPathRules.Supported, TPathKind>) & (TModel extends AbstractControl ? unknown : TModel extends Array<any> ? unknown : TModel extends Record<string, any> ? {
+export type SchemaPathTree<TModel, TPathKind extends PathKind = PathKind.Root> = ([TModel] extends [AbstractControl] ? CompatSchemaPath<TModel, TPathKind> : SchemaPath<TModel, SchemaPathRules.Supported, TPathKind>) & (TModel extends AbstractControl ? unknown : TModel extends Array<any> ? unknown : TModel extends Record<string, any> ? {
     [K in keyof TModel]: MaybeSchemaPathTree<TModel[K], PathKind.Child>;
 } : unknown);
 

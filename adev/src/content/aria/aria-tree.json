@@ -10,11 +10,21 @@
       "entryType": "undecorated_class",
       "members": [
         {
+          "name": "element",
+          "type": "HTMLElement",
+          "memberType": "property",
+          "memberTags": [
+            "readonly"
+          ],
+          "description": "A reference to the host element.",
+          "jsdocTags": []
+        },
+        {
           "name": "id",
           "type": "any",
           "memberType": "property",
           "memberTags": [
-            "protected"
+            "readonly"
           ],
           "description": "A unique identifier for the tree.",
           "jsdocTags": []
@@ -56,7 +66,7 @@
           "memberTags": [
             "readonly"
           ],
-          "description": "The selection strategy used by the tree.",
+          "description": "The selection strategy used by the tree.\n- `explicit`: Items are selected explicitly by the user (e.g., via click or spacebar).\n- `follow`: The focused item is automatically selected.",
           "jsdocTags": []
         },
         {
@@ -66,7 +76,7 @@
           "memberTags": [
             "readonly"
           ],
-          "description": "The focus strategy used by the tree.",
+          "description": "The focus strategy used by the tree.\n- `roving`: Focus is moved to the active item using `tabindex`.\n- `activedescendant`: Focus remains on the tree container, and `aria-activedescendant` is used to indicate the active item.",
           "jsdocTags": []
         },
         {
@@ -86,7 +96,7 @@
           "memberTags": [
             "readonly"
           ],
-          "description": "Whether to allow disabled items to receive focus.",
+          "description": "Whether to allow disabled items to receive focus. When `true`, disabled items are\nfocusable but not interactive. When `false`, disabled items are skipped during navigation.",
           "jsdocTags": []
         },
         {
@@ -96,17 +106,17 @@
           "memberTags": [
             "readonly"
           ],
-          "description": "Typeahead delay.",
+          "description": "The delay in seconds before the typeahead search is reset.",
           "jsdocTags": []
         },
         {
-          "name": "value",
+          "name": "values",
           "type": "any",
           "memberType": "property",
           "memberTags": [
             "readonly"
           ],
-          "description": "Selected item values.",
+          "description": "The values of the currently selected items.",
           "jsdocTags": []
         },
         {
@@ -136,139 +146,8 @@
           "memberTags": [
             "readonly"
           ],
-          "description": "The aria-current type.",
+          "description": "The `aria-current` type. It can be used in navigation trees to indicate the currently active item.\nSee https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-current for more details.",
           "jsdocTags": []
-        },
-        {
-          "name": "onFocus",
-          "signatures": [
-            {
-              "name": "onFocus",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "onFocus",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
-        },
-        {
-          "name": "register",
-          "signatures": [
-            {
-              "name": "register",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [
-                {
-                  "name": "child",
-                  "description": "",
-                  "type": "TreeItem<V>",
-                  "isOptional": false,
-                  "isRestParam": false
-                }
-              ],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [
-              {
-                "name": "child",
-                "description": "",
-                "type": "TreeItem<V>",
-                "isOptional": false,
-                "isRestParam": false
-              }
-            ],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "register",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
-        },
-        {
-          "name": "unregister",
-          "signatures": [
-            {
-              "name": "unregister",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [
-                {
-                  "name": "child",
-                  "description": "",
-                  "type": "TreeItem<V>",
-                  "isOptional": false,
-                  "isRestParam": false
-                }
-              ],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [
-              {
-                "name": "child",
-                "description": "",
-                "type": "TreeItem<V>",
-                "isOptional": false,
-                "isRestParam": false
-              }
-            ],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "unregister",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
         },
         {
           "name": "scrollActiveItemIntoView",
@@ -325,14 +204,27 @@
           "name": "V"
         }
       ],
-      "description": "A Tree container.\n\nTransforms nested lists into an accessible, ARIA-compliant tree structure.\n\n```html\n<ul ngTree [(value)]=\"selectedItems\" [multi]=\"true\">\n  <li ngTreeItem [value]=\"'leaf1'\">Leaf Item 1</li>\n  <li ngTreeItem [value]=\"'parent1'\">\n    Parent Item 1\n    <ul ngTreeItemGroup [value]=\"'parent1'\">\n      <ng-template ngTreeItemGroupContent>\n        <li ngTreeItem [value]=\"'child1.1'\">Child Item 1.1</li>\n        <li ngTreeItem [value]=\"'child1.2'\">Child Item 1.2</li>\n      </ng-template>\n    </ul>\n  </li>\n  <li ngTreeItem [value]=\"'leaf2'\" [disabled]=\"true\">Disabled Leaf Item 2</li>\n</ul>\n```",
-      "jsdocTags": [],
-      "rawComment": "/**\n * A Tree container.\n *\n * Transforms nested lists into an accessible, ARIA-compliant tree structure.\n *\n * ```html\n * <ul ngTree [(value)]=\"selectedItems\" [multi]=\"true\">\n *   <li ngTreeItem [value]=\"'leaf1'\">Leaf Item 1</li>\n *   <li ngTreeItem [value]=\"'parent1'\">\n *     Parent Item 1\n *     <ul ngTreeItemGroup [value]=\"'parent1'\">\n *       <ng-template ngTreeItemGroupContent>\n *         <li ngTreeItem [value]=\"'child1.1'\">Child Item 1.1</li>\n *         <li ngTreeItem [value]=\"'child1.2'\">Child Item 1.2</li>\n *       </ng-template>\n *     </ul>\n *   </li>\n *   <li ngTreeItem [value]=\"'leaf2'\" [disabled]=\"true\">Disabled Leaf Item 2</li>\n * </ul>\n * ```\n */",
+      "description": "A container that transforms nested lists into an accessible, ARIA-compliant tree structure.\nIt manages the overall state of the tree, including selection, expansion, and keyboard\nnavigation.\n\n```html\n<ul ngTree [(value)]=\"selectedItems\" [multi]=\"true\">\n  <ng-template\n    [ngTemplateOutlet]=\"treeNodes\"\n    [ngTemplateOutletContext]=\"{nodes: treeData, parent: tree}\"\n  />\n</ul>\n\n<ng-template #treeNodes let-nodes=\"nodes\" let-parent=\"parent\">",
+      "jsdocTags": [
+        {
+          "name": "for",
+          "comment": "(node of nodes; track node.name) {\n<li ngTreeItem [parent]=\"parent\" [value]=\"node.name\" [label]=\"node.name\">\n{{ node.name }}"
+        },
+        {
+          "name": "if",
+          "comment": "(node.children) {\n  <ul role=\"group\">\n    <ng-template ngTreeItemGroup [ownedBy]=\"treeItem\" #group=\"ngTreeItemGroup\">\n      <ng-template\n        [ngTemplateOutlet]=\"treeNodes\"\n        [ngTemplateOutletContext]=\"{nodes: node.children, parent: group}\"\n      />\n    </ng-template>\n  </ul>\n}\n</li>\n}\n</ng-template>\n```"
+        },
+        {
+          "name": "developerPreview",
+          "comment": "21.0"
+        }
+      ],
+      "rawComment": "/**\n * A container that transforms nested lists into an accessible, ARIA-compliant tree structure.\n * It manages the overall state of the tree, including selection, expansion, and keyboard\n * navigation.\n *\n * ```html\n * <ul ngTree [(value)]=\"selectedItems\" [multi]=\"true\">\n *   <ng-template\n *     [ngTemplateOutlet]=\"treeNodes\"\n *     [ngTemplateOutletContext]=\"{nodes: treeData, parent: tree}\"\n *   />\n * </ul>\n *\n * <ng-template #treeNodes let-nodes=\"nodes\" let-parent=\"parent\">\n *   @for (node of nodes; track node.name) {\n *     <li ngTreeItem [parent]=\"parent\" [value]=\"node.name\" [label]=\"node.name\">\n *       {{ node.name }}\n *       @if (node.children) {\n *         <ul role=\"group\">\n *           <ng-template ngTreeItemGroup [ownedBy]=\"treeItem\" #group=\"ngTreeItemGroup\">\n *             <ng-template\n *               [ngTemplateOutlet]=\"treeNodes\"\n *               [ngTemplateOutletContext]=\"{nodes: node.children, parent: group}\"\n *             />\n *           </ng-template>\n *         </ul>\n *       }\n *     </li>\n *   }\n * </ng-template>\n * ```\n *\n * @developerPreview 21.0\n */",
       "implements": [],
       "source": {
         "filePath": "/src/aria/tree/tree.ts",
-        "startLine": 70,
-        "endLine": 213
+        "startLine": 83,
+        "endLine": 240
       }
     },
     {
@@ -342,13 +234,26 @@
       "members": [
         {
           "name": "element",
-          "type": "any",
+          "type": "HTMLElement",
           "memberType": "property",
           "memberTags": [
             "readonly"
           ],
-          "description": "The host native element.",
+          "description": "A reference to the host element.",
           "jsdocTags": []
+        },
+        {
+          "name": "id",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly",
+            "input"
+          ],
+          "description": "A unique identifier for the tree item.",
+          "jsdocTags": [],
+          "inputAlias": "id",
+          "isRequiredInput": false
         },
         {
           "name": "value",
@@ -403,6 +308,21 @@
           "isRequiredInput": false
         },
         {
+          "name": "expanded",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly",
+            "input",
+            "output"
+          ],
+          "description": "Whether the tree item is expanded.",
+          "jsdocTags": [],
+          "inputAlias": "expanded",
+          "isRequiredInput": false,
+          "outputAlias": "expandedChange"
+        },
+        {
           "name": "label",
           "type": "any",
           "memberType": "property",
@@ -433,6 +353,46 @@
             "readonly"
           ],
           "description": "The tree root.",
+          "jsdocTags": []
+        },
+        {
+          "name": "active",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly"
+          ],
+          "description": "Whether the item is active.",
+          "jsdocTags": []
+        },
+        {
+          "name": "level",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly"
+          ],
+          "description": "The level of the current item in a tree.",
+          "jsdocTags": []
+        },
+        {
+          "name": "selected",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly"
+          ],
+          "description": "Whether the item is selected.",
+          "jsdocTags": []
+        },
+        {
+          "name": "visible",
+          "type": "any",
+          "memberType": "property",
+          "memberTags": [
+            "readonly"
+          ],
+          "description": "Whether this item is visible due to all of its parents being expanded.",
           "jsdocTags": []
         },
         {
@@ -500,88 +460,6 @@
           "rawComment": "",
           "memberType": "method",
           "memberTags": []
-        },
-        {
-          "name": "register",
-          "signatures": [
-            {
-              "name": "register",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [
-                {
-                  "name": "group",
-                  "description": "",
-                  "type": "TreeItemGroup<V>",
-                  "isOptional": false,
-                  "isRestParam": false
-                }
-              ],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [
-              {
-                "name": "group",
-                "description": "",
-                "type": "TreeItemGroup<V>",
-                "isOptional": false,
-                "isRestParam": false
-              }
-            ],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "register",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
-        },
-        {
-          "name": "unregister",
-          "signatures": [
-            {
-              "name": "unregister",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "unregister",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
         }
       ],
       "generics": [
@@ -589,9 +467,14 @@
           "name": "V"
         }
       ],
-      "description": "A selectable and expandable Tree Item in a Tree.",
-      "jsdocTags": [],
-      "rawComment": "/**\n * A selectable and expandable Tree Item in a Tree.\n */",
+      "description": "A selectable and expandable item in an `ngTree`.\n\nThe `ngTreeItem` directive represents an individual node within an `ngTree`. It can be\nselected, expanded (if it has children), and disabled. The `parent` input establishes\nthe hierarchical relationship within the tree.\n\n```html\n<li ngTreeItem [parent]=\"parentTreeOrGroup\" value=\"item-id\" label=\"Item Label\">\n  Item Label\n</li>\n```",
+      "jsdocTags": [
+        {
+          "name": "developerPreview",
+          "comment": "21.0"
+        }
+      ],
+      "rawComment": "/**\n * A selectable and expandable item in an `ngTree`.\n *\n * The `ngTreeItem` directive represents an individual node within an `ngTree`. It can be\n * selected, expanded (if it has children), and disabled. The `parent` input establishes\n * the hierarchical relationship within the tree.\n *\n * ```html\n * <li ngTreeItem [parent]=\"parentTreeOrGroup\" value=\"item-id\" label=\"Item Label\">\n *   Item Label\n * </li>\n * ```\n *\n * @developerPreview 21.0\n */",
       "extends": "DeferredContentAware",
       "implements": [
         "OnInit",
@@ -605,8 +488,8 @@
       ],
       "source": {
         "filePath": "/src/aria/tree/tree.ts",
-        "startLine": 218,
-        "endLine": 326
+        "startLine": 257,
+        "endLine": 385
       }
     },
     {
@@ -615,13 +498,13 @@
       "entryType": "undecorated_class",
       "members": [
         {
-          "name": "children",
-          "type": "any",
+          "name": "element",
+          "type": "HTMLElement",
           "memberType": "property",
           "memberTags": [
             "readonly"
           ],
-          "description": "Child items within this group.",
+          "description": "A reference to the host element.",
           "jsdocTags": []
         },
         {
@@ -699,104 +582,6 @@
           "rawComment": "",
           "memberType": "method",
           "memberTags": []
-        },
-        {
-          "name": "register",
-          "signatures": [
-            {
-              "name": "register",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [
-                {
-                  "name": "child",
-                  "description": "",
-                  "type": "TreeItem<V>",
-                  "isOptional": false,
-                  "isRestParam": false
-                }
-              ],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [
-              {
-                "name": "child",
-                "description": "",
-                "type": "TreeItem<V>",
-                "isOptional": false,
-                "isRestParam": false
-              }
-            ],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "register",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
-        },
-        {
-          "name": "unregister",
-          "signatures": [
-            {
-              "name": "unregister",
-              "entryType": "function",
-              "description": "",
-              "generics": [],
-              "isNewType": false,
-              "jsdocTags": [],
-              "params": [
-                {
-                  "name": "child",
-                  "description": "",
-                  "type": "TreeItem<V>",
-                  "isOptional": false,
-                  "isRestParam": false
-                }
-              ],
-              "rawComment": "",
-              "returnType": "void"
-            }
-          ],
-          "implementation": {
-            "params": [
-              {
-                "name": "child",
-                "description": "",
-                "type": "TreeItem<V>",
-                "isOptional": false,
-                "isRestParam": false
-              }
-            ],
-            "isNewType": false,
-            "returnType": "void",
-            "generics": [],
-            "name": "unregister",
-            "description": "",
-            "entryType": "function",
-            "jsdocTags": [],
-            "rawComment": ""
-          },
-          "entryType": "function",
-          "description": "",
-          "jsdocTags": [],
-          "rawComment": "",
-          "memberType": "method",
-          "memberTags": []
         }
       ],
       "generics": [
@@ -804,17 +589,22 @@
           "name": "V"
         }
       ],
-      "description": "Contains children tree itmes.",
-      "jsdocTags": [],
-      "rawComment": "/**\n * Contains children tree itmes.\n */",
+      "description": "Group that contains children tree items.\n\nThe `ngTreeItemGroup` structural directive should be applied to an `ng-template` that\nwraps the child `ngTreeItem` elements. It is used to define a group of children for an\nexpandable `ngTreeItem`. The `ownedBy` input links the group to its parent `ngTreeItem`.\n\n```html\n<li ngTreeItem [value]=\"'parent-id'\">\n  Parent Item\n  <ul role=\"group\">\n    <ng-template ngTreeItemGroup [ownedBy]=\"parentTreeItemRef\">\n      <li ngTreeItem [value]=\"'child-id'\">Child Item</li>\n    </ng-template>\n  </ul>\n</li>\n```",
+      "jsdocTags": [
+        {
+          "name": "developerPreview",
+          "comment": "21.0"
+        }
+      ],
+      "rawComment": "/**\n * Group that contains children tree items.\n *\n * The `ngTreeItemGroup` structural directive should be applied to an `ng-template` that\n * wraps the child `ngTreeItem` elements. It is used to define a group of children for an\n * expandable `ngTreeItem`. The `ownedBy` input links the group to its parent `ngTreeItem`.\n *\n * ```html\n * <li ngTreeItem [value]=\"'parent-id'\">\n *   Parent Item\n *   <ul role=\"group\">\n *     <ng-template ngTreeItemGroup [ownedBy]=\"parentTreeItemRef\">\n *       <li ngTreeItem [value]=\"'child-id'\">Child Item</li>\n *     </ng-template>\n *   </ul>\n * </li>\n * ```\n *\n * @developerPreview 21.0\n */",
       "implements": [
         "OnInit",
         "OnDestroy"
       ],
       "source": {
         "filePath": "/src/aria/tree/tree.ts",
-        "startLine": 331,
-        "endLine": 369
+        "startLine": 407,
+        "endLine": 451
       }
     }
   ],
@@ -920,6 +710,10 @@
       "@angular/aria/tree"
     ],
     [
+      "Tree.element",
+      "@angular/aria/tree"
+    ],
+    [
       "Tree.id",
       "@angular/aria/tree"
     ],
@@ -956,7 +750,7 @@
       "@angular/aria/tree"
     ],
     [
-      "Tree.value",
+      "Tree.values",
       "@angular/aria/tree"
     ],
     [
@@ -972,18 +766,6 @@
       "@angular/aria/tree"
     ],
     [
-      "Tree.onFocus",
-      "@angular/aria/tree"
-    ],
-    [
-      "Tree.register",
-      "@angular/aria/tree"
-    ],
-    [
-      "Tree.unregister",
-      "@angular/aria/tree"
-    ],
-    [
       "Tree.scrollActiveItemIntoView",
       "@angular/aria/tree"
     ],
@@ -993,6 +775,10 @@
     ],
     [
       "TreeItem.element",
+      "@angular/aria/tree"
+    ],
+    [
+      "TreeItem.id",
       "@angular/aria/tree"
     ],
     [
@@ -1012,6 +798,10 @@
       "@angular/aria/tree"
     ],
     [
+      "TreeItem.expanded",
+      "@angular/aria/tree"
+    ],
+    [
       "TreeItem.label",
       "@angular/aria/tree"
     ],
@@ -1024,6 +814,22 @@
       "@angular/aria/tree"
     ],
     [
+      "TreeItem.active",
+      "@angular/aria/tree"
+    ],
+    [
+      "TreeItem.level",
+      "@angular/aria/tree"
+    ],
+    [
+      "TreeItem.selected",
+      "@angular/aria/tree"
+    ],
+    [
+      "TreeItem.visible",
+      "@angular/aria/tree"
+    ],
+    [
       "TreeItem.ngOnInit",
       "@angular/aria/tree"
     ],
@@ -1032,19 +838,11 @@
       "@angular/aria/tree"
     ],
     [
-      "TreeItem.register",
-      "@angular/aria/tree"
-    ],
-    [
-      "TreeItem.unregister",
-      "@angular/aria/tree"
-    ],
-    [
       "TreeItemGroup",
       "@angular/aria/tree"
     ],
     [
-      "TreeItemGroup.children",
+      "TreeItemGroup.element",
       "@angular/aria/tree"
     ],
     [
@@ -1057,14 +855,6 @@
     ],
     [
       "TreeItemGroup.ngOnDestroy",
-      "@angular/aria/tree"
-    ],
-    [
-      "TreeItemGroup.register",
-      "@angular/aria/tree"
-    ],
-    [
-      "TreeItemGroup.unregister",
       "@angular/aria/tree"
     ]
   ]

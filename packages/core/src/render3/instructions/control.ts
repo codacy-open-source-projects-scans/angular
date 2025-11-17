@@ -33,18 +33,6 @@ import {listenToOutput} from '../view/directive_outputs';
 import {listenToDomEvent, wrapListener} from '../view/listeners';
 import {setPropertyAndInputs, storePropertyBindingMetadata} from './shared';
 import {writeToDirectiveInput} from './write_to_directive_input';
-import {ModelSignal} from '../../authoring/model/model_signal';
-
-/**
- * Used during template type checking to extract the type of a custom form control.
- *
- * @codeGenApi
- */
-export type ɵExtractFormControlValue<T> = T extends {value: ModelSignal<infer V>}
-  ? V
-  : T extends {checked: ModelSignal<boolean>}
-    ? boolean
-    : unknown;
 
 /**
  * Possibly sets up a {@link ɵControl} to manage a native or custom form control.
@@ -258,11 +246,7 @@ function listenToCustomControl(
     componentIndex,
     outputName,
     outputName,
-    wrapListener(tNode, lView, (newValue: unknown) => {
-      const state = control.state();
-      state.value.set(newValue);
-      state.markAsDirty();
-    }),
+    wrapListener(tNode, lView, (value: unknown) => control.state().setControlValue(value)),
   );
 
   const tView = getTView();
@@ -275,9 +259,7 @@ function listenToCustomControl(
       componentIndex,
       touchedOutputName,
       touchedOutputName,
-      wrapListener(tNode, lView, () => {
-        control.state().markAsTouched();
-      }),
+      wrapListener(tNode, lView, () => control.state().markAsTouched()),
     );
   }
 }
@@ -336,8 +318,7 @@ function listenToNativeControl(lView: LView<{} | null>, tNode: TNode, control: �
 
   const inputListener = () => {
     const state = control.state();
-    state.value.set(getNativeControlValue(element, state.value));
-    state.markAsDirty();
+    state.setControlValue(getNativeControlValue(element, state.value));
   };
   listenToDomEvent(
     tNode,
@@ -371,8 +352,16 @@ function listenToNativeControl(lView: LView<{} | null>, tNode: TNode, control: �
   // This means that we need to know when an `<option>` is created, destroyed, or has its `value`
   // changed so that we can re-sync the `<select>` to the field state's value. We implement this
   // using a `MutationObserver` that we create to observe `<option>` changes.
-  if (element instanceof HTMLSelectElement) {
-    const observer = observeSelectMutations(element, getControlDirective(tNode, lView)!);
+  if (
+    tNode.type === TNodeType.Element &&
+    tNode.value === 'select' &&
+    typeof MutationObserver === 'function'
+  ) {
+    const observer = observeSelectMutations(
+      element as HTMLSelectElement,
+      getControlDirective(tNode, lView)!,
+    );
+
     storeCleanupWithContext(tView, lView, observer, observer.disconnect);
   }
 }
@@ -391,9 +380,7 @@ function observeSelectMutations(
 ): MutationObserver {
   const observer = new MutationObserver((mutations) => {
     if (mutations.some((m) => isRelevantSelectMutation(m))) {
-      // TODO: https://github.com/orgs/angular/projects/60/views/1?pane=issue&itemId=131711472
-      // * check if bindings changed before writing.
-      setNativeControlValue(select, controlDirective.state().value());
+      select.value = controlDirective.state().value();
     }
   });
   observer.observe(select, {
@@ -465,7 +452,7 @@ function updateCustomControl(
   const state = control.state();
   const bindings = getControlBindings(lView);
 
-  maybeUpdateInput(componentDef, component, bindings, state, VALUE, modelName);
+  maybeUpdateInput(componentDef, component, bindings, state, CONTROL_VALUE, modelName);
 
   for (const key of CONTROL_BINDING_KEYS) {
     const inputName = CONTROL_BINDING_NAMES[key];
@@ -512,7 +499,7 @@ function updateInteropControl(lView: LView, control: ɵControl<unknown>): void {
   const state = control.state();
 
   const value = state.value();
-  if (controlBindingUpdated(bindings, VALUE, value)) {
+  if (controlBindingUpdated(bindings, CONTROL_VALUE, value)) {
     // We don't know if the interop control has underlying signals, so we must use `untracked` to
     // prevent writing to a signal in a reactive context.
     untracked(() => interopControl.writeValue(value));
@@ -540,9 +527,9 @@ function updateNativeControl(tNode: TNode, lView: LView, control: ɵControl<unkn
   const state = control.state();
   const bindings = getControlBindings(lView);
 
-  const value = state.value();
-  if (controlBindingUpdated(bindings, VALUE, value)) {
-    setNativeControlValue(element, value);
+  const controlValue = state.controlValue();
+  if (controlBindingUpdated(bindings, CONTROL_VALUE, controlValue)) {
+    setNativeControlValue(element, controlValue);
   }
 
   const name = state.name();
@@ -785,8 +772,10 @@ const REQUIRED = /* @__PURE__ */ getClosureSafeProperty({
   required: getClosureSafeProperty,
 }) as 'required';
 
-/** A property-renaming safe reference to a property named 'value'. */
-const VALUE = /* @__PURE__ */ getClosureSafeProperty({value: getClosureSafeProperty}) as 'value';
+/** A property-renaming safe reference to a property named 'controlValue'. */
+const CONTROL_VALUE = /* @__PURE__ */ getClosureSafeProperty({
+  controlValue: getClosureSafeProperty,
+}) as 'controlValue';
 
 /**
  * A utility type that extracts the keys from `T` where the value type matches `TCondition`.
@@ -799,9 +788,13 @@ type KeysWithValueType<T, TCondition> = keyof {
 
 /**
  * The keys of `ɵFieldState` that can be bound to a control.
- * These are the properties of `ɵFieldState` that are signals or undefined.
+ * These are the properties of `ɵFieldState` that are signals or undefined, except for `value`
+ * which is not bound directly, but updated indirectly through the `controlValue` binding.
  */
-type ControlBindingKeys = KeysWithValueType<ɵFieldState<unknown>, Signal<any> | undefined>;
+type ControlBindingKeys = Exclude<
+  KeysWithValueType<ɵFieldState<unknown>, Signal<any> | undefined>,
+  'value'
+>;
 
 /**
  * A map of control binding keys to their values.
@@ -814,7 +807,8 @@ type ControlBindings = {
 /**
  * A map of field state properties to control binding name.
  *
- * This excludes `value` whose corresponding control binding name differs between control types.
+ * This excludes `controlValue` whose corresponding control binding name differs between control
+ * types.
  *
  * The control binding name can be used for inputs or attributes (since DOM attributes are case
  * insensitive).
@@ -833,7 +827,7 @@ const CONTROL_BINDING_NAMES = {
   readonly: 'readonly',
   required: 'required',
   touched: 'touched',
-} as const satisfies Record<Exclude<ControlBindingKeys, 'value'>, string>;
+} as const satisfies Record<Exclude<ControlBindingKeys, 'controlValue'>, string>;
 
 /** The keys of {@link CONTROL_BINDING_NAMES} */
 const CONTROL_BINDING_KEYS = /* @__PURE__ */ (() => Object.keys(CONTROL_BINDING_NAMES))() as Array<

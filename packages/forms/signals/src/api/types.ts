@@ -405,23 +405,25 @@ export type CompatSchemaPath<
  *
  * @experimental 21.0.0
  */
-export type SchemaPathTree<
-  TModel,
-  TPathKind extends PathKind = PathKind.Root,
-> = (TModel extends AbstractControl
-  ? CompatSchemaPath<TModel, TPathKind>
-  : SchemaPath<TModel, SchemaPathRules.Supported, TPathKind>) &
-  // Subpaths
-  (TModel extends AbstractControl
-    ? unknown
-    : // Array paths have no subpaths
-      TModel extends Array<any>
+export type SchemaPathTree<TModel, TPathKind extends PathKind = PathKind.Root> =
+  // Note: We use `[TModel]` here to avoid distributing over a union type model.
+  // (e.g. if we have a model of `number | string`, we want a `SchemaPath<number | string>`,
+  // not a `SchemaPath<number> | SchemaPath<string>`.
+  // See https://typescriptlang.org/docs/handbook/2/conditional-types.html#distributive-conditional-types)
+  ([TModel] extends [AbstractControl]
+    ? CompatSchemaPath<TModel, TPathKind>
+    : SchemaPath<TModel, SchemaPathRules.Supported, TPathKind>) &
+    // Subpaths
+    (TModel extends AbstractControl
       ? unknown
-      : // Object subfields
-        TModel extends Record<string, any>
-        ? {[K in keyof TModel]: MaybeSchemaPathTree<TModel[K], PathKind.Child>}
-        : // Primitive or other type - no subpaths
-          unknown);
+      : // Array paths have no subpaths
+        TModel extends Array<any>
+        ? unknown
+        : // Object subfields
+          TModel extends Record<string, any>
+          ? {[K in keyof TModel]: MaybeSchemaPathTree<TModel[K], PathKind.Child>}
+          : // Primitive or other type - no subpaths
+            unknown);
 
 /**
  * Helper type for defining `FieldPath`. Given a type `TValue` that may include `undefined`, it
@@ -611,3 +613,19 @@ export interface ItemFieldContext<TValue> extends ChildFieldContext<TValue> {
  * @experimental 21.0.0
  */
 export type ItemType<T extends Object> = T extends ReadonlyArray<any> ? T[number] : T[keyof T];
+
+/**
+ * A function that defines custom debounce logic for a field.
+ *
+ * @param context The field context.
+ * @param abortSignal An `AbortSignal` used to communicate that the debounced operation was aborted.
+ * @returns A `Promise<void>` to debounce an update, or `void` to apply an update immediately.
+ * @template TValue The type of value stored in the field.
+ * @template TPathKind The kind of path the debouncer is applied to (root field, child field, or item of an array).
+ *
+ * @experimental 21.0.0
+ */
+export type Debouncer<TValue, TPathKind extends PathKind = PathKind.Root> = (
+  context: FieldContext<TValue, TPathKind>,
+  abortSignal: AbortSignal,
+) => Promise<void> | void;

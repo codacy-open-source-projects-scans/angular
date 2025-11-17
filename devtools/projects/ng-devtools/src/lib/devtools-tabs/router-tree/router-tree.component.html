@@ -67,7 +67,7 @@
                   [data]="data"
                   actionBtnType="view-source"
                   actionBtnTooltip="View source"
-                  [actionBtnDisabled]="data.component.includes('Lazy')"
+                  [actionBtnDisabled]="!!data?.isLazy"
                   (actionBtnClick)="viewComponentSource(data.component)"
                 ></tr>
               } @else {
@@ -94,6 +94,18 @@
                   [data]="data"
                 ></tr>
               }
+              @if (data.resolvers && data.resolvers.length > 0) {
+                <tr
+                  ng-route-details-row
+                  label="Resolvers"
+                  [renderValueAsJson]="true"
+                  dataKey="resolvers"
+                  [data]="data"
+                  actionBtnType="view-source"
+                  (actionBtnClick)="viewSourceFromRouter($event, 'resolvers')"
+                ></tr>
+              }
+
               @if (data.canActivateGuards && data.canActivateGuards.length > 0) {
                 <tr
                   ng-route-details-row

@@ -140,9 +140,12 @@ function routerFeature<FeatureKind extends RouterFeatureKind>(
  * An Injection token used to indicate whether `provideRouter` or `RouterModule.forRoot` was ever
  * called.
  */
-export const ROUTER_IS_PROVIDED = new InjectionToken<boolean>('', {
-  factory: () => false,
-});
+export const ROUTER_IS_PROVIDED = new InjectionToken<boolean>(
+  typeof ngDevMode !== 'undefined' && ngDevMode ? 'Router is provided' : '',
+  {
+    factory: () => false,
+  },
+);
 
 const routerIsProvidedDevModeCheck = {
   provide: ENVIRONMENT_INITIALIZER,
@@ -588,6 +591,8 @@ export type PreloadingFeature = RouterFeature<RouterFeatureKind.PreloadingFeatur
  *     should be used.
  * @returns A set of providers for use with `provideRouter`.
  *
+ * @see [Preloading strategy](guide/routing/customizing-route-behavior#preloading-strategy)
+ *
  * @publicApi
  */
 export function withPreloading(preloadingStrategy: Type<PreloadingStrategy>): PreloadingFeature {
@@ -633,6 +638,8 @@ export type RouterConfigurationFeature =
  * @param options A set of parameters to configure Router, see `RouterConfigOptions` for
  *     additional information.
  * @returns A set of providers for use with `provideRouter`.
+ *
+ * @see [Router configuration options](guide/routing/customizing-route-behavior#router-configuration-options)
  *
  * @publicApi
  */
@@ -721,6 +728,7 @@ export type NavigationErrorHandlerFeature =
  * @see {@link NavigationError}
  * @see {@link /api/core/inject inject}
  * @see {@link runInInjectionContext}
+ * @see [Centralize error handling in withNavigationErrorHandler](guide/routing/data-resolvers#centralize-error-handling-in-withnavigationerrorhandler)
  *
  * @returns A set of providers for use with `provideRouter`.
  *
@@ -831,6 +839,7 @@ export function withComponentInputBinding(): ComponentInputBindingFeature {
  * @returns A set of providers for use with `provideRouter`.
  * @see https://developer.chrome.com/docs/web-platform/view-transitions/
  * @see https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API
+ * @see [Route transition animations](guide/routing/route-transition-animations)
  * @developerPreview 19.0
  */
 export function withViewTransitions(

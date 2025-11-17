@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {computed, type Signal, type WritableSignal} from '@angular/core';
+import {computed, linkedSignal, type Signal, type WritableSignal} from '@angular/core';
 import type {Field} from '../api/field_directive';
 import {
   AggregateMetadataKey,
@@ -57,10 +57,9 @@ export class FieldNode implements FieldState<unknown> {
   readonly metadataState: FieldMetadataState;
   readonly nodeState: FieldNodeState;
   readonly submitState: FieldSubmitState;
-
-  private _context: FieldContext<unknown> | undefined = undefined;
   readonly fieldAdapter: FieldAdapter;
 
+  private _context: FieldContext<unknown> | undefined = undefined;
   get context(): FieldContext<unknown> {
     return (this._context ??= new FieldNodeContext(this));
   }
@@ -79,12 +78,32 @@ export class FieldNode implements FieldState<unknown> {
     this.submitState = new FieldSubmitState(this);
   }
 
+  /**
+   * The `AbortController` for the currently debounced sync, or `undefined` if there is none.
+   *
+   * This is used to cancel a pending debounced sync when {@link setControlValue} is called again
+   * before the pending debounced sync resolves. It will also cancel any pending debounced sync
+   * automatically when recomputed due to `value` being set directly from others sources.
+   */
+  private readonly pendingSync: WritableSignal<AbortController | undefined> = linkedSignal({
+    source: () => this.value(),
+    computation: (_source, previous) => {
+      previous?.value?.abort();
+      return undefined;
+    },
+  });
+
   get logicNode(): LogicNode {
     return this.structure.logic;
   }
 
   get value(): WritableSignal<unknown> {
     return this.structure.value;
+  }
+
+  private _controlValue = linkedSignal(() => this.value());
+  get controlValue(): Signal<unknown> {
+    return this._controlValue.asReadonly();
   }
 
   get keyInParent(): Signal<string | number> {
@@ -189,6 +208,8 @@ export class FieldNode implements FieldState<unknown> {
    */
   markAsTouched(): void {
     this.nodeState.markAsTouched();
+    this.pendingSync()?.abort();
+    this.sync();
   }
 
   /**
@@ -210,6 +231,50 @@ export class FieldNode implements FieldState<unknown> {
     for (const child of this.structure.children()) {
       child.reset();
     }
+  }
+
+  /**
+   * Sets the control value of the field. This value may be debounced before it is synchronized with
+   * the field's {@link value} signal, depending on the debounce configuration.
+   */
+  setControlValue(newValue: unknown): void {
+    this._controlValue.set(newValue);
+    this.markAsDirty();
+    this.debounceSync();
+  }
+
+  /**
+   * Synchronizes the {@link controlValue} with the {@link value} signal immediately.
+   */
+  private sync() {
+    this.value.set(this.controlValue());
+  }
+
+  /**
+   * Initiates a debounced {@link sync}.
+   *
+   * If a debouncer is configured, the synchronization will occur after the debouncer resolves. If
+   * no debouncer is configured, the synchronization happens immediately. If {@link setControlValue}
+   * is called again while a debounce is pending, the previous debounce operation is aborted in
+   * favor of the new one.
+   */
+  private async debounceSync() {
+    this.pendingSync()?.abort();
+
+    const debouncer = this.nodeState.debouncer();
+    if (debouncer) {
+      const controller = new AbortController();
+      const promise = debouncer(controller.signal);
+      if (promise) {
+        this.pendingSync.set(controller);
+        await promise;
+        if (controller.signal.aborted) {
+          return; // Do not sync if the debounce was aborted.
+        }
+      }
+    }
+
+    this.sync();
   }
 
   /**

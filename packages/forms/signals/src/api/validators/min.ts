@@ -9,7 +9,7 @@
 import {computed} from '@angular/core';
 import {aggregateMetadata, metadata, validate} from '../logic';
 import {MIN} from '../metadata';
-import {SchemaPath, LogicFn, PathKind, SchemaPathRules} from '../types';
+import {LogicFn, PathKind, SchemaPath, SchemaPathRules} from '../types';
 import {minError} from '../validation_errors';
 import {BaseValidatorConfig, getOption, isEmpty} from './util';
 
@@ -29,10 +29,13 @@ import {BaseValidatorConfig, getOption, isEmpty} from './util';
  * @category validation
  * @experimental 21.0.0
  */
-export function min<TPathKind extends PathKind = PathKind.Root>(
-  path: SchemaPath<number, SchemaPathRules.Supported, TPathKind>,
-  minValue: number | LogicFn<number, number | undefined, TPathKind>,
-  config?: BaseValidatorConfig<number, TPathKind>,
+export function min<
+  TValue extends number | string | null,
+  TPathKind extends PathKind = PathKind.Root,
+>(
+  path: SchemaPath<TValue, SchemaPathRules.Supported, TPathKind>,
+  minValue: number | LogicFn<TValue, number | undefined, TPathKind>,
+  config?: BaseValidatorConfig<TValue, TPathKind>,
 ) {
   const MIN_MEMO = metadata(path, (ctx) =>
     computed(() => (typeof minValue === 'number' ? minValue : minValue(ctx))),
@@ -46,7 +49,9 @@ export function min<TPathKind extends PathKind = PathKind.Root>(
     if (min === undefined || Number.isNaN(min)) {
       return undefined;
     }
-    if (ctx.value() < min) {
+    const value = ctx.value();
+    const numValue = !value && value !== 0 ? NaN : Number(value); // Treat `''` and `null` as `NaN`
+    if (numValue < min) {
       if (config?.error) {
         return getOption(config.error, ctx);
       } else {
