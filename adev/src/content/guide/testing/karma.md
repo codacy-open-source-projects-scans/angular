@@ -21,14 +21,17 @@ To add Karma and Jasmine to an existing project, follow these steps:
 1.  **Install the necessary packages:**
 
     <docs-code-multifile>
-      <docs-code header="pnpm" language="shell">
-        pnpm add -D karma karma-chrome-launcher karma-coverage karma-jasmine karma-jasmine-html-reporter jasmine-core @types/jasmine
-      </docs-code>
       <docs-code header="npm" language="shell">
         npm install --save-dev karma karma-chrome-launcher karma-coverage karma-jasmine karma-jasmine-html-reporter jasmine-core @types/jasmine
       </docs-code>
       <docs-code header="yarn" language="shell">
         yarn add --dev karma karma-chrome-launcher karma-coverage karma-jasmine karma-jasmine-html-reporter jasmine-core @types/jasmine
+      </docs-code>
+      <docs-code header="pnpm" language="shell">
+        pnpm add -D karma karma-chrome-launcher karma-coverage karma-jasmine karma-jasmine-html-reporter jasmine-core @types/jasmine
+      </docs-code>
+      <docs-code header="bun" language="shell">
+        bun add --dev karma karma-chrome-launcher karma-coverage karma-jasmine karma-jasmine-html-reporter jasmine-core @types/jasmine
       </docs-code>
     </docs-code-multifile>
 
@@ -113,9 +116,7 @@ The Angular CLI takes care of Jasmine and Karma configuration for you. It constr
 If you want to customize Karma, you can create a `karma.conf.js` by running the following command:
 
 ```shell
-
 ng generate config karma
-
 ```
 
 HELPFUL: Read more about Karma configuration in the [Karma configuration guide](http://karma-runner.github.io/6.4/config/configuration-file.html).
@@ -180,3 +181,19 @@ ng test --no-watch --no-progress --browsers=ChromeHeadless
 ```
 
 NOTE: The `--no-watch` and `--no-progress` flags are crucial for Karma in CI environments to ensure tests run once and exit cleanly. The `--browsers=ChromeHeadless` flag is also essential for running tests in a browser environment without a graphical interface.
+
+## Debugging tests
+
+If your tests aren't working as you expect, you can inspect and debug them in the browser.
+
+To debug an application with the Karma test runner:
+
+1.  Reveal the Karma browser window. See [Set up for testing](guide/testing/overview#set-up-for-testing) if you need help with this step.
+2.  Click the **DEBUG** button to open a new browser tab and re-run the tests.
+3.  Open the browser's **Developer Tools**. On Windows, press `Ctrl-Shift-I`. On macOS, press `Command-Option-I`.
+4.  Pick the **Sources** section.
+5.  Press `Control/Command-P`, and then start typing the name of your test file to open it.
+6.  Set a breakpoint in the test.
+7.  Refresh the browser, and notice how it stops at the breakpoint.
+
+<img alt="Karma debugging" src="assets/images/guide/testing/karma-1st-spec-debug.png">

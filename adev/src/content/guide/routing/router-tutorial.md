@@ -28,9 +28,9 @@ This application will have two components: _crisis-list_ and _heroes-list_.
 
 1. Create a new Angular project, _angular-router-sample_.
 
-   <docs-code language="shell">
+   ```shell
    ng new angular-router-sample
-   </docs-code>
+   ```
 
    When prompted with `Would you like to add Angular routing?`, select `N`.
 
@@ -41,33 +41,33 @@ This application will have two components: _crisis-list_ and _heroes-list_.
 1. From your terminal, navigate to the `angular-router-sample` directory.
 1. Create a component, _crisis-list_.
 
-<docs-code language="shell">
+```shell
 ng generate component crisis-list
-</docs-code>
+```
 
 1. In your code editor, locate the file, `crisis-list.component.html` and replace the placeholder content with the following HTML.
 
-<docs-code header="src/app/crisis-list/crisis-list.component.html" path="adev/src/content/examples/router-tutorial/src/app/crisis-list/crisis-list.component.html"/>
+<docs-code header="crisis-list.component.html" path="adev/src/content/examples/router-tutorial/src/app/crisis-list/crisis-list.component.html"/>
 
 1. Create a second component, _heroes-list_.
 
-<docs-code language="shell">
+```shell
 ng generate component heroes-list
-</docs-code>
+```
 
 1. In your code editor, locate the file, `heroes-list.component.html` and replace the placeholder content with the following HTML.
 
-<docs-code header="src/app/heroes-list/heroes-list.component.html" path="adev/src/content/examples/router-tutorial/src/app/heroes-list/heroes-list.component.html"/>
+<docs-code header="heroes-list.component.html" path="adev/src/content/examples/router-tutorial/src/app/heroes-list/heroes-list.component.html"/>
 
 1. In your code editor, open the file, `app.component.html` and replace its contents with the following HTML.
 
-<docs-code header="src/app/app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="setup"/>
+<docs-code header="app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="setup"/>
 
 1. Verify that your new application runs as expected by running the `ng serve` command.
 
-<docs-code language="shell">
+```shell
 ng serve
-</docs-code>
+```
 
 1. Open a browser to `http://localhost:4200`.
 
@@ -136,11 +136,11 @@ To implement this functionality, you add the `router-outlet` directive to your t
 1. From your code editor, open the `app.component.html` file.
 1. Delete the following lines.
 
-<docs-code header="src/app/app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="components"/>
+<docs-code header="app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="components"/>
 
 1. Add the `router-outlet` directive.
 
-<docs-code header="src/app/app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="router-outlet"/>
+<docs-code header="app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="router-outlet"/>
 
 1. Add `RouterOutlet` to the imports of the `AppComponent` in `app.component.ts`
 
@@ -176,7 +176,7 @@ You'll add that functionality in the next section.
 
 1. Open the `app.component.html` file and add the following HTML below the title.
 
-   <docs-code header="src/app/app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="nav"/>
+   <docs-code header="app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="nav"/>
 
    This HTML uses an Angular directive, `routerLink`.
    This directive connects the routes you defined to your template files.
@@ -185,7 +185,7 @@ You'll add that functionality in the next section.
 
 1. Open the `app.component.css` file and add the following styles.
 
-<docs-code header="src/app/app.component.css" path="adev/src/content/examples/router-tutorial/src/app/app.component.css"/>
+<docs-code header="app.component.css" path="adev/src/content/examples/router-tutorial/src/app/app.component.css"/>
 
 If you view your application in the browser, you should see these two links.
 When you click on a link, the corresponding component appears.
@@ -198,7 +198,7 @@ Add this functionality using Angular's `routerLinkActive` directive.
 1. From your code editor, open the `app.component.html` file.
 1. Update the anchor tags to include the `routerLinkActive` directive.
 
-<docs-code header="src/app/app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="routeractivelink"/>
+<docs-code header="app.component.html" path="adev/src/content/examples/router-tutorial/src/app/app.component.html" visibleRegion="routeractivelink"/>
 
 1. Add the `RouterLinkActive` directive to the `imports` list of `AppComponent` in `app.component.ts`.
 
@@ -238,13 +238,13 @@ In this section, you'll create a 404 page and update your route configuration to
 
 1. From the terminal, create a new component, `PageNotFound`.
 
-<docs-code language="shell">
+```shell
 ng generate component page-not-found
-</docs-code>
+```
 
 1. From your code editor, open the `page-not-found.component.html` file and replace its contents with the following HTML.
 
-<docs-code header="src/app/page-not-found/page-not-found.component.html" path="adev/src/content/examples/router-tutorial/src/app/page-not-found/page-not-found.component.html"/>
+<docs-code header="page-not-found/page-not-found.component.html" path="adev/src/content/examples/router-tutorial/src/app/page-not-found/page-not-found.component.html"/>
 
 1. Open the `app.routes.ts` file and add the following route to the routes list:
 

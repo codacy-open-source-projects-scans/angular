@@ -19,13 +19,18 @@
         type="button"
         role="switch"
         class="docs-example-code-toggle"
+        [class.docs-example-code-toggle__show]="!showCode()"
         [attr.aria-checked]="showCode()"
         [attr.aria-label]="showCode() ? 'Hide code' : 'Show code'"
         (click)="showCode.set(!showCode())"
         [matTooltip]="showCode() ? 'Hide code' : 'Show code'"
         matTooltipPosition="above"
       >
-        <docs-icon>{{showCode() ? 'code_off' : 'code'}}</docs-icon>
+        @if (!showCode()) {
+          <span class="docs-example-show-code"><docs-icon>code</docs-icon> Show Code</span>
+        } @else {
+          <docs-icon>code_off</docs-icon>
+        }
       </button>
       <button
         type="button"
@@ -103,7 +108,7 @@
     >
       <button docs-copy-source-code></button>
       @if (snippetCode()?.sanitizedContent; as content) {
-        <div [innerHTML]="content"></div>
+        <div class="docs-example-code-block" [innerHTML]="content"></div>
       }
     </div>
   }

@@ -541,21 +541,6 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             contentPath: 'guide/testing/overview',
           },
           {
-            label: 'Code coverage',
-            path: 'guide/testing/code-coverage',
-            contentPath: 'guide/testing/code-coverage',
-          },
-          {
-            label: 'Testing with Karma and Jasmine',
-            path: 'guide/testing/karma',
-            contentPath: 'guide/testing/karma',
-          },
-          {
-            label: 'Testing services',
-            path: 'guide/testing/services',
-            contentPath: 'guide/testing/services',
-          },
-          {
             label: 'Basics of testing components',
             path: 'guide/testing/components-basics',
             contentPath: 'guide/testing/components-basics',
@@ -564,6 +549,11 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             label: 'Component testing scenarios',
             path: 'guide/testing/components-scenarios',
             contentPath: 'guide/testing/components-scenarios',
+          },
+          {
+            label: 'Testing services',
+            path: 'guide/testing/services',
+            contentPath: 'guide/testing/services',
           },
           {
             label: 'Testing attribute directives',
@@ -587,14 +577,14 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             contentPath: 'guide/testing/debugging',
           },
           {
+            label: 'Code coverage',
+            path: 'guide/testing/code-coverage',
+            contentPath: 'guide/testing/code-coverage',
+          },
+          {
             label: 'Testing utility APIs',
             path: 'guide/testing/utility-apis',
             contentPath: 'guide/testing/utility-apis',
-          },
-          {
-            label: 'Migrating from Karma to Vitest',
-            path: 'guide/testing/unit-tests',
-            contentPath: 'guide/testing/migrating-to-vitest',
           },
           {
             label: 'Component harnesses overview',
@@ -615,6 +605,16 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             label: 'Adding harness support for additional testing environments',
             path: 'guide/testing/component-harnesses-testing-environments',
             contentPath: 'guide/testing/component-harnesses-testing-environments',
+          },
+          {
+            label: 'Migrating from Karma to Vitest',
+            path: 'guide/testing/migrating-to-vitest',
+            contentPath: 'guide/testing/migrating-to-vitest',
+          },
+          {
+            label: 'Testing with Karma and Jasmine',
+            path: 'guide/testing/karma',
+            contentPath: 'guide/testing/karma',
           },
         ],
       },
@@ -718,9 +718,9 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
                   contentPath: 'guide/aria/overview',
                 },
                 {
-                  label: 'Autocomplete',
-                  path: 'guide/aria/autocomplete',
-                  contentPath: 'guide/aria/autocomplete',
+                  label: 'Accordion',
+                  path: 'guide/aria/accordion',
+                  contentPath: 'guide/aria/accordion',
                 },
                 {
                   label: 'Autocomplete',
@@ -733,9 +733,24 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
                   contentPath: 'guide/aria/combobox',
                 },
                 {
+                  label: 'Grid',
+                  path: 'guide/aria/grid',
+                  contentPath: 'guide/aria/grid',
+                },
+                {
                   label: 'Listbox',
                   path: 'guide/aria/listbox',
                   contentPath: 'guide/aria/listbox',
+                },
+                {
+                  label: 'Menu',
+                  path: 'guide/aria/menu',
+                  contentPath: 'guide/aria/menu',
+                },
+                {
+                  label: 'Menubar',
+                  path: 'guide/aria/menubar',
+                  contentPath: 'guide/aria/menubar',
                 },
                 {
                   label: 'Multiselect',
@@ -756,6 +771,11 @@ const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
                   label: 'Toolbar',
                   path: 'guide/aria/toolbar',
                   contentPath: 'guide/aria/toolbar',
+                },
+                {
+                  label: 'Tree',
+                  path: 'guide/aria/tree',
+                  contentPath: 'guide/aria/tree',
                 },
               ],
             },
