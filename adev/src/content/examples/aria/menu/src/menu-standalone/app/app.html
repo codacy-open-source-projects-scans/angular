@@ -1,108 +1,72 @@
-<link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet" />
+<div ngMenu>
+  <ng-template ngMenuContent>
+    <span id="security-label" class="heading">SECURITY</span>
 
-<div ngToolbar aria-label="Text Formatting Tools">
-  <div class="group">
-    <button
-      ngToolbarWidget
-      value="undo"
-      type="button"
-      aria-label="undo"
-      class="material-symbols-outlined"
-    >
-      undo
-    </button>
+    <div role="group" aria-labelledby="security-label">
+      <div ngMenuItem value="Change password">
+        <span class="icon material-symbols-outlined">lock_open</span>
+        <span class="label">Change password</span>
+      </div>
 
-    <button
-      ngToolbarWidget
-      value="redo"
-      type="button"
-      aria-label="redo"
-      class="material-symbols-outlined"
-    >
-      redo
-    </button>
-  </div>
+      <div ngMenuItem value="Two-factor authentication">
+        <span class="icon material-symbols-outlined">security_key</span>
+        <span class="label">Two-factor authentication</span>
+      </div>
 
-  <div class="separator" role="separator"></div>
+      <div ngMenuItem value="Reset" #resetItem [submenu]="updateMenu()">
+        <span class="icon material-symbols-outlined">refresh</span>
+        <span class="label">Reset</span>
+        <span class="icon material-symbols-outlined">arrow_right</span>
+      </div>
 
-  <div class="group">
-    <button
-      ngToolbarWidget
-      value="bold"
-      type="button"
-      aria-label="bold"
-      #bold="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-pressed]="bold.selected()"
-    >
-      format_bold
-    </button>
+      <ng-template
+        [cdkConnectedOverlayOpen]="true"
+        [cdkConnectedOverlay]="{origin: resetItem, usePopover: 'inline'}"
+        [cdkConnectedOverlayPositions]="[{originX: 'end', originY: 'top', overlayY: 'top', overlayX: 'start', offsetX: 6}]"
+        cdkAttachPopoverAsChild
+      >
+        <div ngMenu #updateMenu="ngMenu">
+          <ng-template ngMenuContent>
+            <div ngMenuItem value="Email address">
+              <span class="icon material-symbols-outlined">email</span>
+              <span class="label">Email address</span>
+            </div>
 
-    <button
-      ngToolbarWidget
-      value="italic"
-      type="button"
-      aria-label="italic"
-      #italic="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-pressed]="italic.selected()"
-    >
-      format_italic
-    </button>
+            <div ngMenuItem value="Phone number">
+              <span class="icon material-symbols-outlined">phone</span>
+              <span class="label">Phone number</span>
+            </div>
 
-    <button
-      ngToolbarWidget
-      value="underlined"
-      type="button"
-      aria-label="underlined"
-      #underlined="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-pressed]="underlined.selected()"
-    >
-      format_underlined
-    </button>
-  </div>
+            <div ngMenuItem value="Password">
+              <span class="icon material-symbols-outlined">vpn_key</span>
+              <span class="label">Password</span>
+            </div>
+          </ng-template>
+        </div>
+      </ng-template>
+    </div>
 
-  <div class="separator" role="separator"></div>
+    <div role="separator" class="separator"></div>
 
-  <div ngToolbarWidgetGroup role="radiogroup" class="group" aria-label="Text alignment options">
-    <button
-      ngToolbarWidget
-      role="radio"
-      type="button"
-      value="align left"
-      aria-label="align left"
-      #leftAlign="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-checked]="leftAlign.selected()"
-    >
-      format_align_left
-    </button>
+    <span id="help-label" class="heading">HELP</span>
 
-    <button
-      ngToolbarWidget
-      role="radio"
-      type="button"
-      value="align center"
-      aria-label="align center"
-      #centerAlign="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-checked]="centerAlign.selected()"
-    >
-      format_align_center
-    </button>
+    <div role="group" aria-labelledby="help-label">
+      <div ngMenuItem value="Support">
+        <span class="icon material-symbols-outlined">help</span>
+        <span class="label">Support</span>
+      </div>
 
-    <button
-      ngToolbarWidget
-      role="radio"
-      type="button"
-      value="align right"
-      aria-label="align right"
-      #rightAlign="ngToolbarWidget"
-      class="material-symbols-outlined"
-      [aria-checked]="rightAlign.selected()"
-    >
-      format_align_right
-    </button>
-  </div>
+      <div ngMenuItem value="Feedback">
+        <span class="icon material-symbols-outlined">feedback</span>
+        <span class="label">Feedback</span>
+      </div>
+    </div>
+
+    <div role="separator" class="separator"></div>
+
+    <div ngMenuItem value="Logout">
+      <span class="icon material-symbols-outlined">logout</span>
+      <span class="label">Logout</span>
+    </div>
+  </ng-template>
 </div>

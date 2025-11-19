@@ -5,11 +5,31 @@
 
 An accessible input field that filters and suggests options as users type, helping them find and select values from a list.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts">
-  <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts"/>
-  <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.html"/>
-  <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.css"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ## Usage
 
@@ -43,30 +63,91 @@ Angular's autocomplete provides a fully accessible combobox implementation with:
 
 Users typing partial text expect immediate confirmation that their input matches an available option. Auto-select mode updates the input value to match the first filtered option as users type, reducing the number of keystrokes needed and providing instant feedback that their search is on the right track.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts">
-  <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts" visibleLines="[1,7,33,40]"/>
-  <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/material/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/basic/retro/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ### Manual selection mode
 
 Manual selection mode keeps the typed text unchanged while users navigate the suggestion list, preventing confusion from automatic updates. The input only changes when users explicitly confirm their choice with Enter or a click.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.ts">
-  <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.html" visibleLines="[1]"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/manual/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/manual/material/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/manual/material/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/manual/material/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/manual/material/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/manual/retro/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/manual/retro/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/manual/retro/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/manual/retro/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ### Highlight mode
 
 Highlight mode allows the user to navigate options with arrow keys without changing the input value as they browse until they explicitly select a new option with Enter or click.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.ts">
-  <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.html" visibleLines="[1]"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/highlight/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
 
-## Showcase
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/highlight/material/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/highlight/material/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/highlight/material/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/highlight/material/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
 
-TBD
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/autocomplete/src/highlight/retro/app/app.component.ts">
+      <docs-code header="app.component.ts" path="adev/src/content/examples/aria/autocomplete/src/highlight/retro/app/app.component.ts"/>
+      <docs-code header="app.component.html" path="adev/src/content/examples/aria/autocomplete/src/highlight/retro/app/app.component.html"/>
+      <docs-code header="app.component.css" path="adev/src/content/examples/aria/autocomplete/src/highlight/retro/app/app.component.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ## APIs
 
@@ -106,38 +187,4 @@ Must be used with `<ng-template>` inside a popover element.
 
 ### Related components
 
-Autocomplete uses [Listbox](https://angular.dev/api/aria/listbox/Listbox) and [Option](https://angular.dev/api/aria/listbox/Option) directives to render the suggestion list. See the [Listbox documentation](https://angular.dev/guide/aria/listbox) for additional customization options.
-
-## Styling
-
-The autocomplete components don't include default styles. This allows full customization to match your design system. Apply styles through standard CSS classes or style bindings.
-
-### Styling the input
-
-```css
-input[ngComboboxInput] {
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-input[ngComboboxInput]:focus {
-  outline: 2px solid blue;
-  border-color: blue;
-}
-```
-
-### Styling the popup
-
-```css
-[popover] {
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  padding: 0;
-}
-```
-
-### Styling options
-
-Options use the listbox styling. See the [Listbox styling guide](https://angular.dev/guide/aria/listbox#styling) for detailed customization patterns.
+Autocomplete uses [Listbox](/api/aria/listbox/Listbox) and [Option](/api/aria/listbox/Option) directives to render the suggestion list. See the [Listbox documentation](/guide/aria/listbox) for additional customization options.

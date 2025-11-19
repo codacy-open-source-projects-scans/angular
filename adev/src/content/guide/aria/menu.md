@@ -1,20 +1,40 @@
 <docs-decorative-header title="Menu">
 </docs-decorative-header>
 
+<docs-pill-row>
+  <docs-pill href="https://www.w3.org/WAI/ARIA/apg/patterns/menubar/" title="Menu ARIA pattern"/>
+  <docs-pill href="api/aria/menu" title="Menu API Reference"/>
+</docs-pill-row>
+
 ## Overview
 
 A menu offers a list of actions or options to users, typically appearing in response to a button click or right-click. Menus support keyboard navigation with arrow keys, submenus, checkboxes, radio buttons, and disabled items.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.html"/>
-  <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.css"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
 
-<docs-pill-row>
-  <docs-pill href="https://www.w3.org/WAI/ARIA/apg/patterns/menubar/" title="ARIA pattern"/>
-  <docs-pill href="api/aria/menu" title="API Reference"/>
-</docs-pill-row>
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ## Usage
 
@@ -51,23 +71,33 @@ Menus work well for presenting lists of actions or commands that users can choos
 
 Create a dropdown menu by pairing a trigger button with a menu. The trigger opens and closes the menu.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 The menu automatically closes when a user selects an item or presses Escape.
-
-### Menubar
-
-A menubar provides persistent access to multiple menus, commonly used in application toolbars.
-
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-bar/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-bar/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-bar/app/app.html"/>
-</docs-code-multifile>
-
-Users navigate between top-level menus with arrow keys and open menus with Enter or by hovering.
 
 ### Context menu
 
@@ -84,10 +114,31 @@ Position the menu using the `contextmenu` event coordinates.
 
 A standalone menu doesn't require a trigger and remains visible in the interface.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-standalone/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-standalone/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-standalone/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-standalone/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-standalone/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-standalone/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-standalone/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-standalone/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-standalone/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 Standalone menus work well for always-visible action lists or navigation.
 
@@ -95,16 +146,33 @@ Standalone menus work well for always-visible action lists or navigation.
 
 Disable specific menu items using the `disabled` input. Control focus behavior with `softDisabled`.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/menu/src/menu-trigger-disabled/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 When `[softDisabled]="true"`, disabled items can receive focus but cannot be activated. When `[softDisabled]="false"`, disabled items are skipped during keyboard navigation.
-
-## Showcase
-
-TBD
 
 ## APIs
 
@@ -188,62 +256,3 @@ A button or element that opens a menu.
 | `open`   | none       | Opens the menu               |
 | `close`  | none       | Closes the menu              |
 | `toggle` | none       | Toggles the menu open/closed |
-
-## Styling
-
-Angular automatically applies attributes to menu elements that you can use in your CSS selectors.
-
-The menu container receives the `ng-menu` attribute:
-
-```css
-[ng-menu] {
-  background: white;
-  border: 1px solid #ccc;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  padding: 0.5rem 0;
-  min-width: 200px;
-}
-```
-
-Menu items receive the `ng-menu-item` attribute and a `data-active` attribute when focused:
-
-```css
-[ng-menu-item] {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-[ng-menu-item][data-active] {
-  background: var(--hover-background);
-}
-
-[ng-menu-item][aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-```
-
-Style menu items with submenus using the `aria-haspopup` attribute:
-
-```css
-[ng-menu-item][aria-haspopup="menu"]::after {
-  content: '▶';
-  margin-left: auto;
-}
-```
-
-Menubars receive the `ng-menu-bar` attribute:
-
-```css
-[ng-menu-bar] {
-  display: flex;
-  gap: 0.5rem;
-  background: var(--toolbar-background);
-  padding: 0.5rem;
-}
-```
-
-TIP: Use `[data-active]` to style focused menu items and `[aria-expanded="true"]` to style open menu triggers.

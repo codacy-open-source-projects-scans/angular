@@ -1,20 +1,40 @@
 <docs-decorative-header title="Tabs">
 </docs-decorative-header>
 
+<docs-pill-row>
+  <docs-pill href="https://www.w3.org/WAI/ARIA/apg/patterns/tabs/" title="Tabs ARIA pattern"/>
+  <docs-pill href="api/aria/tabs" title="Tabs API Reference"/>
+</docs-pill-row>
+
 ## Overview
 
 Tabs display layered content sections where only one panel is visible at a time. Users switch between panels by clicking tab buttons or using arrow keys to navigate the tab list.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.html"/>
-  <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.css"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
 
-<docs-pill-row>
-  <docs-pill href="https://www.w3.org/WAI/ARIA/apg/patterns/tabs/" title="ARIA pattern"/>
-  <docs-pill href="api/aria/tabs" title="API Reference"/>
-</docs-pill-row>
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 ## Usage
 
@@ -51,10 +71,31 @@ Tabs work well for organizing related content into distinct sections where users
 
 When selection follows focus, tabs activate immediately as you navigate with arrow keys. This provides instant feedback and works well for lightweight content.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/selection-follows-focus/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 Set `[selectionMode]="'follow'"` on the tab list to enable this behavior.
 
@@ -62,10 +103,31 @@ Set `[selectionMode]="'follow'"` on the tab list to enable this behavior.
 
 With manual activation, arrow keys move focus between tabs without changing the selected tab. Users press Space or Enter to activate the focused tab.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/explicit-selection/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/explicit-selection/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/explicit-selection/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/explicit-selection/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/explicit-selection/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/explicit-selection/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/explicit-selection/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/explicit-selection/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/explicit-selection/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 Use `[selectionMode]="'explicit'"` for heavy content panels to avoid unnecessary rendering.
 
@@ -73,10 +135,31 @@ Use `[selectionMode]="'explicit'"` for heavy content panels to avoid unnecessary
 
 Arrange tabs vertically for interfaces like settings panels or navigation sidebars.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/vertical-orientation/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/vertical-orientation/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/vertical-orientation/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/vertical/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/vertical/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/vertical/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/vertical/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/vertical/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/vertical/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/vertical/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/vertical/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/vertical/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/vertical/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/vertical/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/vertical/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 Set `[orientation]="'vertical'"` on the tab list. Navigation changes to Up/Down arrow keys.
 
@@ -113,16 +196,33 @@ By default, content remains in the DOM after the panel is hidden. Set `[preserve
 
 Disable specific tabs to prevent user interaction. Control whether disabled tabs can receive keyboard focus.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/disabled-focusable/app/app.ts">
-  <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/disabled-focusable/app/app.ts"/>
-  <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/disabled-focusable/app/app.html"/>
-</docs-code-multifile>
+<docs-tab-group>
+  <docs-tab label="Basic">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/disabled/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/disabled/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/disabled/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/disabled/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Material">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/disabled/material/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/disabled/material/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/disabled/material/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/disabled/material/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+
+  <docs-tab label="Retro">
+    <docs-code-multifile preview hideCode path="adev/src/content/examples/aria/tabs/src/disabled/retro/app/app.ts">
+      <docs-code header="app.ts" path="adev/src/content/examples/aria/tabs/src/disabled/retro/app/app.ts"/>
+      <docs-code header="app.html" path="adev/src/content/examples/aria/tabs/src/disabled/retro/app/app.html"/>
+      <docs-code header="app.css" path="adev/src/content/examples/aria/tabs/src/disabled/retro/app/app.css"/>
+    </docs-code-multifile>
+  </docs-tab>
+</docs-tab-group>
 
 When `[softDisabled]="true"` on the tab list, disabled tabs can receive focus but cannot be activated. When `[softDisabled]="false"`, disabled tabs are skipped during keyboard navigation.
-
-## Showcase
-
-TBD
 
 ## APIs
 
@@ -194,59 +294,3 @@ This directive has no inputs, outputs, or methods. Apply it to an `ng-template` 
   </ng-template>
 </div>
 ```
-
-## Styling
-
-Angular automatically applies attributes to tab elements that you can use in your CSS selectors.
-
-The tab list receives the `ng-tab-list` attribute:
-
-```css
-[ng-tab-list] {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 2px solid #ddd;
-}
-
-[ng-tab-list][aria-orientation="vertical"] {
-  flex-direction: column;
-  border-bottom: none;
-  border-right: 2px solid #ddd;
-}
-```
-
-Tabs receive the `ng-tab` attribute with `data-active` when focused and `aria-selected` when selected:
-
-```css
-[ng-tab] {
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-}
-
-[ng-tab][data-active] {
-  outline: 2px solid var(--focus-color);
-}
-
-[ng-tab][aria-selected="true"] {
-  border-color: var(--primary-color);
-  border-bottom-color: white;
-  background: white;
-  font-weight: 600;
-}
-```
-
-Tab panels receive the `ng-tab-panel` attribute:
-
-```css
-[ng-tab-panel] {
-  padding: 1.5rem;
-}
-
-[ng-tab-panel][hidden] {
-  display: none;
-}
-```
-
-TIP: Use `[data-active]` to style the focused tab and `[aria-selected="true"]` to style the selected tab. These are often the same tab but can differ in manual activation mode.
