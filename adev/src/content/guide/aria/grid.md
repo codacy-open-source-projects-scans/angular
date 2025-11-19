@@ -3,17 +3,17 @@
 
 <docs-pill-row>
   <docs-pill href="https://www.w3.org/WAI/ARIA/apg/patterns/grid/" title="Grid ARIA pattern"/>
-  <docs-pill href="api/aria/grid" title="Grid API Reference"/>
+  <docs-pill href="/api?query=accordion#angular_aria_accordion" title="Grid API Reference"/>
 </docs-pill-row>
 
 ## Overview
 
 A grid enables users to navigate two-dimensional data or interactive elements using directional arrow keys, Home, End, and Page Up/Down. Grids work for data tables, calendars, spreadsheets, and layout patterns that group related interactive elements.
 
-<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/grid/src/table/basic/app/app.component.ts">
-  <docs-code header="TS" path="adev/src/content/examples/aria/grid/src/table/basic/app/app.component.ts"/>
-  <docs-code header="HTML" path="adev/src/content/examples/aria/grid/src/table/basic/app/app.component.html"/>
-  <docs-code header="CSS" path="adev/src/content/examples/aria/grid/src/table/basic/app/app.component.css"/>
+<docs-code-multifile preview hideCode path="adev/src/content/examples/aria/grid/src/overview/basic/app/app.component.ts">
+  <docs-code header="TS" path="adev/src/content/examples/aria/grid/src/overview/basic/app/app.component.ts"/>
+  <docs-code header="HTML" path="adev/src/content/examples/aria/grid/src/overview/basic/app/app.component.html"/>
+  <docs-code header="CSS" path="adev/src/content/examples/aria/grid/src/overview/basic/app/app.component.css"/>
 </docs-code-multifile>
 
 ## Usage
