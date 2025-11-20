@@ -1,5 +1,5 @@
 import {Component, signal, ChangeDetectionStrategy} from '@angular/core';
-import {form, Field, required, email, debounce} from '@angular/forms/signals';
+import {form, Field, required, email} from '@angular/forms/signals';
 
 interface LoginData {
   email: string;
@@ -20,11 +20,9 @@ export class App {
   });
 
   loginForm = form(this.loginModel, (schemaPath) => {
-    debounce(schemaPath.email, 500);
     required(schemaPath.email, {message: 'Email is required'});
     email(schemaPath.email, {message: 'Enter a valid email address'});
 
-    debounce(schemaPath.password, 500);
     required(schemaPath.password, {message: 'Password is required'});
   });
 
