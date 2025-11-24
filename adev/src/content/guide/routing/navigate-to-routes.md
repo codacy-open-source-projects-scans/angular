@@ -8,6 +8,7 @@ Instead of using regular anchor elements `<a>` with an `href` attribute, you add
 
 ```angular-ts
 import {RouterLink} from '@angular/router';
+
 @Component({
   template: `
     <nav>
@@ -149,7 +150,7 @@ The `router.navigateByUrl()` method provides a direct way to programmatically na
 
 ```ts
 // Standard route navigation
-router.navigateByUrl('/products);
+router.navigateByUrl('/products');
 
 // Navigate to nested route
 router.navigateByUrl('/products/featured');

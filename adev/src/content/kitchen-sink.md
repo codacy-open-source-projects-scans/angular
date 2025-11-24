@@ -185,11 +185,6 @@ You can create multifile examples by wrapping the examples inside a `<docs-code-
   path="adev/src/content/examples/hello-world/src/app/app.component.ts"
   preview>
 <docs-code
-    path="adev/src/content/examples/hello-world/src/app/app.component.ts"
-    diff="adev/src/content/examples/hello-world/src/app/app.component-old.ts"
-    linenums
-    visibleLines="[3, 11]"/>
-<docs-code
     path="adev/src/content/examples/hello-world/src/app/app.component.html"
     highlight="[1]"
     linenums/>
@@ -325,6 +320,11 @@ You can add images using the semantic Markdown image:
 
 ![Rhubarb the small cat](assets/images/kitchen-sink/rhubarb.jpg#small)
 ![Rhubarb the medium cat](assets/images/kitchen-sink/rhubarb.jpg#medium)
+
+## Add attributes using curly braces syntax
+
+![Lazy loaded image](assets/images/kitchen-sink/rhubarb.jpg {loading: 'lazy'})
+![Combined attributes](assets/images/kitchen-sink/rhubarb.jpg#small {loading: 'lazy', decoding: 'async', fetchpriority: 'low'})
 
 Embedded videos are created with `docs-video` and just need a `src` and `alt`:
 
