@@ -8,6 +8,7 @@
 
 import {
   Component,
+  computed,
   Directive,
   ElementRef,
   inject,
@@ -1281,6 +1282,165 @@ describe('field directive', () => {
     expect(cmp.f().value()).toBe('two');
   });
 
+  it('synchronizes with a custom value control', () => {
+    @Component({
+      selector: 'my-input',
+      template: '<input #i [value]="value()" (input)="value.set(i.value)" />',
+    })
+    class CustomInput implements FormValueControl<string> {
+      value = model('');
+    }
+
+    @Component({
+      imports: [Field, CustomInput],
+      template: `<my-input [field]="f" />`,
+    })
+    class TestCmp {
+      f = form<string>(signal('test'));
+    }
+
+    const fix = act(() => TestBed.createComponent(TestCmp));
+    const input = fix.nativeElement.firstChild.firstChild as HTMLInputElement;
+    const cmp = fix.componentInstance as TestCmp;
+
+    // Initial state
+    expect(input.value).toBe('test');
+
+    // Model -> View
+    act(() => cmp.f().value.set('testing'));
+    expect(input.value).toBe('testing');
+
+    // View -> Model
+    act(() => {
+      input.value = 'typing';
+      input.dispatchEvent(new Event('input'));
+    });
+    expect(cmp.f().value()).toBe('typing');
+  });
+
+  it('synchronizes with a custom value control directive', () => {
+    @Directive({
+      selector: 'input[my-input]',
+      host: {
+        '[value]': 'value()',
+        '(input)': 'handleInput($event)',
+      },
+    })
+    class CustomInputDirective implements FormValueControl<string> {
+      value = model('');
+
+      handleInput(e: Event) {
+        this.value.set((e.target as HTMLInputElement).value);
+      }
+    }
+
+    @Component({
+      imports: [Field, CustomInputDirective],
+      template: `<input my-input [field]="f" />`,
+    })
+    class TestCmp {
+      f = form<string>(signal('test'));
+    }
+
+    const fix = act(() => TestBed.createComponent(TestCmp));
+    const input = fix.nativeElement.firstChild as HTMLInputElement;
+    const cmp = fix.componentInstance as TestCmp;
+
+    // Initial state
+    expect(input.value).toBe('test');
+
+    // Model -> View
+    act(() => cmp.f().value.set('testing'));
+    expect(input.value).toBe('testing');
+
+    // View -> Model
+    act(() => {
+      input.value = 'typing';
+      input.dispatchEvent(new Event('input'));
+    });
+    expect(cmp.f().value()).toBe('typing');
+  });
+
+  it('synchronizes with a custom checkbox control', () => {
+    @Component({
+      selector: 'my-checkbox',
+      template:
+        '<input type="checkbox" #i [checked]="checked()" (input)="checked.set(i.checked)" />',
+    })
+    class CustomCheckbox implements FormCheckboxControl {
+      checked = model(false);
+    }
+
+    @Component({
+      imports: [Field, CustomCheckbox],
+      template: `<my-checkbox [field]="f" />`,
+    })
+    class TestCmp {
+      f = form(signal(true));
+    }
+
+    const fix = act(() => TestBed.createComponent(TestCmp));
+    const input = fix.nativeElement.querySelector('input') as HTMLInputElement;
+    const cmp = fix.componentInstance as TestCmp;
+
+    // Initial state
+    expect(input.checked).toBe(true);
+
+    // Model -> View
+    act(() => cmp.f().value.set(false));
+    expect(input.checked).toBe(false);
+
+    // View -> Model
+    act(() => {
+      input.checked = true;
+      input.dispatchEvent(new Event('input'));
+    });
+    expect(cmp.f().value()).toBe(true);
+  });
+
+  it('synchronizes with a custom checkbox control directive', () => {
+    @Directive({
+      selector: 'input[my-checkbox]',
+      host: {
+        '[checked]': 'checked()',
+        '(input)': 'handleInput($event)',
+      },
+    })
+    class CustomCheckboxDirective implements FormCheckboxControl {
+      checked = model(false);
+
+      handleInput(e: Event) {
+        this.checked.set((e.target as HTMLInputElement).checked);
+      }
+    }
+
+    @Component({
+      imports: [Field, CustomCheckboxDirective],
+      template: `<input type="checkbox" my-checkbox [field]="f" />`,
+    })
+    class TestCmp {
+      f = form<boolean>(signal(true));
+    }
+
+    const fix = act(() => TestBed.createComponent(TestCmp));
+    const input = fix.nativeElement.querySelector('input') as HTMLInputElement;
+    const cmp = fix.componentInstance as TestCmp;
+
+    // Initial state
+    expect(input.checked).toBe(true);
+
+    // Model -> View
+    act(() => cmp.f().value.set(false));
+    expect(input.checked).toBe(false);
+
+    // View -> Model
+    act(() => {
+      input.checked = true;
+      input.dispatchEvent(new Event('input'));
+    });
+    expect(cmp.f().value()).toBe(true);
+  });
+
   it('should assign correct value when unhiding select', async () => {
     @Component({
       imports: [Field],
@@ -1370,42 +1530,6 @@ describe('field directive', () => {
     await fix.whenStable();
 
     expect(fix.componentInstance.select()!.nativeElement.value).toEqual('four');
-  });
-
-  it('synchronizes with a custom value control', () => {
-    @Component({
-      selector: 'my-input',
-      template: '<input #i [value]="value()" (input)="value.set(i.value)" />',
-    })
-    class CustomInput implements FormValueControl<string> {
-      value = model('');
-    }
-
-    @Component({
-      imports: [Field, CustomInput],
-      template: `<my-input [field]="f" />`,
-    })
-    class TestCmp {
-      f = form<string>(signal('test'));
-    }
-
-    const fix = act(() => TestBed.createComponent(TestCmp));
-    const input = fix.nativeElement.firstChild.firstChild as HTMLInputElement;
-    const cmp = fix.componentInstance as TestCmp;
-
-    // Initial state
-    expect(input.value).toBe('test');
-
-    // Model -> View
-    act(() => cmp.f().value.set('testing'));
-    expect(input.value).toBe('testing');
-
-    // View -> Model
-    act(() => {
-      input.value = 'typing';
-      input.dispatchEvent(new Event('input'));
-    });
-    expect(cmp.f().value()).toBe('typing');
   });
 
   it('initializes a required value input before the component lifecycle runs', () => {
@@ -1968,6 +2092,51 @@ describe('field directive', () => {
         input.dispatchEvent(new Event('input'));
       });
       expect(cmp.f().value()).toBe('#0000ff');
+    });
+
+    it('should sync string field with dynamically typed input', () => {
+      @Component({
+        imports: [Field],
+        template: `<input [type]="type()" [field]="f">`,
+      })
+      class TestCmp {
+        readonly passwordVisible = signal(false);
+        readonly type = computed(() => (this.passwordVisible() ? 'text' : 'password'));
+        f = form(signal(''));
+      }
+
+      const fix = act(() => TestBed.createComponent(TestCmp));
+      const input = fix.nativeElement.firstChild as HTMLInputElement;
+      const cmp = fix.componentInstance as TestCmp;
+
+      // Initial state
+      expect(input.type).toBe('password');
+
+      // Model -> View as password
+      act(() => cmp.f().value.set('123'));
+      expect(input.value).toBe('123');
+
+      // View -> Model as password
+      act(() => {
+        input.value = 'abc';
+        input.dispatchEvent(new Event('input'));
+      });
+      expect(cmp.f().value()).toBe('abc');
+
+      // Change input type
+      act(() => cmp.passwordVisible.set(true));
+      expect(input.type).toBe('text');
+
+      // Model -> View as text
+      act(() => cmp.f().value.set('123'));
+      expect(input.value).toBe('123');
+
+      // View -> Model as text
+      act(() => {
+        input.value = 'abc';
+        input.dispatchEvent(new Event('input'));
+      });
+      expect(cmp.f().value()).toBe('abc');
     });
   });
 
