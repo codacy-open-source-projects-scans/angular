@@ -322,8 +322,8 @@ export interface Route {
   providers?: string[];
   title?: string;
   children?: Array<Route>;
-  data?: any;
-  resolvers?: any;
+  data?: {[key: string | symbol]: any};
+  resolvers?: {[key: string]: string};
   path: string;
   component: string;
   redirectTo?: string;
@@ -385,7 +385,7 @@ export interface Events {
     devMode: boolean;
     ivy: boolean;
     hydration: boolean;
-    supportedApis: SupportedApis;
+    supportedApis: SupportedApis | null;
   }) => void;
 
   inspectorStart: () => void;

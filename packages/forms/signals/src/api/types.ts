@@ -9,8 +9,8 @@
 import {Signal, ɵFieldState} from '@angular/core';
 import {AbstractControl} from '@angular/forms';
 import type {Field} from './field_directive';
-import {AggregateMetadataKey, MetadataKey} from './metadata';
-import type {ValidationError} from './validation_errors';
+import type {MetadataKey} from './rules/metadata';
+import type {ValidationError} from './rules/validation/validation_errors';
 
 /**
  * Symbol used to retain generic type information when it would otherwise be lost.
@@ -298,21 +298,10 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
   readonly fieldBindings: Signal<readonly Field<unknown>[]>;
 
   /**
-   * Reads an aggregate metadata value from the field.
-   * @param key The metadata key to read.
-   */
-  metadata<M>(key: AggregateMetadataKey<M, any>): Signal<M>;
-
-  /**
    * Reads a metadata value from the field.
    * @param key The metadata key to read.
    */
-  metadata<M>(key: MetadataKey<M>): M | undefined;
-
-  /**
-   * Checks whether the given metadata key has been defined for this field.
-   */
-  hasMetadata(key: MetadataKey<any> | AggregateMetadataKey<any, any>): boolean;
+  metadata<M>(key: MetadataKey<M, any, any>): M | undefined;
 
   /**
    * Resets the {@link touched} and {@link dirty} state of the field and its descendants.
