@@ -40,10 +40,13 @@ const formControlInputFields = [
   // Should be kept in sync with the `FormUiControl` bindings,
   // defined in `packages/forms/signals/src/api/control.ts`.
   'errors',
-  'invalid',
+  'dirty',
   'disabled',
   'disabledReasons',
+  'hidden',
+  'invalid',
   'name',
+  'pending',
   'readonly',
   'touched',
   'max',
@@ -440,10 +443,9 @@ function extractFieldValue(expression: AST, tcb: Context, scope: Scope): ts.Expr
   );
 }
 
-/** Checks whether a directive has a model input with a specific name. */
+/** Checks whether a directive has a model-like input with a specific name. */
 function hasModelInput(name: string, meta: TypeCheckableDirectiveMeta): boolean {
   return (
-    !!meta.inputs.getByBindingPropertyName(name)?.some((v) => v.isSignal) &&
-    meta.outputs.hasBindingPropertyName(name + 'Change')
+    meta.inputs.hasBindingPropertyName(name) && meta.outputs.hasBindingPropertyName(name + 'Change')
   );
 }
