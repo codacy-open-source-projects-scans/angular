@@ -9,7 +9,8 @@
 import {Signal, ɵFieldState} from '@angular/core';
 import {AbstractControl} from '@angular/forms';
 import type {Field} from './field_directive';
-import type {ValidationError, MetadataKey} from './rules';
+import type {FormField} from './form_field_directive';
+import type {MetadataKey, ValidationError} from './rules';
 
 /**
  * Symbol used to retain generic type information when it would otherwise be lost.
@@ -294,7 +295,7 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
   /**
    * The {@link Field} directives that bind this field to a UI control.
    */
-  readonly fieldBindings: Signal<readonly Field<unknown>[]>;
+  readonly formFieldBindings: Signal<readonly (Field<unknown> | FormField<unknown>)[]>;
 
   /**
    * Reads a metadata value from the field.
@@ -568,7 +569,7 @@ export type TreeValidator<TValue, TPathKind extends PathKind = PathKind.Root> = 
  *
  * @template TValue The type of value stored in the field being validated
  * @template TPathKind The kind of path being validated (root field, child field, or item of an array)
- *
+ * @see [Signal Form Validation](/guide/forms/signals/validation)
  * @category types
  * @experimental 21.0.0
  */
