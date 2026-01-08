@@ -82,6 +82,7 @@ export {
   NavigationErrorHandlerFeature,
   PreloadingFeature,
   provideRouter,
+  withExperimentalPlatformNavigation,
   provideRoutes,
   RouterConfigurationFeature,
   RouterFeature,
@@ -137,6 +138,7 @@ export {
   UrlSegmentGroup,
   UrlSerializer,
   UrlTree,
+  isActive,
 } from './url_tree';
 export {
   mapToCanActivate,

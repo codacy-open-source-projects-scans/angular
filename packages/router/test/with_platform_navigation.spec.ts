@@ -7,15 +7,14 @@
  */
 
 import {TestBed} from '@angular/core/testing';
-import {NavigationEnd, NavigationStart, provideRouter, Router} from '../src';
-import {withPlatformNavigation, withRouterConfig} from '../src/provide_router';
+import {provideRouter, Router} from '../src';
+import {withExperimentalPlatformNavigation, withRouterConfig} from '../src/provide_router';
 import {withBody} from '@angular/private/testing';
 import {
   PlatformLocation,
   Location,
   PlatformNavigation,
   BrowserPlatformLocation,
-  ɵPRECOMMIT_HANDLER_SUPPORTED as PRECOMMIT_HANDLER_SUPPORTED,
 } from '@angular/common';
 import {
   ɵFakeNavigation as FakeNavigation,
@@ -23,14 +22,14 @@ import {
   provideLocationMocks,
 } from '@angular/common/testing';
 import {timeout, useAutoTick} from './helpers';
-import {} from '../../common/src/navigation/platform_navigation';
-import {inject} from '@angular/core';
 
 /// <reference types="dom-navigation" />
 
 describe('withPlatformNavigation feature', () => {
   beforeEach(() => {
-    TestBed.configureTestingModule({providers: [provideRouter([], withPlatformNavigation())]});
+    TestBed.configureTestingModule({
+      providers: [provideRouter([], withExperimentalPlatformNavigation())],
+    });
   });
 
   it('provides FakeNavigation by default', () => {
@@ -111,8 +110,11 @@ describe('withPlatformNavigation feature', () => {
           children: [],
         },
       ]);
-      navigation.navigate('/somepath');
+      const {finished} = navigation.navigate('/somepath');
       await timeout(5);
+      // note that this finished promise will be rejected because the Router will create a separate 'replace' navigate
+      // since we cannot redirect the original navigation without precommit handler support
+      await expectAsync(finished).not.toBeResolved();
       expect(navigation.transition).not.toBeNull();
       await timeout(10);
       expect(navigation.transition).toBeNull();
@@ -131,8 +133,7 @@ describe('withPlatformNavigation feature', () => {
       // set up navigation
       navigation.addEventListener(
         'navigate',
-        (e: any) =>
-          e.intercept({precommitHandler: () => new Promise((_, reject) => setTimeout(reject, 5))}),
+        (e: any) => e.intercept({handler: () => new Promise((_, reject) => setTimeout(reject, 5))}),
         {once: true},
       );
 
@@ -160,26 +161,6 @@ describe('withPlatformNavigation feature', () => {
       expect(navigateEvents.length).toBe(1);
       expect(navigateEvents[0].navigationType).toBe('traverse');
     });
-
-    it('retains a single NavigateEvent across redirects', async () => {
-      const navigateEvents: NavigateEvent[] = [];
-      navigation.addEventListener('navigate', (e: NavigateEvent) => navigateEvents.push(e));
-
-      router.resetConfig([
-        {path: 'first', canActivate: [() => inject(Router).parseUrl('/redirected')], children: []},
-        {path: '**', children: []},
-      ]);
-      const navPromise = router.navigateByUrl('/first');
-      if (TestBed.inject(PRECOMMIT_HANDLER_SUPPORTED)) {
-        router.events.subscribe((e) => {
-          if (e instanceof NavigationStart) {
-            expect(navigateEvents.length).toBe(1);
-          }
-        });
-      }
-      await navPromise;
-      expect(navigateEvents.length).toBe(1);
-    });
   });
 
   describe('eager url update', () => {
@@ -191,7 +172,7 @@ describe('withPlatformNavigation feature', () => {
         providers: [
           provideRouter(
             [{path: '**', children: []}],
-            withPlatformNavigation(),
+            withExperimentalPlatformNavigation(),
             withRouterConfig({urlUpdateStrategy: 'eager'}),
           ),
         ],
@@ -224,7 +205,7 @@ describe('withPlatformNavigation feature', () => {
 describe('configuration error', () => {
   it('throws an error mentioning SpyLocation and the location mocks', () => {
     TestBed.configureTestingModule({
-      providers: [provideRouter([], withPlatformNavigation()), provideLocationMocks()],
+      providers: [provideRouter([], withExperimentalPlatformNavigation()), provideLocationMocks()],
     });
     expect(() => TestBed.inject(Location)).toThrowError(/SpyLocation.*provideLocationMocks/);
   });
@@ -236,7 +217,7 @@ if (typeof window !== 'undefined' && 'navigation' in window) {
     beforeEach(() => {
       TestBed.configureTestingModule({
         providers: [
-          provideRouter([{path: '**', children: []}], withPlatformNavigation()),
+          provideRouter([{path: '**', children: []}], withExperimentalPlatformNavigation()),
           {provide: PlatformLocation, useClass: BrowserPlatformLocation},
           {provide: PlatformNavigation, useFactory: () => navigation},
         ],

@@ -514,6 +514,53 @@ export declare class MyModule {
 }
 
 /****************************************************************************************************
+ * PARTIAL FILE: array_literal_spread.js
+ ****************************************************************************************************/
+import { Component } from '@angular/core';
+import * as i0 from "@angular/core";
+export class ArrayComp {
+    foo = [];
+    bar = [];
+    baz = [];
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: ArrayComp, deps: [], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "0.0.0-PLACEHOLDER", type: ArrayComp, isStandalone: true, selector: "ng-component", ngImport: i0, template: `
+    @let simple = [...foo];
+    @let otherEntries = [1, ...foo, 2];
+    @let multipleSpreads = [...foo, 1, ...bar, ...baz, 2];
+    @let inlineArraySpread = [1, ...[2, ...[3]]];
+
+    <!-- Use the arrays so they don't get flagged as unused. -->
+    {{simple}} {{otherEntries}} {{multipleSpreads}} {{inlineArraySpread}}
+  `, isInline: true });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: ArrayComp, decorators: [{
+            type: Component,
+            args: [{
+                    template: `
+    @let simple = [...foo];
+    @let otherEntries = [1, ...foo, 2];
+    @let multipleSpreads = [...foo, 1, ...bar, ...baz, 2];
+    @let inlineArraySpread = [1, ...[2, ...[3]]];
+
+    <!-- Use the arrays so they don't get flagged as unused. -->
+    {{simple}} {{otherEntries}} {{multipleSpreads}} {{inlineArraySpread}}
+  `,
+                }]
+        }] });
+
+/****************************************************************************************************
+ * PARTIAL FILE: array_literal_spread.d.ts
+ ****************************************************************************************************/
+import * as i0 from "@angular/core";
+export declare class ArrayComp {
+    foo: never[];
+    bar: never[];
+    baz: never[];
+    static ɵfac: i0.ɵɵFactoryDeclaration<ArrayComp, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<ArrayComp, "ng-component", never, {}, {}, never, never, true, never>;
+}
+
+/****************************************************************************************************
  * PARTIAL FILE: object_literals.js
  ****************************************************************************************************/
 import { Component, Input, NgModule } from '@angular/core';
@@ -586,6 +633,53 @@ export declare class MyModule {
     static ɵfac: i0.ɵɵFactoryDeclaration<MyModule, never>;
     static ɵmod: i0.ɵɵNgModuleDeclaration<MyModule, [typeof ObjectComp, typeof MyApp], never, never>;
     static ɵinj: i0.ɵɵInjectorDeclaration<MyModule>;
+}
+
+/****************************************************************************************************
+ * PARTIAL FILE: object_literal_spread.js
+ ****************************************************************************************************/
+import { Component } from '@angular/core';
+import * as i0 from "@angular/core";
+export class ObjectComp {
+    foo = {};
+    bar = {};
+    baz = {};
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: ObjectComp, deps: [], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "0.0.0-PLACEHOLDER", type: ObjectComp, isStandalone: true, selector: "ng-component", ngImport: i0, template: `
+    @let simple = {...foo};
+    @let otherProps = {a: 1, ...foo, b: 2};
+    @let multipleSpreads = {...foo, a: 1, ...bar, ...baz, b: 2};
+    @let objectLiteral = {a: 1, ...{b: {...{c: 3}}}};
+
+    <!-- Use the objects so they don't get flagged as unused. -->
+    {{simple}} {{otherProps}} {{multipleSpreads}} {{objectLiteral}}
+  `, isInline: true });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: ObjectComp, decorators: [{
+            type: Component,
+            args: [{
+                    template: `
+    @let simple = {...foo};
+    @let otherProps = {a: 1, ...foo, b: 2};
+    @let multipleSpreads = {...foo, a: 1, ...bar, ...baz, b: 2};
+    @let objectLiteral = {a: 1, ...{b: {...{c: 3}}}};
+
+    <!-- Use the objects so they don't get flagged as unused. -->
+    {{simple}} {{otherProps}} {{multipleSpreads}} {{objectLiteral}}
+  `,
+                }]
+        }] });
+
+/****************************************************************************************************
+ * PARTIAL FILE: object_literal_spread.d.ts
+ ****************************************************************************************************/
+import * as i0 from "@angular/core";
+export declare class ObjectComp {
+    foo: {};
+    bar: {};
+    baz: {};
+    static ɵfac: i0.ɵɵFactoryDeclaration<ObjectComp, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<ObjectComp, "ng-component", never, {}, {}, never, never, true, never>;
 }
 
 /****************************************************************************************************
@@ -882,6 +976,55 @@ i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDE
 import * as i0 from "@angular/core";
 export declare class TestComp {
     value: string;
+    static ɵfac: i0.ɵɵFactoryDeclaration<TestComp, never>;
+    static ɵcmp: i0.ɵɵComponentDeclaration<TestComp, "ng-component", never, {}, {}, never, never, true, never>;
+}
+
+/****************************************************************************************************
+ * PARTIAL FILE: call_rest.js
+ ****************************************************************************************************/
+import { Component } from '@angular/core';
+import * as i0 from "@angular/core";
+export class TestComp {
+    foo = [];
+    bar = [];
+    baz = [];
+    fn(..._) { }
+    static ɵfac = i0.ɵɵngDeclareFactory({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: TestComp, deps: [], target: i0.ɵɵFactoryTarget.Component });
+    static ɵcmp = i0.ɵɵngDeclareComponent({ minVersion: "14.0.0", version: "0.0.0-PLACEHOLDER", type: TestComp, isStandalone: true, selector: "ng-component", ngImport: i0, template: `
+    {{fn(...foo)}}
+    <hr>
+    {{fn(1, ...foo, 2)}}
+    <hr>
+    {{fn(...foo, 1, ...bar, ...baz, 2)}}
+    <hr>
+    {{fn(1, ...[2, ...[3]])}}
+  `, isInline: true });
+}
+i0.ɵɵngDeclareClassMetadata({ minVersion: "12.0.0", version: "0.0.0-PLACEHOLDER", ngImport: i0, type: TestComp, decorators: [{
+            type: Component,
+            args: [{
+                    template: `
+    {{fn(...foo)}}
+    <hr>
+    {{fn(1, ...foo, 2)}}
+    <hr>
+    {{fn(...foo, 1, ...bar, ...baz, 2)}}
+    <hr>
+    {{fn(1, ...[2, ...[3]])}}
+  `,
+                }]
+        }] });
+
+/****************************************************************************************************
+ * PARTIAL FILE: call_rest.d.ts
+ ****************************************************************************************************/
+import * as i0 from "@angular/core";
+export declare class TestComp {
+    foo: never[];
+    bar: never[];
+    baz: never[];
+    fn(..._: any[]): void;
     static ɵfac: i0.ɵɵFactoryDeclaration<TestComp, never>;
     static ɵcmp: i0.ɵɵComponentDeclaration<TestComp, "ng-component", never, {}, {}, never, never, true, never>;
 }

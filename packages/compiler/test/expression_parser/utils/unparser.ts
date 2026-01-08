@@ -30,6 +30,7 @@ import {
   SafeCall,
   SafeKeyedRead,
   SafePropertyRead,
+  SpreadElement,
   TaggedTemplateLiteral,
   TemplateLiteral,
   TemplateLiteralElement,
@@ -161,8 +162,14 @@ class Unparser implements AstVisitor {
       if (!isFirst) this._expression += ', ';
       isFirst = false;
       const key = ast.keys[i];
-      this._expression += key.quoted ? JSON.stringify(key.key) : key.key;
-      this._expression += ': ';
+
+      if (key.kind === 'spread') {
+        this._expression += '...';
+      } else {
+        this._expression += key.quoted ? JSON.stringify(key.key) : key.key;
+        this._expression += ': ';
+      }
+
       this._visit(ast.values[i]);
     }
 
@@ -240,6 +247,11 @@ class Unparser implements AstVisitor {
 
   visitRegularExpressionLiteral(ast: RegularExpressionLiteral, context: any) {
     this._expression += `/${ast.body}/${ast.flags || ''}`;
+  }
+
+  visitSpreadElement(ast: SpreadElement, context: any) {
+    this._expression += '...';
+    this._visit(ast.expression);
   }
 
   private _visit(ast: AST) {
