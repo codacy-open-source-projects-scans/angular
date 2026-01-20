@@ -1,9 +1,9 @@
-/**
+/*!
  * @license
- * Copyright Google Inc. All Rights Reserved.
+ * Copyright Google LLC All Rights Reserved.
  *
  * Use of this source code is governed by an MIT-style license that can be
- * found in the LICENSE file at https://angular.io/license
+ * found in the LICENSE file at https://angular.dev/license
  */
 
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -43,7 +43,7 @@ import {
   initializeServer,
   openTextDocument,
   ServerOptions,
-} from './test_utils';
+} from './test_utils.js';
 
 describe('Angular language server', () => {
   jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000; /* 10 seconds */

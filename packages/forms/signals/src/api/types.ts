@@ -8,7 +8,6 @@
 
 import {Signal, ɵFieldState} from '@angular/core';
 import {AbstractControl} from '@angular/forms';
-import type {Field} from './field_directive';
 import type {FormField} from './form_field_directive';
 import type {MetadataKey, ValidationError} from './rules';
 
@@ -226,8 +225,10 @@ export type MaybeFieldTree<TModel, TKey extends string | number = string | numbe
  * @category structure
  * @experimental 21.0.0
  */
-export interface FieldState<TValue, TKey extends string | number = string | number>
-  extends ɵFieldState<TValue> {
+export interface FieldState<
+  TValue,
+  TKey extends string | number = string | number,
+> extends ɵFieldState<TValue> {
   /**
    * A signal indicating whether field value has been changed by user.
    */
@@ -293,9 +294,9 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
    */
   readonly keyInParent: Signal<TKey>;
   /**
-   * The {@link Field} directives that bind this field to a UI control.
+   * The {@link FormField} directives that bind this field to a UI control.
    */
-  readonly formFieldBindings: Signal<readonly (Field<unknown> | FormField<unknown>)[]>;
+  readonly formFieldBindings: Signal<readonly FormField<unknown>[]>;
 
   /**
    * Reads a metadata value from the field.
@@ -311,6 +312,13 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
    * @param value Optional value to set to the form. If not passed, the value will not be changed.
    */
   reset(value?: TValue): void;
+
+  /**
+   * Focuses the first UI control in the DOM that is bound to this field state.
+   * If no UI control is bound, does nothing.
+   * @param options Optional focus options to pass to the native focus() method.
+   */
+  focusBoundControl(options?: FocusOptions): void;
 }
 
 /**
