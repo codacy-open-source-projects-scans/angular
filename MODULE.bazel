@@ -18,14 +18,14 @@ bazel_dep(name = "yq.bzl", version = "0.3.4")
 bazel_dep(name = "rules_angular")
 git_override(
     module_name = "rules_angular",
-    commit = "7133b97252508f8528e5c5818a9a73cacc2e2a0e",
+    commit = "7f607d44d74fd1470e51f3d55363f1684548d008",
     remote = "https://github.com/devversion/rules_angular.git",
 )
 
 bazel_dep(name = "devinfra")
 git_override(
     module_name = "devinfra",
-    commit = "8d7bdf76c5a620e365ca7d4c6bb5393e362f9f62",
+    commit = "71907fee0c48eec1d465dc1e54fe6b3ffc767145",
     remote = "https://github.com/angular/dev-infra.git",
 )
 
@@ -71,8 +71,8 @@ use_repo(node, "nodejs_windows_amd64")
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")
 pnpm.pnpm(
     name = "pnpm",
-    pnpm_version = "10.28.0",
-    pnpm_version_integrity = "sha512-Bd9x0UIfITmeBT/eVnzqNNRG+gLHZXFEG/wceVbpjjYwiJgtlARl/TRIDU2QoGaLwSNi+KqIAApk6D0LDke+SA==",
+    pnpm_version = "10.28.1",
+    pnpm_version_integrity = "sha512-fX27yp6ZRHt8O/enMoavqva+mSUeuUmLrvp9QGiS9nuHmts6HX5of8TMwaOIxxdfuq5WeiarRNEGe1T8sNajFg==",
 )
 use_repo(pnpm, "pnpm")
 

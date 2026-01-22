@@ -6,11 +6,11 @@
   "homepage": "https://github.com/angular/angular",
   "bugs": "https://github.com/angular/angular/issues",
   "license": "MIT",
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "pnpm@10.28.1",
   "engines": {
     "npm": "Please use pnpm instead of NPM to install dependencies",
     "yarn": "Please use pnpm instead of Yarn to install dependencies",
-    "pnpm": "10.28.0"
+    "pnpm": "10.28.1"
   },
   "repository": {
     "type": "git",
@@ -58,7 +58,7 @@
     "@angular/animations": "workspace:*",
     "@angular/benchpress": "workspace: *",
     "@angular/build": "21.1.0-rc.0",
-    "@angular/cdk": "21.2.0-next.0",
+    "@angular/cdk": "21.2.0-next.1",
     "@angular/cli": "21.1.0-rc.0",
     "@angular/common": "workspace:*",
     "@angular/compiler": "workspace:*",
@@ -68,7 +68,7 @@
     "@angular/forms": "workspace:*",
     "@angular/language-service": "workspace: *",
     "@angular/localize": "workspace: *",
-    "@angular/material": "21.2.0-next.0",
+    "@angular/material": "21.2.0-next.1",
     "@angular/platform-browser": "workspace:*",
     "@angular/platform-browser-dynamic": "workspace:*",
     "@angular/platform-server": "workspace:*",
@@ -161,7 +161,7 @@
   "devDependencies": {
     "@actions/core": "^2.0.0",
     "@actions/github": "^7.0.0",
-    "@angular/ng-dev": "https://github.com/angular/dev-infra-private-ng-dev-builds.git#370b6f7b49470d16721272715642d0ba2ef99556",
+    "@angular/ng-dev": "https://github.com/angular/dev-infra-private-ng-dev-builds.git#0c5783e02fa1c85eb796c57c6f22b805895f7c22",
     "@babel/plugin-proposal-async-generator-functions": "7.20.7",
     "@babel/plugin-transform-async-generator-functions": "^7.27.1",
     "@bazel/bazelisk": "^1.7.5",
