@@ -347,6 +347,7 @@ Controls sometimes display values differently than the form model stores them - 
 Use `linkedSignal()` (from `@angular/core`) to transform the model value for display, and handle input events to parse user input back to the storage format:
 
 ```angular-ts
+import {formatCurrency} from '@angular/common';
 import {ChangeDetectionStrategy, Component, linkedSignal, model} from '@angular/core';
 import {FormValueControl} from '@angular/forms/signals';
 
@@ -367,7 +368,7 @@ export class CurrencyInput implements FormValueControl<number> {
   readonly value = model.required<number>();
 
   // Stores display value ("1,234.56")
-  readonly displayValue = linkedSignal(() => formatCurrency(this.value()));
+  readonly displayValue = linkedSignal(() => formatCurrency(this.value(), 'en', 'USD'));
 
   // Update the model from the display value.
   updateModel() {
@@ -375,14 +376,9 @@ export class CurrencyInput implements FormValueControl<number> {
   }
 }
 
-// Converts a number to a currency string (e.g. 1234.56 -> "1,234.56").
-function formatCurrency(value: number) {
-  return value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-}
-
-// Converts a currency string to a number (e.g. "1,234.56" -> 1234.56).
-function parseCurrency(value: string) {
-  return parseFloat(value.replace(/,/g, ''));
+// Converts a currency string to a number (e.g. "USD1,234.56" -> 1234.56).
+function parseCurrency(value: string): number {
+  return parseFloat(value.replace(/^[^\d-]+/, '').replace(/,/g, ''));
 }
 ```
 
@@ -407,7 +403,7 @@ When you add `min()` and `max()` validation rules to the schema, the FormField d
 
 IMPORTANT: Don't implement validation logic in your control. Define validation rules in the form schema and let your control display the results:
 
-```typescript
+```ts {avoid}
 // Avoid: Validation in control
 export class BadControl implements FormValueControl<string> {
   value = model<string>('');
@@ -415,7 +411,9 @@ export class BadControl implements FormValueControl<string> {
     return this.value().length >= 8;
   } // Don't do this!
 }
+```
 
+```ts {prefer}
 // Good: Validation in schema, control displays results
 accountForm = form(this.accountModel, (schemaPath) => {
   minLength(schemaPath.password, 8, {message: 'Password must be at least 8 characters'});
