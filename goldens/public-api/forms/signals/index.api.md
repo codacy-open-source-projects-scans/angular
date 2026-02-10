@@ -134,6 +134,7 @@ export interface FieldState<TValue, TKey extends string | number = string | numb
     // (undocumented)
     readonly errors: Signal<ValidationError.WithFieldTree[]>;
     readonly errorSummary: Signal<ValidationError.WithFieldTree[]>;
+    readonly fieldTree: FieldTree<unknown, TKey>;
     focusBoundControl(options?: FocusOptions): void;
     readonly formFieldBindings: Signal<readonly FormField<unknown>[]>;
     readonly hidden: Signal<boolean>;
@@ -203,21 +204,26 @@ export class FormField<T> {
 // @public (undocumented)
 export interface FormFieldBindingOptions {
     readonly focus?: (focusOptions?: FocusOptions) => void;
-    readonly parseErrors?: Signal<ValidationError.WithoutFieldTree[]>;
 }
 
 // @public
 export interface FormOptions<TModel> {
     injector?: Injector;
     name?: string;
-    submission?: FormSubmitOptions<TModel>;
+    submission?: FormSubmitOptions<TModel, unknown>;
 }
 
 // @public
-export interface FormSubmitOptions<TModel> {
-    action: (form: FieldTree<TModel>) => Promise<TreeValidationResult>;
+export interface FormSubmitOptions<TRootModel, TSubmittedModel> {
+    action: (field: FieldTree<TRootModel & TSubmittedModel>, detail: {
+        root: FieldTree<TRootModel>;
+        submitted: FieldTree<TSubmittedModel>;
+    }) => Promise<TreeValidationResult>;
     ignoreValidators?: 'pending' | 'none' | 'all';
-    onInvalid?: (form: FieldTree<TModel>) => void;
+    onInvalid?: (field: FieldTree<TRootModel & TSubmittedModel>, detail: {
+        root: FieldTree<TRootModel>;
+        submitted: FieldTree<TSubmittedModel>;
+    }) => void;
 }
 
 // @public
@@ -234,7 +240,6 @@ export interface FormUiControl<TValue> {
     readonly min?: InputSignal<number | undefined> | InputSignalWithTransform<number | undefined, unknown>;
     readonly minLength?: InputSignal<number | undefined> | InputSignalWithTransform<number | undefined, unknown>;
     readonly name?: InputSignal<string> | InputSignalWithTransform<string, unknown>;
-    readonly parseErrors?: Signal<ValidationError.WithoutFieldTree[]>;
     readonly pattern?: InputSignal<readonly RegExp[]> | InputSignalWithTransform<readonly RegExp[], unknown>;
     readonly pending?: InputSignal<boolean> | InputSignalWithTransform<boolean, unknown>;
     readonly readonly?: InputSignal<boolean> | InputSignalWithTransform<boolean, unknown>;
@@ -559,10 +564,27 @@ export type Subfields<TModel> = {
 };
 
 // @public
-export function submit<TModel>(form: FieldTree<TModel>, options?: FormSubmitOptions<TModel>): Promise<boolean>;
+export function submit<TModel>(form: FieldTree<TModel>, options?: NoInfer<FormSubmitOptions<unknown, TModel>>): Promise<boolean>;
 
 // @public (undocumented)
-export function submit<TModel>(form: FieldTree<TModel>, action: FormSubmitOptions<TModel>['action']): Promise<boolean>;
+export function submit<TModel>(form: FieldTree<TModel>, action: NoInfer<FormSubmitOptions<unknown, TModel>['action']>): Promise<boolean>;
+
+// @public
+export function transformedValue<TValue, TRaw>(value: ModelSignal<TValue>, options: TransformedValueOptions<TValue, TRaw>): TransformedValueSignal<TRaw>;
+
+// @public
+export interface TransformedValueOptions<TValue, TRaw> {
+    format: (value: TValue) => TRaw;
+    parse: (rawValue: TRaw) => {
+        value?: TValue;
+        errors?: readonly ValidationError.WithoutFieldTree[];
+    };
+}
+
+// @public
+export interface TransformedValueSignal<TRaw> extends WritableSignal<TRaw> {
+    readonly parseErrors: Signal<readonly ValidationError.WithoutFieldTree[]>;
+}
 
 // @public
 export type TreeValidationResult<E extends ValidationError.WithOptionalFieldTree = ValidationError.WithOptionalFieldTree> = ValidationSuccess | OneOrMany<E>;

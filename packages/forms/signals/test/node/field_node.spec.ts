@@ -56,7 +56,7 @@ describe('FieldNode', () => {
       expect(f.a).toBe(child);
     });
 
-    it('should get the same instance when asking for a child multiple times', () => {
+    it('should get the same instance when asking for a child multiple times (after update)', () => {
       const value = signal<{a: number; b?: number}>({a: 1, b: 2});
       const f = form(value, {injector: TestBed.inject(Injector)});
       const child = f.a;
@@ -76,18 +76,6 @@ describe('FieldNode', () => {
       },
     );
     expect(f.c).toBeUndefined();
-  });
-
-  it('can get a child inside of a computed', () => {
-    const f = form(
-      signal({
-        a: 1,
-        b: 2,
-      }),
-      {injector: TestBed.inject(Injector)},
-    );
-    const childA = computed(() => f.a);
-    expect(childA()).toBeDefined();
   });
 
   it('can get a child inside of a computed', () => {
@@ -156,6 +144,26 @@ describe('FieldNode', () => {
       const f = form(model, {injector: TestBed.inject(Injector)});
       f().reset(NaN);
       expect(f().value()).toBeNaN();
+    });
+  });
+
+  describe('fieldTree', () => {
+    it('should return the associated field tree from state produced by the root field tree', () => {
+      const f = form(signal(''), {injector: TestBed.inject(Injector)});
+
+      expect(f().fieldTree).toBe(f);
+    });
+
+    it('should return the associated field tree from state produced by a child field tree', () => {
+      const f = form(signal({a: 1, b: 2}), {injector: TestBed.inject(Injector)});
+
+      expect(f.a().fieldTree).toBe(f.a);
+    });
+
+    it('should return the associated field tree from state produced by an array item field tree', () => {
+      const f = form(signal([1, 2, 3]), {injector: TestBed.inject(Injector)});
+
+      expect(f[0]().fieldTree).toBe(f[0]);
     });
   });
 
