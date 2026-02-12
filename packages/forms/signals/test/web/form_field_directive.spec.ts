@@ -47,7 +47,7 @@ import {
   requiredError,
   validateAsync,
   type DisabledReason,
-  type FieldTree,
+  type Field,
   type FormCheckboxControl,
   type FormValueControl,
   type ValidationError,
@@ -60,7 +60,7 @@ import {
   imports: [FormField],
 })
 class TestStringControl {
-  readonly formField = input.required<FieldTree<string>>();
+  readonly formField = input.required<Field<string>>();
   readonly fieldDirective = viewChild.required(FormField);
 }
 
@@ -778,6 +778,51 @@ describe('field directive', () => {
 
         act(() => component.field.set(component.f.y));
         expect(component.customControl().hidden()).toBe(false);
+      });
+
+      it('should warn when a hidden field is rendered', () => {
+        const warnSpy = spyOn(console, 'warn');
+        @Component({
+          imports: [FormField],
+          template: `<input [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly f = form(signal(''), (p) => {
+            hidden(p, () => true);
+          });
+        }
+
+        act(() => TestBed.createComponent(TestCmp));
+        expect(warnSpy).toHaveBeenCalledWith(
+          jasmine.stringMatching(/Field '.*' is hidden but is being rendered/),
+        );
+      });
+
+      it('should not warn when a hidden field is guarded by @if', () => {
+        const isHidden = signal(false);
+        const warnSpy = spyOn(console, 'warn');
+        @Component({
+          imports: [FormField],
+          template: `
+            @if (!f().hidden()) {
+              <input [formField]="f" />
+            }
+          `,
+        })
+        class TestCmp {
+          readonly f = form(signal(''), (p) => {
+            hidden(p, isHidden);
+          });
+        }
+
+        act(() => TestBed.createComponent(TestCmp));
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        act(() => isHidden.set(true));
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        act(() => isHidden.set(false));
+        expect(warnSpy).not.toHaveBeenCalled();
       });
     });
 
@@ -3226,7 +3271,7 @@ describe('field directive', () => {
       template: `{{ formField()().value() }}`,
     })
     class WrapperCmp {
-      readonly formField = input.required<FieldTree<string>>();
+      readonly formField = input.required<Field<string>>();
     }
 
     @Component({
@@ -3300,7 +3345,7 @@ describe('field directive', () => {
         template: ``,
       })
       class ComplexControl {
-        readonly formField = input.required<FieldTree<string>>();
+        readonly formField = input.required<Field<string>>();
       }
 
       @Component({
@@ -3321,7 +3366,7 @@ describe('field directive', () => {
         template: ``,
       })
       class ComplexControl {
-        readonly formField = input.required<FieldTree<string>>();
+        readonly formField = input.required<Field<string>>();
 
         constructor() {
           inject(FormField, {optional: true, self: true})?.registerAsBinding();
@@ -4252,7 +4297,7 @@ describe('field directive', () => {
         template: '',
       })
       class CustomSubform {
-        readonly formField = input.required<FieldTree<string>>();
+        readonly formField = input.required<Field<string>>();
       }
 
       @Component({
