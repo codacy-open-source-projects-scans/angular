@@ -5,30 +5,48 @@
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.dev/license
  */
-import type {ɵControlDirectiveHost as ControlDirectiveHost} from '@angular/core';
-import type {FormField} from './form_field_directive';
-import {getNativeControlValue, setNativeControlValue, setNativeDomProperty} from './native';
-import {observeSelectMutations} from './select';
+import {
+  type ɵControlDirectiveHost as ControlDirectiveHost,
+  type Signal,
+  type WritableSignal,
+} from '@angular/core';
+import type {ValidationError} from '../api/rules';
+import {createParser} from '../util/parser';
 import {
   bindingUpdated,
   CONTROL_BINDING_NAMES,
-  type ControlBindingKey,
   createBindings,
   readFieldStateBindingValue,
+  type ControlBindingKey,
 } from './bindings';
+import type {FormField} from './form_field_directive';
+import {getNativeControlValue, setNativeControlValue, setNativeDomProperty} from './native';
+import {observeSelectMutations} from './select';
 
 export function nativeControlCreate(
   host: ControlDirectiveHost,
   parent: FormField<unknown>,
+  parseErrorsSource: WritableSignal<
+    Signal<readonly ValidationError.WithoutFieldTree[]> | undefined
+  >,
 ): () => void {
   let updateMode = false;
   const input = parent.nativeFormElement;
 
-  host.listenToDom('input', () => {
-    const state = parent.state();
-    state.controlValue.set(getNativeControlValue(input, state.value));
-  });
+  // TODO: (perf) ok to always create this?
+  const parser = createParser(
+    // Read from the model value
+    () => parent.state().value(),
+    // Write to the buffered "control value"
+    (rawValue: unknown) => parent.state().controlValue.set(rawValue),
+    // Our parse function doesn't care about the raw value that gets passed in,
+    // It just reads the newly parsed value directly off the input element.
+    () => getNativeControlValue(input, parent.state().value),
+  );
 
+  parseErrorsSource.set(parser.errors);
+  // Pass undefined as the raw value since the parse function doesn't care about it.
+  host.listenToDom('input', () => parser.setRawValue(undefined));
   host.listenToDom('blur', () => parent.state().markAsTouched());
 
   parent.registerAsBinding();

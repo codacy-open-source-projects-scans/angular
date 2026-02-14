@@ -147,7 +147,7 @@ export class FormField<T> {
   private readonly config = inject(SIGNAL_FORMS_CONFIG, {optional: true});
 
   private readonly parseErrorsSource = signal<
-    Signal<ValidationError.WithoutFieldTree[]> | undefined
+    Signal<readonly ValidationError.WithoutFieldTree[]> | undefined
   >(undefined);
 
   /** A lazily instantiated fake `NgControl`. */
@@ -251,7 +251,7 @@ export class FormField<T> {
     this.installClassBindingEffect();
 
     if (bindingOptions?.focus) {
-      this.focuser = bindingOptions.focus;
+      this.focuser = (focusOptions?: FocusOptions) => bindingOptions.focus!(focusOptions);
     }
 
     // Register this control on the field state it is currently bound to. We do this at the end of
@@ -319,7 +319,11 @@ export class FormField<T> {
     } else if (host.customControl) {
       this.ɵngControlUpdate = customControlCreate(host, this as FormField<unknown>);
     } else if (this.elementIsNativeFormElement) {
-      this.ɵngControlUpdate = nativeControlCreate(host, this as FormField<unknown>);
+      this.ɵngControlUpdate = nativeControlCreate(
+        host,
+        this as FormField<unknown>,
+        this.parseErrorsSource,
+      );
     } else {
       throw new RuntimeError(
         RuntimeErrorCode.INVALID_FIELD_DIRECTIVE_HOST,

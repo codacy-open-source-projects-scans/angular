@@ -419,13 +419,25 @@ export class MinValidationError extends BaseNgValidationError {
 }
 
 // @public
+export class NativeInputParseError extends BaseNgValidationError {
+    // (undocumented)
+    readonly kind = "parse";
+}
+
+// @public
 export const NgValidationError: abstract new () => NgValidationError;
 
 // @public (undocumented)
-export type NgValidationError = RequiredValidationError | MinValidationError | MaxValidationError | MinLengthValidationError | MaxLengthValidationError | PatternValidationError | EmailValidationError | StandardSchemaValidationError;
+export type NgValidationError = RequiredValidationError | MinValidationError | MaxValidationError | MinLengthValidationError | MaxLengthValidationError | PatternValidationError | EmailValidationError | StandardSchemaValidationError | NativeInputParseError;
 
 // @public
 export type OneOrMany<T> = T | readonly T[];
+
+// @public
+export interface ParseResult<TValue> {
+    readonly errors?: readonly ValidationError.WithoutFieldTree[];
+    readonly value?: TValue;
+}
 
 // @public
 export type PathKind = PathKind.Root | PathKind.Child | PathKind.Item;
@@ -589,10 +601,7 @@ export function transformedValue<TValue, TRaw>(value: ModelSignal<TValue>, optio
 // @public
 export interface TransformedValueOptions<TValue, TRaw> {
     format: (value: TValue) => TRaw;
-    parse: (rawValue: TRaw) => {
-        value?: TValue;
-        errors?: readonly ValidationError.WithoutFieldTree[];
-    };
+    parse: (rawValue: TRaw) => ParseResult<TValue>;
 }
 
 // @public

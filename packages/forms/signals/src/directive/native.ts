@@ -7,6 +7,8 @@
  */
 
 import {type Renderer2, untracked} from '@angular/core';
+import {NativeInputParseError, WithoutFieldTree} from '../api/rules';
+import type {ParseResult} from '../api/transformed_value';
 
 /**
  * Supported native control element types.
@@ -63,18 +65,27 @@ export function isTextualFormElement(element: HTMLElement): boolean {
 export function getNativeControlValue(
   element: NativeFormControl,
   currentValue: () => unknown,
-): unknown {
+): ParseResult<unknown> {
+  let modelValue: unknown;
+
+  if (element.validity.badInput) {
+    return {
+      errors: [new NativeInputParseError() as WithoutFieldTree<NativeInputParseError>],
+    };
+  }
+
   // Special cases for specific input types.
   switch (element.type) {
     case 'checkbox':
-      return element.checked;
+      return {value: element.checked};
     case 'number':
     case 'range':
     case 'datetime-local':
       // We can read a `number` or a `string` from this input type. Prefer whichever is consistent
       // with the current type.
-      if (typeof untracked(currentValue) === 'number') {
-        return element.valueAsNumber;
+      modelValue = untracked(currentValue);
+      if (typeof modelValue === 'number' || modelValue === null) {
+        return {value: element.value === '' ? null : element.valueAsNumber};
       }
       break;
     case 'date':
@@ -83,17 +94,17 @@ export function getNativeControlValue(
     case 'week':
       // We can read a `Date | null`, `number`, or `string` from this input type. Prefer whichever
       // is consistent with the current type.
-      const value = untracked(currentValue);
-      if (value === null || value instanceof Date) {
-        return element.valueAsDate;
-      } else if (typeof value === 'number') {
-        return element.valueAsNumber;
+      modelValue = untracked(currentValue);
+      if (modelValue === null || modelValue instanceof Date) {
+        return {value: element.valueAsDate};
+      } else if (typeof modelValue === 'number') {
+        return {value: element.valueAsNumber};
       }
       break;
   }
 
   // Default to reading the value as a string.
-  return element.value;
+  return {value: element.value};
 }
 
 /**
@@ -119,6 +130,9 @@ export function setNativeControlValue(element: NativeFormControl, value: unknown
       // This input type can receive a `number` or a `string`.
       if (typeof value === 'number') {
         setNativeNumberControlValue(element, value);
+        return;
+      } else if (value === null) {
+        element.value = '';
         return;
       }
       break;
