@@ -39,6 +39,8 @@ import {
   ViewChildren,
   ɵDEFER_BLOCK_DEPENDENCY_INTERCEPTOR,
 } from '../../src/core';
+import {IDLE_SERVICE, IdleService, provideIdleServiceWith} from '../../src/defer/idle_service';
+import {IdleScheduler} from '../../src/defer/idle_scheduler';
 import {TimerScheduler} from '../../src/defer/timer_scheduler';
 import {formatRuntimeErrorCode, RuntimeErrorCode} from '../../src/errors';
 import {provideNgReflectAttributes} from '../../src/ng_reflect';
@@ -698,6 +700,86 @@ describe('@defer', () => {
 
       // Expect that the loading resources function was not invoked again (counter remains 1).
       expect(loadingFnInvokedTimes).toBe(1);
+    });
+
+    it('should trigger change detection when `on idle` is fired without explicit fixture.detectChanges()', async () => {
+      @Component({
+        selector: 'nested-cmp',
+        template: 'Rendering {{ block }} block.',
+      })
+      class NestedCmp {
+        @Input() block!: string;
+      }
+
+      @Component({
+        selector: 'root-app',
+        imports: [NestedCmp],
+        template: `
+          @defer (on idle) {
+            <nested-cmp [block]="'primary'" />
+          } @placeholder {
+            Placeholder
+          } @loading {
+            Loading
+          }
+        `,
+      })
+      class RootCmp {}
+
+      let loadingFnInvokedTimes = 0;
+      const deferDepsInterceptor = {
+        intercept() {
+          return () => {
+            loadingFnInvokedTimes++;
+            return [dynamicImportOf(NestedCmp)];
+          };
+        },
+      };
+
+      const idleCallbacks: IdleRequestCallback[] = [];
+      const mockRequestIdleCallback = (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions,
+      ): number => {
+        idleCallbacks.push(callback);
+        return 1;
+      };
+
+      const nativeRequestIdleCallback = globalThis.requestIdleCallback;
+      const nativeCancelIdleCallback = globalThis.cancelIdleCallback;
+      globalThis.requestIdleCallback = mockRequestIdleCallback;
+      globalThis.cancelIdleCallback = (id: number) => {};
+
+      try {
+        TestBed.configureTestingModule({
+          providers: [
+            ...COMMON_PROVIDERS,
+            {provide: ɵDEFER_BLOCK_DEPENDENCY_INTERCEPTOR, useValue: deferDepsInterceptor},
+          ],
+        });
+
+        clearDirectiveDefs(RootCmp);
+
+        const fixture = TestBed.createComponent(RootCmp);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.outerHTML).toContain('Placeholder');
+        expect(loadingFnInvokedTimes).toBe(0);
+
+        // Trigger the idle callback
+        expect(idleCallbacks.length).toBe(1);
+        idleCallbacks[0]({timeRemaining: () => 50, didTimeout: false} as IdleDeadline);
+
+        // Ensure that loading function was called
+        expect(loadingFnInvokedTimes).toBe(1);
+
+        // The tick generated from the defer block state change inside the idle scheduler
+        // should have updated the view automatically, showing the loading block.
+        expect(fixture.nativeElement.outerHTML).toContain('Loading');
+      } finally {
+        globalThis.requestIdleCallback = nativeRequestIdleCallback;
+        globalThis.cancelIdleCallback = nativeCancelIdleCallback;
+      }
     });
   });
 
@@ -1813,8 +1895,31 @@ describe('@defer', () => {
         },
       };
 
+      @Injectable({providedIn: 'root'})
+      class CustomIdleService implements IdleService {
+        private callbacks: Array<((deadline?: IdleDeadline) => void) | undefined> = [];
+
+        requestOnIdle(callback: (deadline?: IdleDeadline) => void): number {
+          return this.callbacks.push(callback) - 1;
+        }
+
+        cancelOnIdle(id: number): void {
+          this.callbacks[id] = undefined;
+        }
+
+        trigger(): void {
+          for (const callback of this.callbacks) {
+            callback?.();
+          }
+          this.callbacks.length = 0;
+        }
+      }
+
       TestBed.configureTestingModule({
-        providers: [{provide: ɵDEFER_BLOCK_DEPENDENCY_INTERCEPTOR, useValue: deferDepsInterceptor}],
+        providers: [
+          {provide: ɵDEFER_BLOCK_DEPENDENCY_INTERCEPTOR, useValue: deferDepsInterceptor},
+          provideIdleServiceWith(CustomIdleService),
+        ],
       });
 
       clearDirectiveDefs(RootCmp);
@@ -1827,7 +1932,7 @@ describe('@defer', () => {
       // Make sure loading function is not yet invoked.
       expect(loadingFnInvokedTimes).toBe(0);
 
-      triggerIdleCallbacks();
+      TestBed.inject(CustomIdleService).trigger();
       await allPendingDynamicImports();
       fixture.detectChanges();
 
@@ -4423,5 +4528,178 @@ describe('@defer', () => {
       expect(app.nativeElement.innerHTML).toContain('child: b | token: root');
       expect(app.nativeElement.innerHTML).toContain('another child: b | token: nested');
     });
+  });
+});
+
+describe('IdleScheduler', () => {
+  let scheduler: IdleScheduler;
+  let customIdleService: CustomIdleService;
+
+  class CustomIdleService implements IdleService {
+    requestOnIdleSpy = jasmine.createSpy('requestOnIdleFn');
+
+    requestOnIdle(callback: (deadline?: IdleDeadline) => void): number {
+      return this.requestOnIdleSpy(callback);
+    }
+
+    cancelOnIdle(id: number): void {}
+  }
+
+  beforeEach(() => {
+    customIdleService = new CustomIdleService();
+    TestBed.configureTestingModule({
+      providers: [{provide: IDLE_SERVICE, useValue: customIdleService}],
+    });
+    scheduler = TestBed.inject(IdleScheduler);
+  });
+
+  afterEach(() => {
+    scheduler.ngOnDestroy();
+  });
+
+  it('should execute all callbacks when there is enough time', () => {
+    let capturedCb: ((deadline: any) => void) | null = null;
+    let ricCount = 0;
+
+    customIdleService.requestOnIdleSpy.and.callFake((cb: any) => {
+      ricCount++;
+      capturedCb = cb;
+      return 100 + ricCount;
+    });
+
+    const cb1 = jasmine.createSpy('cb1');
+    const cb2 = jasmine.createSpy('cb2');
+
+    scheduler.add(cb1);
+    scheduler.add(cb2);
+
+    expect(ricCount).toBe(1);
+    expect(capturedCb).not.toBeNull();
+
+    const deadline = {
+      didTimeout: false,
+      timeRemaining: () => 10,
+    };
+
+    const previousCb = capturedCb!;
+    capturedCb = null;
+    previousCb(deadline);
+
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).toHaveBeenCalledTimes(1);
+
+    expect(ricCount).toBe(1); // No more scheduled
+    expect(capturedCb).toBeNull();
+  });
+
+  it('should split callbacks across requestIdleCallback invocations when deadline is reached', () => {
+    let capturedCb: ((deadline: any) => void) | null = null;
+    let ricCount = 0;
+
+    customIdleService.requestOnIdleSpy.and.callFake((cb: any) => {
+      ricCount++;
+      capturedCb = cb;
+      return 100 + ricCount;
+    });
+
+    const cb1 = jasmine.createSpy('cb1');
+    const cb2 = jasmine.createSpy('cb2');
+    const cb3 = jasmine.createSpy('cb3');
+
+    scheduler.add(cb1);
+    scheduler.add(cb2);
+    scheduler.add(cb3);
+
+    expect(ricCount).toBe(1);
+    expect(capturedCb).not.toBeNull();
+
+    let timeRemainingCalls = 0;
+    let deadline = {
+      didTimeout: false,
+      timeRemaining: () => {
+        timeRemainingCalls++;
+        // 1st check (after cb1): return 10
+        // 2nd check (after cb2): return 0 -> should break
+        return timeRemainingCalls === 1 ? 10 : 0;
+      },
+    };
+
+    let previousCb = capturedCb!;
+    capturedCb = null;
+    previousCb(deadline);
+
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).toHaveBeenCalledTimes(1);
+    expect(cb3).toHaveBeenCalledTimes(0); // Did not run yet
+
+    expect(ricCount).toBe(2); // A new idle callback was scheduled
+    expect(capturedCb).not.toBeNull(); // with a new cb
+
+    // Invoke the second callback, this time with plenty of time
+    deadline = {
+      didTimeout: false,
+      timeRemaining: () => 10,
+    };
+
+    previousCb = capturedCb!;
+    capturedCb = null;
+    previousCb(deadline);
+
+    expect(cb3).toHaveBeenCalledTimes(1); // Now it ran
+
+    expect(ricCount).toBe(2); // No more idle callbacks scheduled
+    expect(capturedCb).toBeNull();
+  });
+
+  it('should ignore time remaining if didTimeout is true', () => {
+    let capturedCb: ((deadline: any) => void) | null = null;
+    let ricCount = 0;
+
+    customIdleService.requestOnIdleSpy.and.callFake((cb: any) => {
+      ricCount++;
+      capturedCb = cb;
+      return 100 + ricCount;
+    });
+
+    const cb1 = jasmine.createSpy('cb1');
+    const cb2 = jasmine.createSpy('cb2');
+
+    scheduler.add(cb1);
+    scheduler.add(cb2);
+
+    expect(ricCount).toBe(1);
+    expect(capturedCb).not.toBeNull();
+
+    const deadline = {
+      didTimeout: true,
+      timeRemaining: () => 0, // Even with 0 time, didTimeout should force execution
+    };
+
+    const previousCb = capturedCb!;
+    capturedCb = null;
+    previousCb(deadline);
+
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).toHaveBeenCalledTimes(1);
+
+    expect(ricCount).toBe(1); // No more idle callbacks scheduled
+    expect(capturedCb).toBeNull();
+  });
+
+  it('should fallback properly if deadline is not passed in (setTimeout shim)', () => {
+    let capturedCb: ((deadline: any) => void) | null = null;
+    let ricCount = 0;
+
+    customIdleService.requestOnIdleSpy.and.callFake((cb: any) => {
+      ricCount++;
+      capturedCb = cb;
+      return 100 + ricCount;
+    });
+
+    // Test with undefined (empty arguments, typical of setTimeout)
+    let cb1 = jasmine.createSpy('cb1');
+    scheduler.add(cb1);
+    capturedCb!(undefined);
+    expect(cb1).toHaveBeenCalledTimes(1);
   });
 });

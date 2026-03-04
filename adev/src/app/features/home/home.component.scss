@@ -98,6 +98,11 @@ section {
   }
 }
 
+#features {
+  margin: 0;
+  padding: 2.5rem 1rem;
+}
+
 @property --gradient-angle {
   syntax: '<angle>';
   initial-value: 90deg;
@@ -345,6 +350,10 @@ section {
     min-height: 100px;
     width: 25%;
     box-sizing: border-box;
+
+    @include mq.for-phone-only {
+      padding: 0.5rem;
+    }
   }
 }
 

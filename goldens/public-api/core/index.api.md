@@ -185,7 +185,7 @@ export interface BaseResourceOptions<T, R> {
     defaultValue?: NoInfer<T>;
     equal?: ValueEqualityFn<T>;
     injector?: Injector;
-    params?: () => R;
+    params?: (ctx: ResourceParamsContext) => R;
 }
 
 // @public
@@ -844,6 +844,12 @@ export interface HostListenerDecorator {
 }
 
 // @public
+export interface IdleService {
+    cancelOnIdle(id: number): void;
+    requestOnIdle(callback: (deadline?: IdleDeadline) => void): number;
+}
+
+// @public
 export function importProvidersFrom(...sources: ImportProvidersSource[]): EnvironmentProviders;
 
 // @public
@@ -1490,6 +1496,9 @@ export function provideCheckNoChangesConfig(options: {
 export function provideEnvironmentInitializer(initializerFn: () => void): EnvironmentProviders;
 
 // @public
+export function provideIdleServiceWith(useExisting: AbstractType<IdleService> | InjectionToken<IdleService>): EnvironmentProviders;
+
+// @public
 export function provideNgReflectAttributes(): EnvironmentProviders;
 
 // @public
@@ -1649,6 +1658,12 @@ export function resource<T, R>(options: ResourceOptions<T, R> & {
 export function resource<T, R>(options: ResourceOptions<T, R>): ResourceRef<T | undefined>;
 
 // @public
+export class ResourceDependencyError extends Error {
+    constructor(dependency: Resource<unknown>);
+    readonly dependency: Resource<unknown>;
+}
+
+// @public
 export function resourceFromSnapshots<T>(source: () => ResourceSnapshot<T>): Resource<T>;
 
 // @public
@@ -1670,6 +1685,17 @@ export interface ResourceLoaderParams<R> {
 export type ResourceOptions<T, R> = (PromiseResourceOptions<T, R> | StreamingResourceOptions<T, R>) & {
     debugName?: string;
 };
+
+// @public
+export interface ResourceParamsContext {
+    readonly chain: <T>(resource: Resource<T>) => T;
+}
+
+// @public
+export class ResourceParamsStatus extends Error {
+    static readonly IDLE: ResourceParamsStatus;
+    static readonly LOADING: ResourceParamsStatus;
+}
 
 // @public
 export interface ResourceRef<T> extends WritableResource<T> {
