@@ -33,6 +33,9 @@ const _cancelIdleCallback = () =>
  * Service which configures custom 'on idle' behavior for Angular features like `@defer`.
  *
  * @publicApi
+ *
+ * @see [Customizing `idle` behavior](guide/templates/defer#customizing-idle-behavior)
+ *
  */
 export interface IdleService {
   /**
@@ -49,7 +52,6 @@ export interface IdleService {
 }
 
 export const IDLE_SERVICE = new InjectionToken<IdleService>(ngDevMode ? 'IDLE_SERVICE' : '', {
-  providedIn: 'root',
   factory: () => new RequestIdleCallbackService(),
 });
 
@@ -60,6 +62,8 @@ export const IDLE_SERVICE = new InjectionToken<IdleService>(ngDevMode ? 'IDLE_SE
  * must implement the `IdleService` interface.
  *
  * @publicApi
+ *
+ * @see [Customizing `idle` behavior](guide/templates/defer#customizing-idle-behavior)
  */
 export function provideIdleServiceWith(
   useExisting: AbstractType<IdleService> | InjectionToken<IdleService>,
