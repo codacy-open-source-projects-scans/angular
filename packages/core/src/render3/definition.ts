@@ -35,8 +35,7 @@ import type {
   ViewQueriesFunction,
 } from './interfaces/definition';
 import {InputFlags} from './interfaces/input_flags';
-import type {TAttributes, TConstantsOrFactory} from './interfaces/node';
-import {CssSelectorList} from './interfaces/projection';
+import type {TAttributes} from './interfaces/node';
 import {stringifyCSSSelectorList} from './node_selector_matcher';
 import {StandaloneService} from './standalone_service';
 
@@ -104,12 +103,7 @@ type DirectiveInputs = Record<
   | string
   // Complex input when there are flags, or differing public name and declared name, or there
   // is a transform. Such inputs are not as common, so the array form is only generated then.
-  | [
-      flags: InputFlags,
-      publicName: string,
-      declaredName?: string,
-      transform?: InputTransformFunction,
-    ]
+  | [flags: number, publicName: string, declaredName?: string, transform?: InputTransformFunction]
   | undefined
 >;
 
@@ -355,7 +349,7 @@ export function ɵɵdefineComponent<T>(
       template: componentDefinition.template,
       consts: componentDefinition.consts || null,
       ngContentSelectors: componentDefinition.ngContentSelectors,
-      onPush: componentDefinition.changeDetection === ChangeDetectionStrategy.OnPush,
+      onPush: componentDefinition.changeDetection !== ChangeDetectionStrategy.Eager,
       directiveDefs: null!, // assigned in noSideEffects
       pipeDefs: null!, // assigned in noSideEffects
       dependencies: (baseDef.standalone && componentDefinition.dependencies) || null,

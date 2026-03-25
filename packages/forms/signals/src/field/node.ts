@@ -95,6 +95,9 @@ export class FieldNode implements FieldState<unknown> {
     this.metadataState = new FieldMetadataState(this);
     this.submitState = new FieldSubmitState(this);
     this.controlValue = this.controlValueSignal();
+    // We eagerly create metadata at the end of construction so that the node is fully constructed
+    // before metadata creation logic runs (which may access other states on the node).
+    this.metadataState.runMetadataCreateLifecycle();
   }
 
   focusBoundControl(options?: FocusOptions): void {
@@ -247,6 +250,10 @@ export class FieldNode implements FieldState<unknown> {
 
   metadata<M>(key: MetadataKey<M, any, any>): M | undefined {
     return this.metadataState.get(key);
+  }
+
+  getError(kind: string): ValidationError.WithFieldTree | undefined {
+    return this.errors().find((e) => e.kind === kind);
   }
 
   hasMetadata(key: MetadataKey<any, any, any>): boolean {
