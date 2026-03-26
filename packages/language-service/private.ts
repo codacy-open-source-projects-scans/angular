@@ -6,6 +6,4 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import domino from 'domino';
-
-export default domino;
+export * from './src/template_target';

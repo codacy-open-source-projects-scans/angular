@@ -137,6 +137,48 @@ describe('field directive', () => {
     });
   });
 
+  describe('host directive mapping', () => {
+    it('should bind to a host directive that maps state/stateChange to value/valueChange', () => {
+      @Directive()
+      class MyStateDir {
+        readonly state = model.required<string>();
+      }
+
+      @Component({
+        selector: 'custom-control',
+        template: '',
+        hostDirectives: [
+          {
+            directive: MyStateDir,
+            inputs: ['state: value'],
+            outputs: ['stateChange: valueChange'],
+          },
+        ],
+      })
+      class CustomControl {}
+
+      @Component({
+        imports: [FormField, CustomControl],
+        template: `<custom-control [formField]="f" />`,
+      })
+      class TestCmp {
+        readonly f = form(signal('initial'));
+        readonly stateDir = viewChild.required(MyStateDir);
+      }
+
+      const fixture = act(() => TestBed.createComponent(TestCmp));
+      const component = fixture.componentInstance;
+
+      expect(component.stateDir().state()).toBe('initial');
+
+      act(() => component.stateDir().state.set('updated'));
+      expect(component.f().value()).toBe('updated');
+
+      act(() => component.f().value.set('new'));
+      expect(component.stateDir().state()).toBe('new');
+    });
+  });
+
   describe('properties', () => {
     describe('dirty', () => {
       it('should bind to custom control', () => {
@@ -152,6 +194,33 @@ describe('field directive', () => {
         @Component({
           template: ` <custom-control [formField]="f" /> `,
           imports: [CustomControl, FormField],
+        })
+        class TestCmp {
+          readonly data = signal('');
+          readonly f = form(this.data);
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
+        expect(comp.customControl().dirty()).toBe(false);
+        act(() => comp.f().markAsDirty());
+        expect(comp.customControl().dirty()).toBe(true);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly dirty = input.required<boolean>();
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
         })
         class TestCmp {
           readonly data = signal('');
@@ -300,6 +369,76 @@ describe('field directive', () => {
 
         act(() => component.disabled.set(true));
         expect(component.customControl().disabled()).toBe(true);
+      });
+
+      it('should bind to a custom control with transitive host directives', () => {
+        @Directive()
+        class BaseControlDir implements FormValueControl<boolean> {
+          readonly value = model(false);
+          readonly disabled = input(false);
+        }
+
+        @Directive({
+          hostDirectives: [
+            {directive: BaseControlDir, inputs: ['disabled', 'value'], outputs: ['valueChange']},
+          ],
+        })
+        class IntermediaryDir {}
+
+        @Component({
+          selector: 'custom-transitive-control',
+          template: '',
+          hostDirectives: [IntermediaryDir],
+        })
+        class CustomControl {}
+
+        @Component({
+          imports: [FormField, CustomControl],
+          template: `<custom-transitive-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly disabled = signal(false);
+          readonly f = form(signal(false), (p) => {
+            disabled(p, this.disabled);
+          });
+          readonly customControl = viewChild.required(BaseControlDir);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().disabled()).toBe(false);
+
+        act(() => component.disabled.set(true));
+        expect(component.customControl().disabled()).toBe(true);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<boolean> {
+          readonly value = model(false);
+          readonly disabled = input(false);
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
+        })
+        class TestCmp {
+          readonly disabled = signal(false);
+          readonly f = form(signal(false), (p) => {
+            disabled(p, this.disabled);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
+        expect(comp.customControl().disabled()).toBe(false);
+        act(() => comp.disabled.set(true));
+        expect(comp.customControl().disabled()).toBe(true);
       });
 
       it('should bind to custom control', () => {
@@ -465,6 +604,33 @@ describe('field directive', () => {
         act(() => component.field.set(component.f.y));
         expect(component.customControl().disabled()).toBe(false);
       });
+
+      it('should allow custom control inputs to have a transform', () => {
+        @Component({selector: 'custom-control', template: ``})
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly disabled = input(false, {transform: booleanAttribute});
+        }
+
+        @Component({
+          imports: [FormField, CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly disabled = signal(false);
+          readonly f = form(signal(''), (p) => {
+            disabled(p, this.disabled);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().disabled()).toBe(false);
+
+        act(() => component.disabled.set(true));
+        expect(component.customControl().disabled()).toBe(true);
+      });
     });
 
     describe('disabledReasons', () => {
@@ -499,6 +665,37 @@ describe('field directive', () => {
             disabled(p, () => 'Currently unavailable');
           });
           readonly customControl = viewChild.required(CustomControlDir);
+        }
+
+        const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
+
+        expect(comp.customControl().disabledReasons()).toEqual([
+          {message: 'Currently unavailable', fieldTree: comp.f},
+        ]);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly disabledReasons =
+            input.required<readonly WithOptionalFieldTree<DisabledReason>[]>();
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
+        })
+        class TestCmp {
+          readonly data = signal('');
+          readonly f = form(this.data, (p) => {
+            disabled(p, () => 'Currently unavailable');
+          });
+          readonly customControl = viewChild.required(CustomControl);
         }
 
         const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
@@ -678,6 +875,36 @@ describe('field directive', () => {
         expect(comp.customControl().errors()).toEqual([]);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly errors = input.required<readonly WithOptionalFieldTree<ValidationError>[]>();
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
+        })
+        class TestCmp {
+          readonly data = signal('');
+          readonly f = form(this.data, (p) => {
+            required(p);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
+        expect(comp.customControl().errors()).toEqual([requiredError({fieldTree: comp.f})]);
+
+        act(() => comp.f().value.set('valid'));
+        expect(comp.customControl().errors()).toEqual([]);
+      });
+
       it('should bind to custom control', () => {
         @Component({
           selector: 'custom-control',
@@ -829,6 +1056,39 @@ describe('field directive', () => {
           });
           readonly field = signal(this.f);
           readonly customControl = viewChild.required(CustomControlDir);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().hidden()).toBe(true);
+
+        act(() => visible.set(true));
+        expect(component.customControl().hidden()).toBe(false);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly hidden = input.required<boolean>();
+        }
+
+        const visible = signal(false);
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="field()" />`,
+        })
+        class TestCmp {
+          readonly f = form(signal(''), (p) => {
+            hidden(p, () => !visible());
+          });
+          readonly field = signal(this.f);
+          readonly customControl = viewChild.required(CustomControl);
         }
 
         const fixture = act(() => TestBed.createComponent(TestCmp));
@@ -1035,6 +1295,35 @@ describe('field directive', () => {
         expect(comp.customControl().invalid()).toBe(false);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly invalid = input.required<boolean>();
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
+        })
+        class TestCmp {
+          readonly data = signal('');
+          readonly f = form(this.data, (p) => {
+            required(p);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const comp = act(() => TestBed.createComponent(TestCmp)).componentInstance;
+        expect(comp.customControl().invalid()).toBe(true);
+        act(() => comp.f().value.set('valid'));
+        expect(comp.customControl().invalid()).toBe(false);
+      });
+
       it('should bind to custom control', () => {
         @Component({
           selector: 'custom-control',
@@ -1214,6 +1503,38 @@ describe('field directive', () => {
         expect(fixture.nativeElement.innerText).toBe('ab');
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '{{ value() }}',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly name = input('');
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `
+            @for (item of f; track item) {
+              <custom-control [formField]="item" />
+            }
+          `,
+        })
+        class TestCmp {
+          readonly f = form(signal(['a', 'b']), {name: 'root'});
+          readonly controls = viewChildren(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        const control0 = component.controls()[0];
+        const control1 = component.controls()[1];
+        expect(control0.name()).toBe('root.0');
+        expect(control1.name()).toBe('root.1');
+      });
+
       it('should bind to custom control', () => {
         @Component({selector: 'custom-control', template: `{{ value() }}`})
         class CustomControl implements FormValueControl<string> {
@@ -1333,6 +1654,52 @@ describe('field directive', () => {
         @Component({
           template: ` <custom-control [formField]="f" /> `,
           imports: [CustomControl, FormField],
+        })
+        class TestCmp {
+          readonly data = signal('test');
+          readonly f = form(this.data, (p) => {
+            validateAsync(p, {
+              params: () => [],
+              factory: (params) =>
+                resource({
+                  params,
+                  loader: () => promise,
+                }),
+              onSuccess: (results) => results,
+              onError: () => null,
+            });
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const comp = fixture.componentInstance;
+
+        expect(comp.customControl().pending()).toBe(true);
+
+        resolve([]);
+        await promise;
+        await fixture.whenStable();
+
+        expect(comp.customControl().pending()).toBe(false);
+      });
+
+      it('should bind to a custom control when composed as a host directive', async () => {
+        const {promise, resolve} = promiseWithResolvers<ValidationError[]>();
+
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model.required<string>();
+          readonly pending = input.required<boolean>();
+        }
+
+        @Component({
+          template: ` <custom-control [formField]="f" /> `,
+          imports: [CustomControl],
         })
         class TestCmp {
           readonly data = signal('test');
@@ -1546,6 +1913,37 @@ describe('field directive', () => {
         expect(component.child().readonly()).toBe(true);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly readonly = input(false);
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly readonly = signal(false);
+          readonly f = form(signal(''), (p) => {
+            readonly(p, this.readonly);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().readonly()).toBe(false);
+
+        act(() => component.readonly.set(true));
+        expect(component.customControl().readonly()).toBe(true);
+      });
+
       it('should bind to custom control', () => {
         @Component({selector: 'custom-control', template: ``})
         class CustomControl implements FormValueControl<string> {
@@ -1757,6 +2155,37 @@ describe('field directive', () => {
             required(p, {when: this.required});
           });
           readonly customControl = viewChild.required(CustomControlDir);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().required()).toBe(false);
+
+        act(() => component.required.set(true));
+        expect(component.customControl().required()).toBe(true);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly required = input(false);
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly required = signal(false);
+          readonly f = form(signal(''), (p) => {
+            required(p, {when: this.required});
+          });
+          readonly customControl = viewChild.required(CustomControl);
         }
 
         const fixture = act(() => TestBed.createComponent(TestCmp));
@@ -1988,6 +2417,37 @@ describe('field directive', () => {
         expect(component.customControl().max()).toBe(5);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<number> {
+          readonly value = model(0);
+          readonly max = input<number>();
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly max = signal(10);
+          readonly f = form(signal(5), (p) => {
+            max(p, this.max);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().max()).toBe(10);
+
+        act(() => component.max.set(5));
+        expect(component.customControl().max()).toBe(5);
+      });
+
       it('should bind to custom control', () => {
         @Component({selector: 'custom-control', template: ``})
         class CustomControl implements FormValueControl<number> {
@@ -2209,6 +2669,37 @@ describe('field directive', () => {
         expect(component.customControl().min()).toBe(5);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<number> {
+          readonly value = model(0);
+          readonly min = input<number>();
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly min = signal(10);
+          readonly f = form(signal(15), (p) => {
+            min(p, this.min);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().min()).toBe(10);
+
+        act(() => component.min.set(5));
+        expect(component.customControl().min()).toBe(5);
+      });
+
       it('should bind to custom control', () => {
         @Component({selector: 'custom-control', template: ``})
         class CustomControl implements FormValueControl<number> {
@@ -2420,6 +2911,37 @@ describe('field directive', () => {
             maxLength(p, this.maxLength);
           });
           readonly customControl = viewChild.required(CustomControlDir);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().maxLength()).toBe(10);
+
+        act(() => component.maxLength.set(5));
+        expect(component.customControl().maxLength()).toBe(5);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly maxLength = input<number>();
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly maxLength = signal(10);
+          readonly f = form(signal(''), (p) => {
+            maxLength(p, this.maxLength);
+          });
+          readonly customControl = viewChild.required(CustomControl);
         }
 
         const fixture = act(() => TestBed.createComponent(TestCmp));
@@ -2667,6 +3189,37 @@ describe('field directive', () => {
         expect(component.customControl().minLength()).toBe(5);
       });
 
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly minLength = input<number>();
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly minLength = signal(10);
+          readonly f = form(signal(''), (p) => {
+            minLength(p, this.minLength);
+          });
+          readonly customControl = viewChild.required(CustomControl);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().minLength()).toBe(10);
+
+        act(() => component.minLength.set(5));
+        expect(component.customControl().minLength()).toBe(5);
+      });
+
       it('should bind to custom control', () => {
         @Component({selector: 'custom-control', template: ``})
         class CustomControl implements FormValueControl<string> {
@@ -2874,6 +3427,37 @@ describe('field directive', () => {
             pattern(p, this.pattern);
           });
           readonly customControl = viewChild.required(CustomControlDir);
+        }
+
+        const fixture = act(() => TestBed.createComponent(TestCmp));
+        const component = fixture.componentInstance;
+        expect(component.customControl().pattern()).toEqual([/abc/]);
+
+        act(() => component.pattern.set(/def/));
+        expect(component.customControl().pattern()).toEqual([/def/]);
+      });
+
+      it('should bind to a custom control when composed as a host directive', () => {
+        @Component({
+          selector: 'custom-control',
+          template: '',
+          hostDirectives: [{directive: FormField, inputs: ['formField']}],
+        })
+        class CustomControl implements FormValueControl<string> {
+          readonly value = model('');
+          readonly pattern = input<readonly RegExp[]>([]);
+        }
+
+        @Component({
+          imports: [CustomControl],
+          template: `<custom-control [formField]="f" />`,
+        })
+        class TestCmp {
+          readonly pattern = signal(/abc/);
+          readonly f = form(signal(''), (p) => {
+            pattern(p, this.pattern);
+          });
+          readonly customControl = viewChild.required(CustomControl);
         }
 
         const fixture = act(() => TestBed.createComponent(TestCmp));
@@ -3313,6 +3897,43 @@ describe('field directive', () => {
 
     @Component({
       imports: [FormField, CustomInput],
+      template: `<my-input [formField]="f" />`,
+    })
+    class TestCmp {
+      f = form<string>(signal('test'));
+    }
+
+    const fix = act(() => TestBed.createComponent(TestCmp));
+    const input = fix.nativeElement.firstChild.firstChild as HTMLInputElement;
+    const cmp = fix.componentInstance as TestCmp;
+
+    // Initial state
+    expect(input.value).toBe('test');
+
+    // Model -> View
+    act(() => cmp.f().value.set('testing'));
+    expect(input.value).toBe('testing');
+
+    // View -> Model
+    act(() => {
+      input.value = 'typing';
+      input.dispatchEvent(new Event('input'));
+    });
+    expect(cmp.f().value()).toBe('typing');
+  });
+
+  it('synchronizes with a custom value control when composed as a host directive', () => {
+    @Component({
+      selector: 'my-input',
+      template: '<input #i [value]="value()" (input)="value.set(i.value)" />',
+      hostDirectives: [{directive: FormField, inputs: ['formField']}],
+    })
+    class CustomInput implements FormValueControl<string> {
+      value = model('');
+    }
+
+    @Component({
+      imports: [CustomInput],
       template: `<my-input [formField]="f" />`,
     })
     class TestCmp {
