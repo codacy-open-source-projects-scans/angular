@@ -8,7 +8,6 @@
 
 import {
   DirectiveOwner,
-  ExternalExpr,
   TmplAstBoundAttribute,
   TmplAstBoundEvent,
   TmplAstBoundText,
@@ -34,7 +33,6 @@ import {
   TmplAstVariable,
   TmplAstViewportDeferredTrigger,
 } from '@angular/compiler';
-import ts from 'typescript';
 import {TcbOp} from './base';
 import {TcbExpr} from './codegen';
 import {TcbDirectiveMetadata} from '../../api';
@@ -60,13 +58,10 @@ import {
   TcbNativeFieldOp,
   TcbNativeRadioButtonFieldOp,
 } from './signal_forms';
-import {ImportFlags, Reference, ReferenceEmitKind} from '../../../imports';
-import {ClassDeclaration} from '../../../reflection';
 import {
   TcbGenericDirectiveTypeWithAnyParamsOp,
   TcbNonGenericDirectiveTypeOp,
 } from './directive_type';
-import {requiresInlineTypeCtor} from '../type_constructor';
 import {TcbDirectiveCtorOp} from './directive_constructor';
 import {TcbControlFlowContentProjectionOp} from './content_projection';
 import {TcbComponentNodeOp} from './selectorless';
@@ -584,6 +579,8 @@ export class Scope {
       return;
     }
 
+    this.reportConflictingBindings(node);
+
     if (node instanceof TmplAstElement) {
       const isDeferred = this.tcb.boundTarget.isDeferred(node);
       if (!isDeferred && directives.some((dirMeta) => dirMeta.isExplicitlyDeferred)) {
@@ -692,6 +689,8 @@ export class Scope {
       }
       this.directiveOpMap.set(node, dirMap);
     }
+
+    this.reportConflictingBindings(node);
 
     // In selectorless all directive inputs have to be claimed.
     if (node instanceof TmplAstDirective) {
@@ -1046,6 +1045,25 @@ export class Scope {
         scope.tcb.id,
         scope.letDeclOpMap.get(node.name)!.node,
       );
+    }
+  }
+
+  private reportConflictingBindings(
+    node: TmplAstElement | TmplAstTemplate | TmplAstComponent | TmplAstDirective,
+  ): void {
+    const conflictingBindings = this.tcb.boundTarget.getConflictingHostDirectiveBindings(node);
+
+    if (conflictingBindings !== null) {
+      for (const binding of conflictingBindings) {
+        this.tcb.oobRecorder.conflictingHostDirectiveBinding(
+          this.tcb.id,
+          node,
+          binding.directive.name,
+          binding.kind,
+          binding.classPropertyName,
+          Array.from(binding.conflictingAliases),
+        );
+      }
     }
   }
 }

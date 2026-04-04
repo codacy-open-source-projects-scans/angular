@@ -14,8 +14,9 @@ import {
   TcbReferenceMetadata,
   TcbInputMapping,
   TcbPipeMetadata,
-  TypeCheckableDirectiveMeta,
   TcbTypeParameter,
+  TcbReferenceKey,
+  TypeCheckableDirectiveMeta,
 } from '../api';
 import {Environment} from './environment';
 import {ImportFlags, ReferenceEmitKind, Reference} from '../../imports';
@@ -28,8 +29,10 @@ import {
   TmplAstElement,
   TmplAstTemplate,
   WrappedNodeExpr,
+  ClassPropertyMapping,
+  ConflictingHostDirectiveBinding,
 } from '@angular/compiler';
-import {ClassPropertyMapping, InputMapping} from '../../metadata';
+import {InputMapping} from '../../metadata';
 import {requiresInlineTypeCtor} from './type_constructor';
 import {tempPrint} from './ops/codegen';
 import {generateTcbTypeParameters} from './tcb_util';
@@ -110,6 +113,7 @@ export function adaptTypeCheckBlockMetadata(
       stringLiteralInputFields: dir.stringLiteralInputFields,
       undeclaredInputFields: dir.undeclaredInputFields,
       publicMethods: dir.publicMethods,
+      matchSource: dir.matchSource,
 
       ref: extractRef(dir.ref as Reference<ClassDeclaration>),
       isGeneric: dir.isGeneric,
@@ -173,6 +177,10 @@ export function adaptTypeCheckBlockMetadata(
     getEntitiesInScope: (node) => meta.boundTarget.getEntitiesInScope(node),
     getEagerlyUsedPipes: () => meta.boundTarget.getEagerlyUsedPipes(),
     getDeferBlocks: () => meta.boundTarget.getDeferBlocks(),
+    getConflictingHostDirectiveBindings: (node) =>
+      meta.boundTarget.getConflictingHostDirectiveBindings(node) as
+        | ConflictingHostDirectiveBinding<TcbDirectiveMetadata>[]
+        | null,
   };
 
   const pipes = new Map<string, TcbPipeMetadata>();
@@ -279,19 +287,28 @@ function extractReferenceMetadata(
     isLocal = false;
   }
 
-  const refMeta: TcbReferenceMetadata = {
+  const nodeName = ref.node?.name as ts.Identifier | undefined;
+  const nodeNameSpan = nodeName
+    ? new AbsoluteSourceSpan(nodeName.getStart(), nodeName.getEnd())
+    : undefined;
+  const nodeFilePath = nodeName?.getSourceFile().fileName;
+  let key: TcbReferenceKey;
+
+  if (nodeFilePath !== undefined && nodeNameSpan !== undefined) {
+    key = `${nodeFilePath}#${nodeNameSpan.start}` as TcbReferenceKey;
+  } else {
+    key = (moduleName ? `${moduleName}#${name}` : name) as TcbReferenceKey;
+  }
+
+  return {
     name,
     moduleName,
     isLocal,
     unexportedDiagnostic,
-  };
-  const nodeName = ref.node?.name;
-  if (nodeName) {
-    refMeta.nodeNameSpan = new AbsoluteSourceSpan(nodeName.getStart(), nodeName.getEnd());
-    refMeta.nodeFilePath = nodeName.getSourceFile().fileName;
-  }
-
-  return refMeta;
+    nodeNameSpan,
+    nodeFilePath,
+    key,
+  } satisfies TcbReferenceMetadata;
 }
 
 function extractNameFromExpr(node: ts.Node): string | null {

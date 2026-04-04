@@ -9,8 +9,12 @@
 import {
   AbsoluteSourceSpan,
   BoundTarget,
+  ClassPropertyMapping,
+  ClassPropertyName,
   DirectiveMeta,
+  InputOrOutput,
   LegacyAnimationTriggerNames,
+  MatchSource,
   ParseSourceSpan,
   SchemaMetadata,
 } from '@angular/compiler';
@@ -19,12 +23,9 @@ import ts from 'typescript';
 import {ErrorCode} from '../../diagnostics';
 import {Reference} from '../../imports';
 import {
-  ClassPropertyMapping,
-  ClassPropertyName,
   DirectiveTypeCheckMeta,
   HostDirectiveMeta,
   InputMapping,
-  InputOrOutput,
   PipeMeta,
   TemplateGuardMeta,
 } from '../../metadata';
@@ -32,22 +33,26 @@ import {ClassDeclaration} from '../../reflection';
 
 export interface TcbReferenceMetadata {
   /** The name of the class */
-  name: string;
+  readonly name: string;
   /** The module path where the symbol is located, or null if local/ambient */
-  moduleName: string | null;
+  readonly moduleName: string | null;
   /** True if the symbol successfully emitted locally (no external import required) */
-  isLocal: boolean;
+  readonly isLocal: boolean;
   /** If the reference could not be externally emitted, this string holds the diagnostic reason why */
-  unexportedDiagnostic: string | null;
+  readonly unexportedDiagnostic: string | null;
+
+  /** Key used to uniquely identify the target of this reference. */
+  readonly key: TcbReferenceKey;
+
   /**
    * Defines the `AbsoluteSourceSpan` of the target's node name, if available.
    */
-  nodeNameSpan?: AbsoluteSourceSpan;
+  readonly nodeNameSpan?: AbsoluteSourceSpan;
 
   /**
    * The absolute path to the file containing the reference node, if available.
    */
-  nodeFilePath?: string;
+  readonly nodeFilePath?: string;
 }
 
 export type TcbReferenceKey = string & {__brand: 'TcbReferenceKey'};
@@ -84,6 +89,7 @@ export interface TcbDirectiveMetadata {
   isExplicitlyDeferred: boolean;
   preserveWhitespaces: boolean;
   exportAs: string[] | null;
+  matchSource: MatchSource;
 
   /** Type parameters of the directive, if available. */
   typeParameters: TcbTypeParameter[] | null;

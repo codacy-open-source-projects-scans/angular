@@ -9,7 +9,9 @@
 import {
   AST,
   BindingPipe,
+  ClassPropertyMapping,
   CssSelector,
+  MatchSource,
   ParseSourceFile,
   parseTemplate,
   ParseTemplateOptions,
@@ -54,13 +56,11 @@ import {
 } from '../../imports';
 import {NOOP_INCREMENTAL_BUILD, NoopIncrementalBuildStrategy} from '../../incremental';
 import {
-  ClassPropertyMapping,
   CompoundMetadataReader,
   DecoratorInputTransform,
   DirectiveMeta,
   HostDirectivesResolver,
   InputMapping,
-  MatchSource,
   MetadataReaderWithIndex,
   MetaKind,
   NgModuleIndex,
@@ -913,6 +913,7 @@ function getDirectiveMetaFromDeclaration(
     isExplicitlyDeferred: false,
     imports: decl.imports,
     rawImports: null,
+    matchSource: MatchSource.Selector,
     hostDirectives:
       decl.hostDirectives === undefined
         ? null
@@ -1092,6 +1093,7 @@ export class NoopOobRecorder implements OutOfBandDiagnosticRecorder<TemplateDiag
       | TmplAstInteractionDeferredTrigger
       | TmplAstViewportDeferredTrigger,
   ): void {}
+  conflictingHostDirectiveBinding(): void {}
 }
 
 export function createNgCompilerForFile(fileContent: string) {

@@ -7,6 +7,7 @@
  */
 
 import {
+  ClassPropertyMapping,
   compileClassMetadata,
   compileDeclareClassMetadata,
   compileDeclareDirectiveFromMetadata,
@@ -14,6 +15,7 @@ import {
   ConstantPool,
   FactoryTarget,
   makeBindingParser,
+  MatchSource,
   R3ClassMetadata,
   R3DirectiveMetadata,
   R3TargetBinder,
@@ -27,13 +29,11 @@ import {
   SemanticDepGraphUpdater,
 } from '../../../incremental/semantic_graph';
 import {
-  ClassPropertyMapping,
   DirectiveResources,
   DirectiveTypeCheckMeta,
   extractDirectiveTypeCheckMeta,
   HostDirectiveMeta,
   InputMapping,
-  MatchSource,
   MetadataReader,
   MetadataRegistry,
   MetaKind,
