@@ -133,9 +133,13 @@ export class ApplicationModule {
 export class ApplicationRef {
     constructor();
     attachView(viewRef: ViewRef): void;
-    bootstrap<C>(component: Type<C>, rootSelectorOrNode?: string | any): ComponentRef<C>;
-    // @deprecated
-    bootstrap<C>(componentFactory: ComponentFactory<C>, rootSelectorOrNode?: string | any): ComponentRef<C>;
+    bootstrap<C>(component: Type<C>, options?: {
+        hostElement?: Element | string;
+        directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[];
+        bindings?: Binding[];
+    }): ComponentRef<C>;
+    // (undocumented)
+    bootstrap<C>(component: Type<C>, hostElement?: Element | string): ComponentRef<C>;
     readonly components: ComponentRef<any>[];
     readonly componentTypes: Type<any>[];
     destroy(): void;
@@ -291,31 +295,6 @@ export const Component: ComponentDecorator;
 export interface ComponentDecorator {
     (obj: Component): TypeDecorator;
     new (obj: Component): Component;
-}
-
-// @public @deprecated
-export abstract class ComponentFactory<C> {
-    abstract get componentType(): Type<any>;
-    abstract create(injector: Injector, projectableNodes?: any[][], rootSelectorOrNode?: string | any, environmentInjector?: EnvironmentInjector | NgModuleRef<any>, directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[], bindings?: Binding[]): ComponentRef<C>;
-    abstract get inputs(): {
-        propName: string;
-        templateName: string;
-        transform?: (value: any) => any;
-        isSignal: boolean;
-    }[];
-    abstract get ngContentSelectors(): string[];
-    abstract get outputs(): {
-        propName: string;
-        templateName: string;
-    }[];
-    abstract get selector(): string;
-}
-
-// @public @deprecated
-export abstract class ComponentFactoryResolver {
-    // (undocumented)
-    static NULL: ComponentFactoryResolver;
-    abstract resolveComponentFactory<T>(component: Type<T>): ComponentFactory<T>;
 }
 
 // @public
@@ -2072,8 +2051,6 @@ export abstract class ViewContainerRef {
         directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[];
         bindings?: Binding[];
     }): ComponentRef<C>;
-    // @deprecated
-    abstract createComponent<C>(componentFactory: ComponentFactory<C>, index?: number, injector?: Injector, projectableNodes?: any[][], environmentInjector?: EnvironmentInjector | NgModuleRef<any>, directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[], bindings?: Binding[]): ComponentRef<C>;
     abstract createEmbeddedView<C>(templateRef: TemplateRef<C>, context?: C, options?: {
         index?: number;
         injector?: Injector;
