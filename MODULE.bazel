@@ -18,14 +18,14 @@ bazel_dep(name = "yq.bzl", version = "0.3.5")
 bazel_dep(name = "rules_angular")
 git_override(
     module_name = "rules_angular",
-    commit = "4dd1f9fc6844b40c0eda797b9b13c66746ce9564",
+    commit = "edf0e4ee8f046b64c0d90e3ffb0dd95780d2dc1a",
     remote = "https://github.com/angular/rules_angular.git",
 )
 
 bazel_dep(name = "devinfra")
 git_override(
     module_name = "devinfra",
-    commit = "30bd830d16570c2b3ddb3457534d71ed21adbf86",
+    commit = "0844373e79b13faf25dcf4de316a1e4269e4fd8f",
     remote = "https://github.com/angular/dev-infra.git",
 )
 
@@ -39,7 +39,7 @@ git_override(
 bazel_dep(name = "rules_browsers")
 git_override(
     module_name = "rules_browsers",
-    commit = "652b57c41218be318f33fc92032696f53d3aa0ef",
+    commit = "53e85ed92e7564ca627db0dd612022ea7b1a28b5",
     remote = "https://github.com/angular/rules_browsers.git",
 )
 
@@ -125,14 +125,12 @@ use_repo(rules_ts_ext, **{"npm_typescript": "angular_npm_typescript"})
 
 # TODO: Figure out how to make ng_project update whenever the packages/core::pkg target changes.
 rules_angular = use_extension("@rules_angular//setup:extensions.bzl", "rules_angular")
-
-use_repo_rule("@rules_angular//setup:repositories.bzl", "configurable_deps_repo")(
-    name = "rules_angular_configurable_deps",
-    angular_compiler_cli = "@angular//:node_modules/@angular/compiler-cli",
-    typescript = "@angular//:node_modules/typescript",
+rules_angular.setup(
+    name = "angular_rules_angular_configurable_deps",
+    angular_compiler_cli = "//:node_modules/@angular/compiler-cli",
+    typescript = "//:node_modules/typescript",
 )
-
-override_repo(rules_angular, "rules_angular_configurable_deps")
+use_repo(rules_angular, rules_angular_configurable_deps = "angular_rules_angular_configurable_deps")
 
 register_toolchains(
     "@devinfra//bazel/git-toolchain:git_linux_toolchain",
