@@ -497,6 +497,12 @@ export const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             status: 'new',
           },
           {
+            label: 'Cross-field logic',
+            path: 'guide/forms/signals/cross-field-logic',
+            contentPath: 'guide/forms/signals/cross-field-logic',
+            status: 'new',
+          },
+          {
             label: 'Async operations',
             path: 'guide/forms/signals/async-operations',
             contentPath: 'guide/forms/signals/async-operations',
@@ -1044,16 +1050,15 @@ export const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
           },
           // TODO: create those guides
           // The signal debugging docs should also be added to the signal section
-          // {
           //   label: 'Signals',
           //   path: 'tools/devtools/signals',
           //   contentPath: 'tools/devtools/signals',
           // },
-          // {
-          //   label: 'Router',
-          //   path: 'tools/devtools/router',
-          //   contentPath: 'tools/devtools/router',
-          // }
+          {
+            label: 'Router Tree',
+            path: 'tools/devtools/router',
+            contentPath: 'tools/devtools/router',
+          },
         ],
       },
       {

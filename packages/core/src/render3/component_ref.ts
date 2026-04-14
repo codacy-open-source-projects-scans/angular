@@ -17,19 +17,14 @@ import {Injector} from '../di/injector';
 import {EnvironmentInjector} from '../di/r3_injector';
 import {RuntimeError, RuntimeErrorCode} from '../errors';
 import {Type} from '../interface/type';
-import {
-  ComponentFactory as AbstractComponentFactory,
-  ComponentRef as AbstractComponentRef,
-} from '../linker/component_factory';
-import {ComponentFactoryResolver as AbstractComponentFactoryResolver} from '../linker/component_factory_resolver';
+import {ComponentRef as AbstractComponentRef} from '../linker/component_factory';
 import {createElementRef, ElementRef} from '../linker/element_ref';
 import {NgModuleRef} from '../linker/ng_module_factory';
 import {RendererFactory2} from '../render/api';
 import {Sanitizer} from '../sanitization/sanitizer';
 
-import {assertComponentType} from './assert';
 import {attachPatchData} from './context_discovery';
-import {getComponentDef, getDirectiveDef, getDirectiveDefOrThrow} from './def_getters';
+import {getDirectiveDef, getDirectiveDefOrThrow} from './def_getters';
 import {depsTracker} from './deps_tracker/deps_tracker';
 import {NodeInjector} from './di';
 import {reportUnknownPropertyError} from './instructions/element_validation';
@@ -62,49 +57,34 @@ import {
 } from './interfaces/view';
 import {MATH_ML_NAMESPACE, SVG_NAMESPACE} from './namespaces';
 
+import {ProfilerEvent} from '../../primitives/devtools';
+import {TracingService} from '../application/tracing';
+import {DOCUMENT} from '../document';
 import {retrieveHydrationInfo} from '../hydration/utils';
+import {getComponentName} from '../internal/get_closest_component_name';
+import {NG_REFLECT_ATTRS_FLAG, NG_REFLECT_ATTRS_FLAG_DEFAULT} from '../ng_reflect';
 import {ChainedInjector} from './chained_injector';
 import {createElementNode, setupStaticAttributes} from './dom_node_manipulation';
+import {BINDING, Binding, BindingInternal, DirectiveWithBindings} from './dynamic_bindings';
+import {getDocument} from './interfaces/document';
 import {unregisterLView} from './interfaces/lview_tracking';
 import {Renderer} from './interfaces/renderer';
+import {SHARED_STYLES_HOST} from './interfaces/shared_styles_host';
 import {
   extractAttrsAndClassesFromSelector,
   stringifyCSSSelectorList,
 } from './node_selector_matcher';
 import {profiler} from './profiler';
-import {ProfilerEvent} from '../../primitives/devtools';
 import {executeContentQueries} from './queries/query_execution';
 import {enterView, leaveView} from './state';
 import {debugStringifyTypeForError, stringifyForError} from './util/stringify_utils';
 import {getComponentLViewByIndex, getTNode, storeLViewOnDestroy} from './util/view_utils';
+import {createLView, createTView, getInitialLViewFlagsFromDef} from './view/construction';
 import {directiveHostEndFirstCreatePass, directiveHostFirstCreatePass} from './view/elements';
 import {ViewRef} from './view_ref';
-import {createLView, createTView, getInitialLViewFlagsFromDef} from './view/construction';
-import {BINDING, Binding, BindingInternal, DirectiveWithBindings} from './dynamic_bindings';
-import {NG_REFLECT_ATTRS_FLAG, NG_REFLECT_ATTRS_FLAG_DEFAULT} from '../ng_reflect';
-import {TracingService} from '../application/tracing';
-import {getComponentName} from '../internal/get_closest_component_name';
-import {SHARED_STYLES_HOST} from './interfaces/shared_styles_host';
-import {DOCUMENT} from '../document';
-import {getDocument} from './interfaces/document';
 
 const shadowRootSupported = typeof ShadowRoot !== 'undefined';
 const documentSupported = typeof Document !== 'undefined';
-
-export class ComponentFactoryResolver extends AbstractComponentFactoryResolver {
-  /**
-   * @param ngModule The NgModuleRef to which all resolved factories are bound.
-   */
-  constructor(private ngModule?: NgModuleRef<any>) {
-    super();
-  }
-
-  override resolveComponentFactory<T>(component: Type<T>): AbstractComponentFactory<T> {
-    ngDevMode && assertComponentType(component);
-    const componentDef = getComponentDef(component)!;
-    return new ComponentFactory(componentDef, this.ngModule);
-  }
-}
 
 function toInputRefArray<T>(map: DirectiveDef<T>['inputs']): ComponentFactory<T>['inputs'] {
   return Object.keys(map).map((name) => {
@@ -216,10 +196,10 @@ export function inferTagNameFromDefinition(componentDef: ComponentDef<unknown>):
 /**
  * ComponentFactory interface implementation.
  */
-export class ComponentFactory<T> extends AbstractComponentFactory<T> {
-  override selector: string;
-  override componentType: Type<any>;
-  override ngContentSelectors: string[];
+export class ComponentFactory<T> {
+  selector: string;
+  componentType: Type<any>;
+  ngContentSelectors: string[];
   isBoundToModule: boolean;
   private cachedInputs:
     | {
@@ -231,7 +211,7 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
     | null = null;
   private cachedOutputs: {propName: string; templateName: string}[] | null = null;
 
-  override get inputs(): {
+  get inputs(): {
     propName: string;
     templateName: string;
     isSignal: boolean;
@@ -241,7 +221,7 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
     return this.cachedInputs;
   }
 
-  override get outputs(): {propName: string; templateName: string}[] {
+  get outputs(): {propName: string; templateName: string}[] {
     this.cachedOutputs ??= toOutputRefArray(this.componentDef.outputs);
     return this.cachedOutputs;
   }
@@ -254,14 +234,13 @@ export class ComponentFactory<T> extends AbstractComponentFactory<T> {
     private componentDef: ComponentDef<any>,
     private ngModule?: NgModuleRef<any>,
   ) {
-    super();
     this.componentType = componentDef.type;
     this.selector = stringifyCSSSelectorList(componentDef.selectors);
     this.ngContentSelectors = componentDef.ngContentSelectors ?? [];
     this.isBoundToModule = !!ngModule;
   }
 
-  override create(
+  create(
     injector: Injector,
     projectableNodes?: any[][] | undefined,
     rootSelectorOrNode?: any,
