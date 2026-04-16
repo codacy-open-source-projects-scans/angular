@@ -117,6 +117,12 @@ export const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             contentPath: 'guide/signals/resource',
           },
           {
+            label: 'Debounced signals',
+            path: 'guide/signals/debounced',
+            contentPath: 'guide/signals/debounced',
+            status: 'new',
+          },
+          {
             label: 'Side effects for non-reactives APIs',
             path: 'guide/signals/effect',
             contentPath: 'guide/signals/effect',
@@ -500,6 +506,21 @@ export const DOCS_SUB_NAVIGATION_DATA: NavigationItem[] = [
             label: 'Cross-field logic',
             path: 'guide/forms/signals/cross-field-logic',
             contentPath: 'guide/forms/signals/cross-field-logic',
+            category: 'Signal Forms',
+            status: 'new',
+          },
+          {
+            label: 'Form submission',
+            path: 'guide/forms/signals/form-submission',
+            contentPath: 'guide/forms/signals/form-submission',
+            category: 'Signal Forms',
+            status: 'new',
+          },
+          {
+            label: 'Schemas',
+            path: 'guide/forms/signals/schemas',
+            contentPath: 'guide/forms/signals/schemas',
+            category: 'Signal Forms',
             status: 'new',
           },
           {

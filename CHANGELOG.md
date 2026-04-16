@@ -1,3 +1,101 @@
+<a name="19.2.21"></a>
+# 19.2.21 (2026-04-15)
+### platform-server
+| Commit | Type | Description |
+| -- | -- | -- |
+| [f3a5bfb949](https://github.com/angular/angular/commit/f3a5bfb949cb4d2de960b962a53aa16d8435b8e4) | fix | prevent SSRF bypasses via protocol-relative and backslash URLs |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="20.3.19"></a>
+# 20.3.19 (2026-04-15)
+### platform-server
+| Commit | Type | Description |
+| -- | -- | -- |
+| [303d4cd580](https://github.com/angular/angular/commit/303d4cd580dec38bfaa71a0a34965f151bab3ba8) | fix | prevent SSRF bypasses via protocol-relative and backslash URLs |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="22.0.0-next.8"></a>
+# 22.0.0-next.8 (2026-04-15)
+## Breaking Changes
+### compiler
+- This change will trigger the `nullishCoalescingNotNullable` and `optionalChainNotNullable` diagnostics on exisiting projects.
+  You might want to disable those 2 diagnotiscs in your `tsconfig` temporarily.
+### compiler
+| Commit | Type | Description |
+| -- | -- | -- |
+| [47fcbc4704](https://github.com/angular/angular/commit/47fcbc470462192c4f9e273d8dce8b353d5baaa2) | feat | allow safe navigation to correctly narrow down nullables |
+| [2c5aabb9da](https://github.com/angular/angular/commit/2c5aabb9daf5da3ad539381ef1e430c77583e3bf) | fix | don't escape dollar sign in literal expression |
+### compiler-cli
+| Commit | Type | Description |
+| -- | -- | -- |
+| [e5f96c2d88](https://github.com/angular/angular/commit/e5f96c2d8813f95c91761ae3080065575ca3b536) | fix | animation events not type checked properly when bound through HostListener decorator |
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [4e331062e8](https://github.com/angular/angular/commit/4e331062e8385e066102c3bbb8be439eabfdf8c9) | feat | allow synchronous values for stream Resources |
+| [2f5ab541ea](https://github.com/angular/angular/commit/2f5ab541eafba72bc0079a8650d0b96b0ddfde2f) | feat | enhance profiling with documentation URLs |
+| [75f2cb8f56](https://github.com/angular/angular/commit/75f2cb8f566de43a5f2fd27bb2982c796b93490d) | feat | implement Angular DI graph in-page AI tool |
+| [8ce9cc4f6b](https://github.com/angular/angular/commit/8ce9cc4f6b10d60300dedb6571822ce77a96f2ce) | feat | register AI runtime debugging tools |
+| [cdda51a3b2](https://github.com/angular/angular/commit/cdda51a3b2f48d5623acef0c6f54afb7af921b58) | feat | support bootstrapping Angular applications underneath shadow roots |
+| [3c7641151c](https://github.com/angular/angular/commit/3c7641151cc50011340d791849954d51399570f5) | fix | escape forward slashes in transfer state to prevent crawler indexing |
+### forms
+| Commit | Type | Description |
+| -- | -- | -- |
+| [f9f24fc669](https://github.com/angular/angular/commit/f9f24fc6699b762d17127d0412343041ecdea70e) | feat | shim legacy NG_VALIDATORS into parseErrors for CVA mode ([#67943](https://github.com/angular/angular/pull/67943)) |
+| [72d3ace03c](https://github.com/angular/angular/commit/72d3ace03c1292ba9d6fdf7b418ba3287bf54316) | fix | use controlValue in NgControl for CVA interop ([#67943](https://github.com/angular/angular/pull/67943)) |
+### http
+| Commit | Type | Description |
+| -- | -- | -- |
+| [39e382a756](https://github.com/angular/angular/commit/39e382a756b552d2b7bd3ce2c364daee9d7a0056) | fix | add CSP nonce support to JsonpClientBackend |
+| [d1cd97648a](https://github.com/angular/angular/commit/d1cd97648a943717fe42a174ab8006e06c757fde) | fix | Don't on Passthru outside of reactive context |
+### migrations
+| Commit | Type | Description |
+| -- | -- | -- |
+| [6a435658e2](https://github.com/angular/angular/commit/6a435658e25f9c81ddeaaa72d9c9694fc02bbef1) | feat | Disabling nullishCoalescingNotNullable & optionalChainNotNullable on ng update |
+| [1415d86980](https://github.com/angular/angular/commit/1415d869804729e50ed4bcdc829da870b4a70206) | fix | Fix typo for strict-template migration |
+### platform-browser
+| Commit | Type | Description |
+| -- | -- | -- |
+| [68628dd45b](https://github.com/angular/angular/commit/68628dd45bfcf4ea33bc00798bab1e4ab9da804c) | feat | make incremental hydration default behavior |
+### platform-server
+| Commit | Type | Description |
+| -- | -- | -- |
+| [ede7c58a2a](https://github.com/angular/angular/commit/ede7c58a2aa13fdccc8f0b67ce93ba1c11749412) | fix | prevent SSRF bypasses via protocol-relative and backslash URLs |
+### router
+| Commit | Type | Description |
+| -- | -- | -- |
+| [c90b6b398e](https://github.com/angular/angular/commit/c90b6b398ead0727a5e22668a4617e687258d466) | fix | normalize multiple leading slashes in URL parser |
+### service-worker
+| Commit | Type | Description |
+| -- | -- | -- |
+| [836094c072](https://github.com/angular/angular/commit/836094c072cb0f6cdbd35469ee02158667a9ba51) | fix | resolve TS 6.0 compatibility for messageerror listener |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
+<a name="21.2.9"></a>
+# 21.2.9 (2026-04-15)
+### core
+| Commit | Type | Description |
+| -- | -- | -- |
+| [f603d4714f](https://github.com/angular/angular/commit/f603d4714fa184aad34a6f7f9ea4e79c8af3afac) | fix | escape forward slashes in transfer state to prevent crawler indexing |
+### http
+| Commit | Type | Description |
+| -- | -- | -- |
+| [540536c386](https://github.com/angular/angular/commit/540536c386f2c735a700c2c9e2697a88dcb3d4ec) | fix | add CSP nonce support to JsonpClientBackend |
+| [63a857b874](https://github.com/angular/angular/commit/63a857b874172766451aa75ed3347ba50f0ee229) | fix | Don't on Passthru outside of reactive context |
+### platform-server
+| Commit | Type | Description |
+| -- | -- | -- |
+| [e0b5078cf2](https://github.com/angular/angular/commit/e0b5078cf2ebe79a6de85e9123148ae948b3d81d) | fix | prevent SSRF bypasses via protocol-relative and backslash URLs |
+### router
+| Commit | Type | Description |
+| -- | -- | -- |
+| [684e9fd53d](https://github.com/angular/angular/commit/684e9fd53daacb9e910f42d98c6017f9e5cb4180) | fix | normalize multiple leading slashes in URL parser |
+
+<!-- CHANGELOG SPLIT MARKER -->
+
 <a name="22.0.0-next.7"></a>
 # 22.0.0-next.7 (2026-04-08)
 ## Breaking Changes
