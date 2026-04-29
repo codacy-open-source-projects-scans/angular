@@ -124,10 +124,10 @@ import {SourceFileValidator} from '../../validation';
 import {Xi18nContext} from '../../xi18n';
 import {DiagnosticCategoryLabel, NgCompilerAdapter, NgCompilerOptions} from '../api';
 
+import {ServiceDecoratorHandler} from '../../annotations/src/service';
 import {untagAllTsFiles} from '../../shims';
 import {angularJitApplicationTransform} from '../../transform/jit';
 import {coreVersionSupportsFeature} from './feature_detection';
-import {ServiceDecoratorHandler} from '../../annotations/src/service';
 
 /**
  * State information about a compilation which is only generated once some data is requested from
@@ -1053,7 +1053,6 @@ export class NgCompiler {
     const strictTemplates = this.strictTemplates;
 
     const useInlineTypeConstructors = this.programDriver.supportsInlineOperations;
-    const checkTwoWayBoundEvents = this.options['_checkTwoWayBoundEvents'] ?? false;
 
     // Check whether the loaded version of `@angular/core` in the `ts.Program` supports unwrapping
     // writable signals for type-checking. Only Angular versions greater than 17.2 have the necessary
@@ -1104,7 +1103,6 @@ export class NgCompiler {
         unusedStandaloneImports:
           this.options.extendedDiagnostics?.defaultCategory || DiagnosticCategoryLabel.Warning,
         allowSignalsInTwoWayBindings,
-        checkTwoWayBoundEvents,
         allowDomEventAssertion,
       };
     } else {
@@ -1137,7 +1135,6 @@ export class NgCompiler {
         unusedStandaloneImports:
           this.options.extendedDiagnostics?.defaultCategory || DiagnosticCategoryLabel.Warning,
         allowSignalsInTwoWayBindings,
-        checkTwoWayBoundEvents,
         allowDomEventAssertion,
       };
     }
@@ -1534,6 +1531,7 @@ export class NgCompiler {
         typeCheckHostBindings,
         this.enableSelectorless,
         this.emitDeclarationOnly,
+        this.options.legacyOptionalChaining ?? false,
       ),
 
       // TODO(alxhub): understand why the cast here is necessary (something to do with `null`
@@ -1563,6 +1561,7 @@ export class NgCompiler {
         this.usePoisonedData,
         typeCheckHostBindings,
         this.emitDeclarationOnly,
+        this.options.legacyOptionalChaining ?? false,
       ) as Readonly<DecoratorHandler<unknown, unknown, SemanticSymbol | null, unknown>>,
       // Pipe handler must be before injectable handler in list so pipe factories are printed
       // before injectable factories (so injectable factories can delegate to them)
