@@ -16,16 +16,16 @@ import {_sanitizeUrl} from './url_sanitizer';
 type BooleanRecord = Record<string, boolean>;
 
 function tagSet(tags: string): BooleanRecord {
-  const res: BooleanRecord = {};
+  const res: BooleanRecord = Object.create(null);
   for (const t of tags.split(',')) res[t] = true;
   return res;
 }
 
 function merge(...sets: BooleanRecord[]): BooleanRecord {
-  const res: BooleanRecord = {};
+  const res: BooleanRecord = Object.create(null);
   for (const s of sets) {
     for (const v in s) {
-      if (s.hasOwnProperty(v)) res[v] = true;
+      if (Object.hasOwn(s, v)) res[v] = true;
     }
   }
   return res;
@@ -117,16 +117,6 @@ export const VALID_ATTRS: BooleanRecord = merge(URI_ATTRS, HTML_ATTRS, ARIA_ATTR
 const SKIP_TRAVERSING_CONTENT_IF_INVALID_ELEMENTS = tagSet('script,style,template');
 
 /**
- * Attributes that are potential attach vectors and may need to be sanitized.
- */
-export const SENSITIVE_ATTRS: BooleanRecord = merge(
-  URI_ATTRS,
-  // Note: we don't include these attributes in `URI_ATTRS`, because `URI_ATTRS` also
-  // determines whether an attribute should be dropped when sanitizing an HTML string.
-  tagSet('action,formaction,data,codebase'),
-);
-
-/**
  * SanitizingHtmlSerializer serializes a DOM fragment, stripping out any unsafe elements and unsafe
  * attributes.
  */
@@ -189,9 +179,9 @@ class SanitizingHtmlSerializer {
    */
   private startElement(element: Element): boolean {
     const tagName = getNodeName(element).toLowerCase();
-    if (!VALID_ELEMENTS.hasOwnProperty(tagName)) {
+    if (!Object.hasOwn(VALID_ELEMENTS, tagName)) {
       this.sanitizedSomething = true;
-      return !SKIP_TRAVERSING_CONTENT_IF_INVALID_ELEMENTS.hasOwnProperty(tagName);
+      return !Object.hasOwn(SKIP_TRAVERSING_CONTENT_IF_INVALID_ELEMENTS, tagName);
     }
     this.buf.push('<');
     this.buf.push(tagName);
@@ -200,7 +190,7 @@ class SanitizingHtmlSerializer {
       const elAttr = elAttrs.item(i);
       const attrName = elAttr!.name;
       const lower = attrName.toLowerCase();
-      if (!VALID_ATTRS.hasOwnProperty(lower)) {
+      if (!Object.hasOwn(VALID_ATTRS, lower)) {
         this.sanitizedSomething = true;
         continue;
       }
@@ -215,7 +205,7 @@ class SanitizingHtmlSerializer {
 
   private endElement(current: Element) {
     const tagName = getNodeName(current).toLowerCase();
-    if (VALID_ELEMENTS.hasOwnProperty(tagName) && !VOID_ELEMENTS.hasOwnProperty(tagName)) {
+    if (Object.hasOwn(VALID_ELEMENTS, tagName) && !Object.hasOwn(VOID_ELEMENTS, tagName)) {
       this.buf.push('</');
       this.buf.push(tagName);
       this.buf.push('>');

@@ -7,10 +7,11 @@
  */
 
 import {
-  BoundTarget,
   ClassPropertyMapping,
   CssSelector,
+  AbstractBoundTemplate,
   DirectiveMatcher,
+  DirectiveMeta,
   MatchSource,
   parseTemplate,
   ParseTemplateOptions,
@@ -22,9 +23,13 @@ import ts from 'typescript';
 
 import {absoluteFrom, AbsoluteFsPath} from '../../file_system';
 import {Reference} from '../../imports';
-import {ClassDeclaration} from '../../reflection';
+import {ClassDeclaration, DeclarationNode} from '../../reflection';
 import {getDeclaration, makeProgram} from '../../testing';
-import {ComponentMeta} from '../src/context';
+
+export interface ComponentMeta extends DirectiveMeta {
+  ref: {key: string; node: DeclarationNode};
+  selector: string | null;
+}
 
 /** Dummy file URL */
 function getTestFilePath(): AbsoluteFsPath {
@@ -56,15 +61,24 @@ export function getComponentDeclaration(componentStr: string, className: string)
 export function getBoundTemplate(
   template: string,
   options: ParseTemplateOptions = {},
-  components: Array<{selector: string | null; declaration: ClassDeclaration}> = [],
-): BoundTarget<ComponentMeta> {
-  const componentsMeta = components.map(({selector, declaration}) => ({
+  components: Array<{
+    selector: string | null;
+    declaration: ClassDeclaration;
+    inputs?: Record<string, string>;
+    outputs?: Record<string, string>;
+  }> = [],
+  pipes: Array<{
+    name: string;
+    declaration: ClassDeclaration;
+  }> = [],
+): AbstractBoundTemplate<DeclarationNode> {
+  const componentsMeta = components.map(({selector, declaration, inputs = {}, outputs = {}}) => ({
     ref: new Reference(declaration),
     selector,
     name: declaration.name.getText(),
     isComponent: true,
-    inputs: ClassPropertyMapping.fromMappedObject({}),
-    outputs: ClassPropertyMapping.fromMappedObject({}),
+    inputs: ClassPropertyMapping.fromMappedObject(inputs),
+    outputs: ClassPropertyMapping.fromMappedObject(outputs),
     exportAs: null,
     isStructural: false,
     animationTriggerNames: null,
@@ -95,5 +109,41 @@ export function getBoundTemplate(
 
   const binder = new R3TargetBinder(matcher);
 
-  return binder.bind({template: parseTemplate(template, getTestFilePath(), options).nodes});
+  const boundTemplate = binder.bind({
+    template: parseTemplate(template, getTestFilePath(), options).nodes,
+  });
+  const abstractBoundTemplate: AbstractBoundTemplate<DeclarationNode> = {
+    getDirectivesOfNode(node) {
+      return boundTemplate.getDirectivesOfNode(node);
+    },
+    getReferenceTarget(node) {
+      return boundTemplate.getReferenceTarget(node);
+    },
+    getConsumerOfBinding(binding) {
+      const consumer = boundTemplate.getConsumerOfBinding(binding);
+      if (consumer && 'ref' in consumer && consumer.ref) {
+        return {ref: {node: consumer.ref.node}};
+      }
+      return null;
+    },
+    getExpressionTarget(ast) {
+      return boundTemplate.getExpressionTarget(ast);
+    },
+    getUsedDirectives() {
+      return boundTemplate.getUsedDirectives().map((dir) => ({
+        ref: {node: dir.ref.node},
+        isComponent: dir.isComponent,
+      }));
+    },
+    getTemplateAst() {
+      return boundTemplate.target.template;
+    },
+    getPipe(name) {
+      const pipe = pipes.find((p) => p.name === name);
+      return pipe ? {ref: {node: pipe.declaration}} : null;
+    },
+  };
+  return abstractBoundTemplate;
 }
+
+function createAbstractBoundTemplate() {}

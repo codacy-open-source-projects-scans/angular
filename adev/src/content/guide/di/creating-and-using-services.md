@@ -1,55 +1,20 @@
 # Creating and using services
 
-Services are reusable pieces of code that can be shared across your Angular application. They typically handle data fetching, business logic, or other functionality that multiple components need to access.
+Services are reusable pieces of code that you can share across your Angular application. You commonly use them to handle data fetching, business logic, or other functionality that multiple components need to access.
 
 ## Creating a service
 
-You can create a service with the [Angular CLI](tools/cli) with the following command:
+You can create a service using the [Angular CLI](tools/cli) with the following command:
 
 ```bash
 ng generate service CUSTOM_NAME
 ```
 
-This creates a dedicated `CUSTOM_NAME.ts` file in your `src` directory.
+This command creates a dedicated `CUSTOM_NAME.ts` file in your `src` directory.
 
-You can also manually create a service by adding the `@Injectable()` decorator to a TypeScript class. This tells Angular that the service can be injected as a dependency.
+You can also manually create a service by adding the `@Service()` decorator to a TypeScript class. This tells Angular that you can use the class as an injectable dependency.
 
-Here is an example of a service that allows users to add and request data:
-
-```ts {header: "src/app/basic-data-store.ts"}
-import {Injectable} from '@angular/core';
-
-@Injectable({providedIn: 'root'})
-export class BasicDataStore {
-  private data: string[] = [];
-
-  addData(item: string): void {
-    this.data.push(item);
-  }
-
-  getData(): string[] {
-    return [...this.data];
-  }
-}
-```
-
-## How services become available
-
-When you use `@Injectable({ providedIn: 'root' })` in your service, Angular:
-
-- **Creates a single instance** (singleton) for your entire application
-- **Makes it available everywhere** without any additional configuration
-- **Enables tree-shaking** so the service is only included in your JavaScript bundle if it's actually used
-
-This is the recommended approach for most services.
-
-## Using the `@Service` decorator
-
-IMPORTANT: The `@Service` decorator is in [developer preview](reference/releases#developer-preview). Its API may change before becoming stable.
-
-For the common case of a singleton service available throughout your application, Angular provides the `@Service` decorator as a more ergonomic alternative to `@Injectable({providedIn: 'root'})`.
-
-The earlier `BasicDataStore` example can be rewritten with `@Service`:
+The following example defines a service that allows users to add and retrieve data:
 
 ```ts {header: "src/app/basic-data-store.ts"}
 import {Service} from '@angular/core';
@@ -68,7 +33,28 @@ export class BasicDataStore {
 }
 ```
 
-This behaves the same as the `@Injectable({providedIn: 'root'})` version above: Angular creates a single instance, makes it available everywhere, and tree-shakes it from the bundle if it is never injected.
+## How services become available
+
+Services are provisioned at the root level by default. When a service is provided globally, Angular guarantees three main benefits:
+
+- **Singleton Instance:** Creates a single, shared instance for the entire application.
+- **Global Availability:** Automatically accessible anywhere without manual provider registration.
+- **Tree-shakability:** Ensures the service is excluded from the final production bundle if your code never explicitly uses it.
+
+### Using the `@Service` vs `@Injectable` decorator
+
+The `@Service` decorator serves as a modern, ergonomic shorthand for the traditional `@Injectable({ providedIn: 'root' })` syntax.
+
+Use this quick reference to decide which decorator fits your scenario:
+
+| Feature / Requirement                         | `@Service` | `@Injectable`                           |
+| --------------------------------------------- | ---------- | --------------------------------------- |
+| **`inject()` function support**               | Yes        | Yes                                     |
+| **Constructor-based DI**                      | ❌ No      | Yes                                     |
+| **Implicit root singleton provider**          | Yes        | ❌ No (requires `{providedIn: 'root'}`) |
+| **Advanced provider keys (`useClass`, etc.)** | ❌ No      | Yes                                     |
+| **Custom initialization factories**           | Yes        | Yes                                     |
+| **Non-root scopes (`platform`, etc.)**        | ❌ No      | Yes                                     |
 
 ### Replacing the implementation with a factory
 
@@ -152,12 +138,10 @@ export class Example {
 ### Injecting into another service
 
 ```ts
-import {inject, Injectable} from '@angular/core';
+import {inject, Service} from '@angular/core';
 import {AdvancedDataStore} from './advanced-data-store';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class BasicDataStore {
   private advancedDataStore = inject(AdvancedDataStore);
   private data: string[] = [];
@@ -174,7 +158,7 @@ export class BasicDataStore {
 
 ## Next steps
 
-While `providedIn: 'root'` covers most use cases, Angular offers additional ways to provide services for specialized scenarios:
+While `providedIn: 'root'` covers most use cases, Angular also provides additional ways you can configure services for more specialized scenarios:
 
 - **Component-specific instances** - When components need their own isolated service instances
 - **Manual configuration** - For services that require runtime configuration

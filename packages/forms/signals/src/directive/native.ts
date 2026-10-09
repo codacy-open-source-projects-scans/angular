@@ -6,15 +6,16 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {untracked} from '@angular/core';
+import {ɵformatRuntimeError as formatRuntimeError, untracked} from '@angular/core';
 import {NativeInputParseError, WithoutFieldTree} from '../api/rules';
 import type {ParseResult} from '../api/transformed_value';
+import {RuntimeErrorCode} from '../errors';
 import type {InputValidityMonitor} from './input_validity_monitor';
 
 // Re-export shared native utilities from main forms package
 export {
+  ɵelementAcceptsMinMax as elementAcceptsMinMax,
   ɵisNativeFormElement as isNativeFormElement,
-  ɵisNumericFormElement as isNumericFormElement,
   ɵisTextualFormElement as isTextualFormElement,
   ɵsetNativeDomProperty as setNativeDomProperty,
   type ɵNativeFormControl as NativeFormControl,
@@ -145,6 +146,15 @@ export function setNativeControlValue(element: NativeFormControl, value: unknown
       return;
     }
     if (value === null) {
+      if (typeof ngDevMode !== 'undefined' && ngDevMode) {
+        console.warn(
+          formatRuntimeError(
+            RuntimeErrorCode.TEXT_INPUT_NULL_VALUE,
+            `The text input ${element.name} received a null value. Text inputs should use empty strings to represent null values. ` +
+              ` The input's value will be set to an empty string instead.`,
+          ),
+        );
+      }
       element.value = '';
       return;
     }
@@ -176,4 +186,26 @@ export function inputRequiresValidityTracking(input: HTMLInputElement): boolean 
     input.type === 'time' ||
     input.type === 'week'
   );
+}
+
+function formatDateForInput(date: Date, type: 'date' | 'month'): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+
+  if (type === 'month') {
+    return `${year}-${month}`;
+  }
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function formatDateForMinMax(name: string, value: unknown, type: string): unknown {
+  if (
+    value instanceof Date &&
+    (name === 'min' || name === 'max') &&
+    (type === 'date' || type === 'month')
+  ) {
+    return formatDateForInput(value, type);
+  }
+  return value;
 }

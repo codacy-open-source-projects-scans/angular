@@ -42,7 +42,7 @@ export function cvaControlCreate(
     // `bindingUpdated` sees that the model value matches the last seen view value.
     // This prevents the framework from writing the same value back to the CVA (CVA loopback).
     bindings['controlValue'] = value;
-    parent.state().controlValue.set(value as any);
+    parent.state().controlValue.set(value);
   });
   parent.controlValueAccessor!.registerOnTouched(() => parent.state().markAsTouched());
 
@@ -78,22 +78,33 @@ export function cvaControlCreate(
     );
   }
 
-  parent.registerAsBinding();
+  parent.registerAsBinding({
+    reset: () => {
+      const value = parent.state().value();
+      bindings['controlValue'] = value;
+      untracked(() => parent.controlValueAccessor!.writeValue(value));
+    },
+  });
 
   return () => {
     const fieldState = parent.state();
-    const value = fieldState.value();
+    const controlValue = fieldState.controlValue();
 
-    if (bindingUpdated(bindings, 'controlValue', value)) {
+    if (bindingUpdated(bindings, 'controlValue', controlValue)) {
       // We don't know if the interop control has underlying signals, so we must use `untracked` to
       // prevent writing to a signal in a reactive context.
-      untracked(() => parent.controlValueAccessor!.writeValue(value));
+      untracked(() => parent.controlValueAccessor!.writeValue(controlValue));
     }
 
     for (const name of CONTROL_BINDING_NAMES) {
       const value = readFieldStateBindingValue(fieldState, name);
       if (bindingUpdated(bindings, name, value)) {
-        const propertyWasSet = host.setInputOnDirectives(name, value);
+        const propertyWasSet = host.setInputOnDirectives(
+          name,
+          value,
+          name === 'name' ? isDefinedPredicate : undefined,
+        );
+
         if (name === 'disabled' && parent.controlValueAccessor!.setDisabledState) {
           untracked(() => parent.controlValueAccessor!.setDisabledState!(value as boolean));
         } else if (!propertyWasSet && parent.elementAcceptsNativeProperty(name)) {
@@ -108,4 +119,8 @@ export function cvaControlCreate(
       }
     }
   };
+}
+
+function isDefinedPredicate(value: unknown): boolean {
+  return value == null;
 }

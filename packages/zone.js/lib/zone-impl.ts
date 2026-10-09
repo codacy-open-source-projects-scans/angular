@@ -628,12 +628,7 @@ export type TaskType = 'microTask' | 'macroTask' | 'eventTask';
  * Task type: `notScheduled`, `scheduling`, `scheduled`, `running`, `canceling`, 'unknown'.
  */
 export type TaskState =
-  | 'notScheduled'
-  | 'scheduling'
-  | 'scheduled'
-  | 'running'
-  | 'canceling'
-  | 'unknown';
+  'notScheduled' | 'scheduling' | 'scheduled' | 'running' | 'canceling' | 'unknown';
 
 /**
  */
@@ -762,10 +757,12 @@ export type AmbientZone = Zone;
 
 const global = globalThis as any;
 
-// __Zone_symbol_prefix global can be used to override the default zone
-// symbol prefix with a custom one if needed.
+// __Zone_symbol_prefix can be set globally to override the default zone symbol prefix.
 export function __symbol__(name: string) {
-  const symbolPrefix = global['__Zone_symbol_prefix'] || '__zone_symbol__';
+  const rawPrefix = global['__Zone_symbol_prefix'];
+  // Guard against DOM clobbering: an attacker can set __Zone_symbol_prefix to an HTMLElement
+  // via e.g. <input name="__Zone_symbol_prefix">, so we only trust it if it's actually a string.
+  const symbolPrefix = typeof rawPrefix === 'string' ? rawPrefix : '__zone_symbol__';
   return symbolPrefix + name;
 }
 
@@ -812,7 +809,7 @@ export function initZone(): ZoneType {
     }
 
     static __load_patch(name: string, fn: PatchFn, ignoreDuplicate = false): void {
-      if (patches.hasOwnProperty(name)) {
+      if (Object.hasOwn(patches, name)) {
         // `checkDuplicate` option is defined from global variable
         // so it works for all modules.
         // `ignoreDuplicate` can work for the specified module
@@ -860,7 +857,7 @@ export function initZone(): ZoneType {
     public getZoneWith(key: string): AmbientZone | null {
       let current: ZoneImpl | null = this;
       while (current) {
-        if (current._properties.hasOwnProperty(key)) {
+        if (Object.hasOwn(current._properties, key)) {
           return current;
         }
         current = current._parent;
@@ -1435,10 +1432,13 @@ export function initZone(): ZoneType {
         task.runCount++;
         return task.zone.runTask(task, target, args);
       } finally {
-        if (_numberOfNestedTaskFrames === 1 && !global[enableNativeMicrotaskDraining]) {
-          drainMicroTaskQueueSynchronously();
+        try {
+          if (_numberOfNestedTaskFrames === 1 && !global[enableNativeMicrotaskDraining]) {
+            drainMicroTaskQueueSynchronously();
+          }
+        } finally {
+          _numberOfNestedTaskFrames--;
         }
-        _numberOfNestedTaskFrames--;
       }
     }
 
@@ -1551,26 +1551,31 @@ export function initZone(): ZoneType {
 
     _isDrainingMicrotaskQueue = true;
 
-    while (_microTaskQueue.length) {
-      const queue = _microTaskQueue;
-      _microTaskQueue = [];
+    try {
+      while (_microTaskQueue.length) {
+        const queue = _microTaskQueue;
+        _microTaskQueue = [];
 
-      for (const task of queue) {
-        try {
-          task.zone.runTask(task, null, null);
-        } catch (error) {
-          _api.onUnhandledError(error as Error);
+        for (const task of queue) {
+          try {
+            task.zone.runTask(task, null, null);
+          } catch (error) {
+            _api.onUnhandledError(error as Error);
+          }
         }
       }
-    }
-
-    // The order matters!
-    if (global[enableNativeMicrotaskDraining]) {
-      _isDrainingMicrotaskQueue = false;
-      _api.microtaskDrainDone();
-    } else {
-      _api.microtaskDrainDone();
-      _isDrainingMicrotaskQueue = false;
+    } finally {
+      // The order matters!
+      if (global[enableNativeMicrotaskDraining]) {
+        _isDrainingMicrotaskQueue = false;
+        _api.microtaskDrainDone();
+      } else {
+        try {
+          _api.microtaskDrainDone();
+        } finally {
+          _isDrainingMicrotaskQueue = false;
+        }
+      }
     }
   }
 
@@ -1591,7 +1596,7 @@ export function initZone(): ZoneType {
     macroTask: 'macroTask' = 'macroTask',
     eventTask: 'eventTask' = 'eventTask';
 
-  const patches: {[key: string]: any} = {};
+  const patches: {[key: string]: any} = Object.create(null);
   const _api: ZonePrivate = {
     symbol: __symbol__,
     currentZoneFrame: () => _currentZoneFrame,

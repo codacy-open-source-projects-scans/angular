@@ -27,10 +27,9 @@ import {
 } from '@angular/core';
 import {
   type ControlValueAccessor,
-  NG_VALIDATORS,
   NG_VALUE_ACCESSOR,
   NgControl,
-  ɵFORM_FIELD_PARSE_ERRORS as FORM_FIELD_PARSE_ERRORS,
+  ɵFORM_CONTROL_INTEGRATION as FORM_CONTROL_INTEGRATION,
   ɵselectValueAccessor as selectValueAccessor,
 } from '@angular/forms';
 import {type ValidationError} from '../api/rules';
@@ -39,13 +38,15 @@ import {InteropNgControl} from '../controls/interop_ng_control';
 import {RuntimeErrorCode} from '../errors';
 import {SIGNAL_FORMS_CONFIG} from '../field/di';
 import type {FieldNode} from '../field/node';
+import type {FormUiControl} from '../api/control';
+import {shallowArrayEquals} from '../util/array';
 import {bindingUpdated, type ControlBindingKey, createBindings} from './bindings';
 import {customControlCreate} from './control_custom';
 import {cvaControlCreate} from './control_cva';
 import {nativeControlCreate} from './control_native';
 import {
+  elementAcceptsMinMax,
   isNativeFormElement,
-  isNumericFormElement,
   isTextualFormElement,
   type NativeFormControl,
 } from './native';
@@ -61,13 +62,19 @@ export interface FormFieldBindingOptions {
    * asked to focus this binding.
    */
   readonly focus?: (focusOptions?: FocusOptions) => void;
+  /**
+   * Resets the binding.
+   */
+  readonly reset?: () => void;
 }
 
 /**
  * Lightweight DI token provided by the {@link FormField} directive.
  *
+ * @see [Custom form controls](guide/forms/signals/custom-controls)
+ *
  * @category control
- * @experimental 21.0.0
+ * @publicApi 22.0
  */
 export const FORM_FIELD = new InjectionToken<FormField<unknown>>(
   typeof ngDevMode !== 'undefined' && ngDevMode ? 'FORM_FIELD' : '',
@@ -90,7 +97,10 @@ export const FORM_FIELD = new InjectionToken<FormField<unknown>>(
  *    forms.
  *
  * @category control
- * @experimental 21.0.0
+ *
+ * @see [How the FormField directive works](guide/forms/signals/custom-controls#how-the-formfield-directive-works)
+ *
+ * @publicApi 22.0
  */
 @Directive({
   selector: '[formField]',
@@ -99,8 +109,8 @@ export const FORM_FIELD = new InjectionToken<FormField<unknown>>(
     {provide: FORM_FIELD, useExisting: FormField},
     {provide: NgControl, useFactory: () => inject(FormField).interopNgControl},
     {
-      provide: FORM_FIELD_PARSE_ERRORS,
-      useFactory: () => inject(FormField).parseErrorsSource,
+      provide: FORM_CONTROL_INTEGRATION,
+      useFactory: () => inject(FORM_FIELD, {self: true}),
     },
   ],
 })
@@ -134,7 +144,7 @@ export class FormField<T> {
   // Compute some helper booleans about the type of element we're sitting on.
   private readonly elementIsNativeFormElement = isNativeFormElement(this.element);
   private readonly elementAcceptsTextualValues = isTextualFormElement(this.element);
-  private _elementAcceptsNumericValues: boolean | undefined;
+  private _elementAcceptsMinMax: boolean | undefined;
 
   /**
    * Utility that casts `this.element` to `NativeFormControl` to avoid repeated type guards. Only
@@ -179,17 +189,42 @@ export class FormField<T> {
         fieldTree: untracked(this.state).fieldTree,
         formField: this as FormField<unknown>,
       })) ?? [],
+    {equal: shallowArrayEquals},
   );
 
   /** Errors associated with this form field. */
-  readonly errors = computed(() =>
-    this.state()
-      .errors()
-      .filter((err) => !err.formField || err.formField === this),
+  readonly errors = computed(
+    () =>
+      this.state()
+        .errors()
+        .filter((err) => !err.formField || err.formField === this),
+    {equal: shallowArrayEquals},
   );
 
   /** Whether this `FormField` has been registered as a binding on its associated `FieldState`. */
   private isFieldBinding = false;
+
+  /**
+   * Current reset implementation, set by `registerAsBinding`.
+   */
+  private resetter = () => {};
+
+  private parseErrorsResetCallback?: (value?: unknown) => void;
+
+  /** @internal */
+  setParseErrors(source: Signal<ReadonlyArray<{readonly kind: string}>> | undefined): void {
+    this.parseErrorsSource.set(source);
+  }
+
+  /** @internal */
+  set onReset(callback: ((value?: unknown) => void) | undefined) {
+    this.parseErrorsResetCallback = callback;
+  }
+
+  /** @internal */
+  get onReset(): ((value?: unknown) => void) | undefined {
+    return this.parseErrorsResetCallback;
+  }
 
   /**
    * A `ControlValueAccessor`, if configured, for the host component.
@@ -228,6 +263,9 @@ export class FormField<T> {
     afterRenderEffect(
       {
         write: () => {
+          if ((this.state() as unknown as FieldNode).structure.isOrphaned()) {
+            return;
+          }
           for (const [className, computation] of classes) {
             const active = computation();
             if (bindingUpdated(bindings, className, active)) {
@@ -255,6 +293,14 @@ export class FormField<T> {
   }
 
   /**
+   * Resets the bound control.
+   */
+  reset(): void {
+    this.resetter();
+    this.parseErrorsResetCallback?.(this.state().value());
+  }
+
+  /**
    * Registers this `FormField` as a binding on its associated `FieldState`.
    *
    * This method should be called at most once for a given `FormField`. A `FormField` placed on a
@@ -277,6 +323,10 @@ export class FormField<T> {
       this.focuser = (focusOptions?: FocusOptions) => bindingOptions.focus!(focusOptions);
     }
 
+    if (bindingOptions?.reset) {
+      this.resetter = () => bindingOptions.reset!();
+    }
+
     // Register this control on the field state it is currently bound to. We do this at the end of
     // initialization so that it only runs if we are actually syncing with this control
     // (as opposed to just passing the field state through to its `formField` input).
@@ -288,9 +338,13 @@ export class FormField<T> {
           this as FormField<unknown>,
         ]);
         onCleanup(() => {
-          fieldNode.nodeState.formFieldBindings.update((controls) =>
-            controls.filter((c) => c !== this),
-          );
+          const remaining = fieldNode.nodeState.formFieldBindings().filter((c) => c !== this);
+          fieldNode.nodeState.formFieldBindings.set(remaining);
+          // Once the last control is gone, nothing can blur anymore, so write any value still
+          // waiting for a blur debounce (e.g. `debounce(path, 'blur')`).
+          if (remaining.length === 0 && !fieldNode.structure.isOrphaned()) {
+            fieldNode.flushSync();
+          }
         });
       },
       {injector: this.injector},
@@ -375,8 +429,7 @@ export class FormField<T> {
     switch (key) {
       case 'min':
       case 'max':
-        return (this._elementAcceptsNumericValues ??= isNumericFormElement(this.element));
-
+        return (this._elementAcceptsMinMax ??= elementAcceptsMinMax(this.element));
       case 'minLength':
       case 'maxLength':
         return this.elementAcceptsTextualValues;

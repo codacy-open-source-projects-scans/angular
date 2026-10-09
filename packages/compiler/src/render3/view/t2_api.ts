@@ -6,13 +6,14 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {AST} from '../../expression_parser/ast';
+import {AST, BindingPipe} from '../../expression_parser/ast';
 import {ClassPropertyMapping} from '../../property_mapping';
 import {
   BoundAttribute,
   BoundEvent,
   Component,
   Content,
+  ContentBlock,
   DeferredBlock,
   DeferredBlockError,
   DeferredBlockLoading,
@@ -45,13 +46,12 @@ export type ScopedNode =
   | DeferredBlockLoading
   | DeferredBlockPlaceholder
   | Content
+  | ContentBlock
   | HostElement;
 
 /** Possible values that a reference can be resolved to. */
 export type ReferenceTarget<DirectiveT> =
-  | {directive: DirectiveT; node: Exclude<DirectiveOwner, HostElement>}
-  | Element
-  | Template;
+  {directive: DirectiveT; node: Exclude<DirectiveOwner, HostElement>} | Element | Template;
 
 /** Entity that is local to the template and defined within the template. */
 export type TemplateEntity = Reference | Variable | LetDeclaration;
@@ -173,6 +173,16 @@ export interface DirectiveMeta {
 }
 
 /**
+ * Metadata regarding a foreign component that's needed to match it against template elements.
+ */
+export interface ForeignComponentMeta {
+  /**
+   * Name of the foreign component (used for matching and debugging).
+   */
+  name: string;
+}
+
+/**
  * Possible ways that a directive can be matched.
  */
 export enum MatchSource {
@@ -212,6 +222,12 @@ export interface BoundTarget<DirectiveT extends DirectiveMeta> {
    * which matched the node, if any.
    */
   getDirectivesOfNode(node: DirectiveOwner): DirectiveT[] | null;
+
+  /**
+   * For a given template node (usually an `Element`), get the foreign component that matched
+   * the node, if any.
+   */
+  getForeignComponent(element: Element): ForeignComponentMeta | null;
 
   /**
    * For a given `Reference`, get the reference's target - either an `Element`, a `Template`, or
@@ -300,7 +316,17 @@ export interface BoundTarget<DirectiveT extends DirectiveMeta> {
   /**
    * Whether a given node is located in a `@defer` block.
    */
-  isDeferred(node: Element): boolean;
+  isDeferred(node: DirectiveOwner): boolean;
+
+  /**
+   * Gets the list of `@defer` blocks enclosing a given element, ordered from outermost to innermost.
+   */
+  getDeferBlocksOfNode(node: DirectiveOwner): DeferredBlock[];
+
+  /**
+   * Gets the list of `@defer` blocks enclosing a given pipe, ordered from outermost to innermost.
+   */
+  getDeferBlocksOfPipe(ast: BindingPipe): DeferredBlock[];
 
   /**
    * Checks whether a component/directive that was referenced directly in the template exists.

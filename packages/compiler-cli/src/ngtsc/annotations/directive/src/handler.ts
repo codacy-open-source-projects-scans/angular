@@ -48,6 +48,7 @@ import {
   ClassMemberKind,
   Decorator,
   ReflectionHost,
+  reflectObjectLiteral,
 } from '../../../reflection';
 import {LocalModuleScopeRegistry, TypeCheckScopeRegistry} from '../../../scope';
 import {
@@ -72,11 +73,13 @@ import {
   getUndecoratedClassWithAngularFeaturesDiagnostic,
   InjectableClassRegistry,
   isAngularDecorator,
+  parseStandaloneOption,
   readBaseClass,
   ReferencesRegistry,
   resolveProvidersRequiringFactory,
   toFactoryMetadata,
   UndecoratedMetadataExtractor,
+  unwrapExpression,
   validateHostDirectives,
 } from '../../common';
 
@@ -250,6 +253,7 @@ export class DirectiveDecoratorHandler implements DecoratorHandler<
     }
 
     return {
+      diagnostics: directiveResult.diagnostics,
       analysis: {
         inputs: directiveResult.inputs,
         inputFieldNamesFromMetadataArray: directiveResult.inputFieldNamesFromMetadataArray,
@@ -322,8 +326,10 @@ export class DirectiveDecoratorHandler implements DecoratorHandler<
       isStandalone: analysis.meta.isStandalone,
       isSignal: analysis.meta.isSignal,
       imports: null,
+      foreignImports: null,
       rawImports: null,
       deferredImports: null,
+      deferredImportsByBlock: null,
       schemas: null,
       ngContentSelectors: null,
       decorator: analysis.decorator,
@@ -332,6 +338,7 @@ export class DirectiveDecoratorHandler implements DecoratorHandler<
       // Instead, we statically analyze their imports to make a direct determination.
       assumedToExportProviders: false,
       isExplicitlyDeferred: false,
+      deferredBlocks: null,
       selectorlessEnabled: false,
       localReferencedSymbols: null,
     });

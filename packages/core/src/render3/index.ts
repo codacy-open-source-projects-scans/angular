@@ -83,6 +83,9 @@ export {
   ɵɵelementContainerStart,
   ɵɵelementEnd,
   ɵɵelementStart,
+  ɵɵforeignComponent,
+  ɵɵforeignContent,
+  ɵɵforeignContentFn,
   ɵɵgetCurrentView,
   ɵɵdomProperty,
   ɵɵinjectAttribute,
@@ -117,6 +120,9 @@ export {
   ɵɵconditional,
   ɵɵconditionalCreate,
   ɵɵconditionalBranchCreate,
+  ɵɵboundaryCreate,
+  ɵɵboundaryUpdate,
+  ɵɵgetBoundary,
   ɵɵdefer,
   ɵɵdeferWhen,
   ɵɵdeferOnIdle,
@@ -173,6 +179,7 @@ export {
   DEFER_BLOCK_DEPENDENCY_INTERCEPTOR as ɵDEFER_BLOCK_DEPENDENCY_INTERCEPTOR,
   DEFER_BLOCK_CONFIG as ɵDEFER_BLOCK_CONFIG,
 } from '../defer/rendering';
+export {ɵɵenableIncrementalHydrationRuntime} from '../hydration/incremental_runtime';
 export {DeferBlockDependencyInterceptor as ɵDeferBlockDependencyInterceptor} from '../defer/interfaces';
 export {
   ɵɵi18n,

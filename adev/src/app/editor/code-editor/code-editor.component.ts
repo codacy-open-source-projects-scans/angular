@@ -13,27 +13,30 @@ import {
   ElementRef,
   EnvironmentInjector,
   afterRenderEffect,
+  computed,
   effect,
   inject,
   input,
+  linkedSignal,
   signal,
   untracked,
   viewChild,
 } from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
 import {MatTab, MatTabGroup, MatTabLabel} from '@angular/material/tabs';
 import {Title} from '@angular/platform-browser';
-import {debounceTime, from, map, switchMap} from 'rxjs';
+import {EMPTY, from, switchMap} from 'rxjs';
 
 import {TerminalType} from '../terminal/terminal-handler.service';
 
 import {CdkMenu, CdkMenuItem, CdkMenuTrigger} from '@angular/cdk/menu';
 import {IconComponent} from '@angular/docs';
+import {ANGULAR_DEV} from '../../core/constants/links';
 import {MatTooltip} from '@angular/material/tooltip';
 import {DownloadManager} from '../download-manager.service';
 import {LoadingStep} from '../enums/loading-steps';
-import {FirebaseStudioLauncher} from '../firebase-studio-launcher.service';
 import {injectEmbeddedTutorialManager} from '../inject-embedded-tutorial-manager';
+import {NodeRuntimeSandbox} from '../node-runtime-sandbox.service';
 import {NodeRuntimeState} from '../node-runtime-state.service';
 import {StackBlitzOpener} from '../stackblitz-opener.service';
 import {CodeMirrorEditor} from './code-mirror-editor.service';
@@ -44,8 +47,6 @@ export const REQUIRED_FILES = new Set([
   'src/index.html',
   'src/app/app.component.ts',
 ]);
-
-const ANGULAR_DEV = 'https://angular.dev';
 
 @Component({
   selector: 'docs-tutorial-code-editor',
@@ -75,34 +76,40 @@ export class CodeEditor {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly nodeRuntimeState = inject(NodeRuntimeState);
+  private readonly nodeRuntimeSandbox = inject(NodeRuntimeSandbox, {
+    optional: true,
+  });
+  private readonly previewUrl = toSignal(this.nodeRuntimeSandbox?.previewUrl$ ?? EMPTY, {
+    initialValue: null,
+  });
+  private readonly trustedPreviewOrigin = computed(() => {
+    const url = this.previewUrl();
+    return url ? new URL(url).origin : null;
+  });
   private readonly codeMirrorEditor = inject(CodeMirrorEditor);
   private readonly diagnosticsState = inject(DiagnosticsState);
   private readonly downloadManager = inject(DownloadManager);
   private readonly stackblitzOpener = inject(StackBlitzOpener);
-  private readonly firebaseStudioLauncher = inject(FirebaseStudioLauncher);
   private readonly title = inject(Title);
   private readonly location = inject(Location);
   private readonly environmentInjector = inject(EnvironmentInjector);
 
-  private readonly errors$ = this.diagnosticsState.diagnostics$.pipe(
-    // Display errors one second after code update
-    debounceTime(1000),
-    map((diagnosticsItem) =>
-      diagnosticsItem
-        .filter((item) => item.severity === 'error')
-        .sort((a, b) =>
-          a.lineNumber != b.lineNumber
-            ? a.lineNumber - b.lineNumber
-            : a.characterPosition - b.characterPosition,
-        ),
-    ),
-    takeUntilDestroyed(this.destroyRef),
-  );
-
   readonly TerminalType = TerminalType;
 
-  protected readonly displayErrorsBox = signal<boolean>(false);
-  protected readonly errors = signal<DiagnosticWithLocation[]>([]);
+  protected readonly errors = computed(() =>
+    this.nodeRuntimeState.loadingStep() !== LoadingStep.READY
+      ? []
+      : this.diagnosticsState
+          .diagnostics()
+          .filter((item) => item.severity === 'error')
+          .sort((a, b) =>
+            a.lineNumber != b.lineNumber
+              ? a.lineNumber - b.lineNumber
+              : a.characterPosition - b.characterPosition,
+          ),
+  );
+
+  protected readonly displayErrorsBox = linkedSignal(() => this.errors().length > 0);
   protected readonly files = this.codeMirrorEditor.openFiles;
   protected readonly isCreatingFile = signal<boolean>(false);
   protected readonly isRenamingFile = signal<boolean>(false);
@@ -123,7 +130,6 @@ export class CodeEditor {
 
       untracked(() => {
         this.codeMirrorEditor.init(parent);
-        this.listenToDiagnosticsChange();
 
         this.listenToTabChange();
         this.setSelectedTabOnTutorialChange();
@@ -170,8 +176,16 @@ export class CodeEditor {
       openFile(file, line, character);
     };
 
-    // Listen for postMessage from preview iframe (Vite error overlay)
+    // Listen for postMessage from preview iframe (Vite error overlay).
+    // Only accept messages from the WebContainer preview origin, which is
+    // hosted on a dynamic `*.webcontainer.io` subdomain (cross-origin) and
+    // therefore captured at runtime once the dev server becomes ready.
     const handlePostMessage = (event: MessageEvent) => {
+      const trustedPreviewOrigin = this.trustedPreviewOrigin();
+
+      if (trustedPreviewOrigin === null || event.origin !== trustedPreviewOrigin) {
+        return;
+      }
       // Check if this is an openFileAtLocation message
       if (event.data?.type === 'openFileAtLocation') {
         const {file, line, character} = event.data;
@@ -187,10 +201,6 @@ export class CodeEditor {
       window.removeEventListener('openFileAtLocation', handleCustomEvent);
       window.removeEventListener('message', handlePostMessage);
     });
-  }
-
-  protected openCurrentSolutionInFirebaseStudio(): void {
-    this.firebaseStudioLauncher.openCurrentSolutionInFirebaseStudio();
   }
 
   protected async openCurrentCodeInStackBlitz(): Promise<void> {
@@ -313,16 +323,6 @@ export class CodeEditor {
       return false;
     }
     return true;
-  }
-
-  private listenToDiagnosticsChange(): void {
-    this.errors$.subscribe((diagnostics) => {
-      if (this.nodeRuntimeState.loadingStep() !== LoadingStep.READY) {
-        return;
-      }
-      this.errors.set(diagnostics);
-      this.displayErrorsBox.set(diagnostics.length > 0);
-    });
   }
 
   private setSelectedTabOnTutorialChange() {

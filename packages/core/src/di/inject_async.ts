@@ -7,11 +7,14 @@
  */
 
 import {IDLE_SERVICE} from '../defer/idle_service';
+import {DefaultExport, maybeUnwrapDefaultExport} from '../util/default_export';
 import {promiseWithResolvers} from '../util/promise_with_resolvers';
 import {assertInInjectionContext} from './contextual';
 import {Injector} from './injector';
 import {inject} from './injector_compatibility';
 import {ProviderToken} from './provider_token';
+
+type InjectAsyncLoaderResult<T> = ProviderToken<T> | DefaultExport<ProviderToken<T>>;
 
 /**
  * A helper function that allows to inject dependencies asynchronously,
@@ -39,10 +42,21 @@ import {ProviderToken} from './provider_token';
  * injectAsync(.., {prefetch: onIdle})
  * ```
  *
+ * @see [Lazy loading services](guide/di/lazy-loading-services)
+ * @see [Injection context](guide/di/dependency-injection-context)
+ *
  * @publicApi 22.0
  */
 export function injectAsync<T>(
   loader: () => Promise<ProviderToken<T>>,
+  options?: InjectAsyncOptions,
+): () => Promise<T>;
+export function injectAsync<T>(
+  loader: () => Promise<DefaultExport<ProviderToken<T>>>,
+  options?: InjectAsyncOptions,
+): () => Promise<T>;
+export function injectAsync<T>(
+  loader: () => Promise<InjectAsyncLoaderResult<T>>,
   options?: InjectAsyncOptions,
 ): () => Promise<T> {
   if (ngDevMode) {
@@ -51,7 +65,7 @@ export function injectAsync<T>(
 
   const injector = inject(Injector);
 
-  let loadedPromise: Promise<ProviderToken<T>> | null = null;
+  let loadedPromise: Promise<InjectAsyncLoaderResult<T>> | null = null;
   const load = () => {
     if (!loadedPromise) {
       loadedPromise = loader();
@@ -60,15 +74,20 @@ export function injectAsync<T>(
   };
 
   if (options?.prefetch) {
-    options.prefetch().then(() => load());
+    options
+      .prefetch()
+      .then(() => load())
+      .catch(() => {});
   }
 
   // We can't use `inject` later on because of the async nature of the loader
-  return () => load().then((type) => injector.get(type)!);
+  return () => load().then((loadedToken) => injector.get(maybeUnwrapDefaultExport(loadedToken))!);
 }
 
 /**
  * Interface for `options` argument used within `injectAsync` call.
+ *
+ * @see [Prefetching the dependency](guide/di/lazy-loading-services#prefetching-the-dependency)
  *
  * @publicApi 22.0
  */
@@ -85,6 +104,7 @@ export interface InjectAsyncOptions {
  * the lazy-loaded dependency.
  *
  * @see {@link onIdle}
+ * @see [Prefetching the dependency](guide/di/lazy-loading-services#prefetching-the-dependency)
  *
  * @publicApi 22.0
  */
@@ -93,6 +113,11 @@ export type PrefetchTrigger = () => Promise<void>;
 /**
  * A `PrefetchTrigger` helper function to provide the logic of triggering dependency loading
  * when the browser becomes idle.
+ *
+ * Internally delegates to the configured {@link IdleService}, whose default implementation uses
+ * [`requestIdleCallback`](https://developer.mozilla.org/docs/Web/API/Window/requestIdleCallback)
+ * when available and falls back to `setTimeout` otherwise. The default behavior can be replaced
+ * with `provideIdleServiceWith`.
  *
  * @usageNotes
  *
@@ -103,11 +128,13 @@ export type PrefetchTrigger = () => Promise<void>;
  * injectAsync(import(...), {prefetch: () => onIdle({timeout: 100})})
  * ```
  *
+ * @see [Prefetching the dependency](guide/di/lazy-loading-services#prefetching-the-dependency)
+ *
  * @publicApi 22.0
  */
 export function onIdle(options?: {timeout?: number}): Promise<void> {
   if (ngDevMode) {
-    assertInInjectionContext(injectAsync);
+    assertInInjectionContext(onIdle);
   }
 
   const idleService = inject(IDLE_SERVICE);

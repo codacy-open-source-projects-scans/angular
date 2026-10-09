@@ -2,7 +2,7 @@
 
 The `NgOptimizedImage` directive makes it easy to adopt performance best practices for loading images.
 
-The directive ensures that the loading of the [Largest Contentful Paint (LCP)](http://web.dev/lcp) image is prioritized by:
+The directive ensures that the loading of the [Largest Contentful Paint (LCP)](https://web.dev/lcp) image is prioritized by:
 
 - Automatically setting the `fetchpriority` attribute on the `<img>` tag
 - Lazy loading other images by default
@@ -19,7 +19,7 @@ In addition to optimizing the loading of the LCP image, `NgOptimizedImage` enfor
 
 If you're using a background image in CSS, [start here](#how-to-migrate-your-background-image).
 
-**NOTE: Although the `NgOptimizedImage` directive was made a stable feature in Angular version 15, it has been backported and is available as a stable feature in versions 13.4.0 and 14.3.0 as well.**
+NOTE: Although the `NgOptimizedImage` directive was made a stable feature in Angular version 15, it has been backported and is available as a stable feature in versions 13.4.0 and 14.3.0 as well.
 
 ## Getting Started
 
@@ -468,7 +468,7 @@ For maintenance reasons, we don't currently plan to support additional built-in 
 
 No, but this is on our roadmap, so stay tuned.
 
-If you're waiting on this feature, please upvote the Github issue [here](https://github.com/angular/angular/issues/56594).
+If you're waiting on this feature, please upvote the GitHub issue [here](https://github.com/angular/angular/issues/56594).
 
 ### How do I find my LCP image with Chrome DevTools?
 

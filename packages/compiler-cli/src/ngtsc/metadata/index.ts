@@ -22,6 +22,8 @@ export {
   hasInjectableFields,
   CompoundMetadataReader,
   isHostDirectiveMetaForGlobalMode,
+  createForeignComponentMatcher,
+  readBaseClass,
 } from './src/util';
 export {ExportedProviderStatusResolver} from './src/providers';
 export {HostDirectivesResolver} from './src/host_directives_resolver';

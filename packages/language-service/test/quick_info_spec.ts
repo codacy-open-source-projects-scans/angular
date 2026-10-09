@@ -541,7 +541,7 @@ describe('quick info', () => {
         const appFile = project.openFile('app.ts');
         appFile.moveCursorToText('something?.va¦lue()');
         const info = appFile.getQuickInfoAtPosition()!;
-        expect(toText(info.displayParts)).toEqual('(property) value: Signal<number>');
+        expect(toText(info.displayParts)).toEqual('(property) value: () => number');
         expect(toText(info.documentation)).toEqual('Documentation for value.');
       });
 
@@ -655,6 +655,58 @@ describe('quick info', () => {
           templateOverride: `{{ (-¦anyValue) ** 2 }}`,
           expectedSpanText: 'anyValue',
           expectedDisplayString: '(property) AppCmp.anyValue: any',
+        });
+      });
+
+      it('should work for postfix update expression targets', () => {
+        expectQuickInfo({
+          templateOverride: `<div (click)="hero.i¦d++"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+        expectQuickInfo({
+          templateOverride: `<div (click)="hero.i¦d--"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+      });
+
+      it('should work for prefix update expression targets', () => {
+        expectQuickInfo({
+          templateOverride: `<div (click)="++hero.i¦d"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+        expectQuickInfo({
+          templateOverride: `<div (click)="--hero.i¦d"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+      });
+
+      it('should work for update expression targets wrapped in parentheses or non-null assertions', () => {
+        expectQuickInfo({
+          templateOverride: `<div (click)="(hero.i¦d)++"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+        expectQuickInfo({
+          templateOverride: `<div (click)="++(hero.i¦d)"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+        expectQuickInfo({
+          templateOverride: `<div (click)="hero.i¦d!++"></div>`,
+          expectedSpanText: 'id',
+          expectedDisplayString: '(property) Hero.id: number',
+        });
+      });
+
+      it('should work for the operand of an update expression inside a larger expression', () => {
+        expectQuickInfo({
+          templateOverride: `<div (click)="setTitle(hero.nam¦e); hero.id++"></div>`,
+          expectedSpanText: 'name',
+          expectedDisplayString: '(property) Hero.name: string',
         });
       });
     });
@@ -845,6 +897,22 @@ describe('quick info', () => {
           templateOverride: `@if (constNames; as al¦iasName) {}`,
           expectedSpanText: 'aliasName',
           expectedDisplayString: '(variable) aliasName: [{\n    readonly name: "name";\n}]',
+        });
+      });
+
+      it('boundary error block context variables', () => {
+        expectQuickInfo({
+          templateOverride: `@boundary { } @error (let er¦r) { }`,
+          expectedSpanText: 'err',
+          expectedDisplayString: '(variable) err: Error',
+        });
+      });
+
+      it('boundary error block retry context variable', () => {
+        expectQuickInfo({
+          templateOverride: `@boundary { } @error (let err, rt¦ry = $reset) { }`,
+          expectedSpanText: 'rtry',
+          expectedDisplayString: '(variable) rtry: () => void',
         });
       });
 
@@ -1262,6 +1330,148 @@ describe('quick info', () => {
         templateOverride: '<div @TestDirective(#r¦ef)></div>',
         expectedSpanText: 'ref',
         expectedDisplayString: '(reference) ref: TestDirective',
+      });
+    });
+
+    it('should get quick info for a component with non-exported generic bound requiring external copy', () => {
+      project = env.addProject('test', {
+        'app.ts': `
+          import {Component, NgModule} from '@angular/core';
+
+          interface PrivateInterface {
+            title: string;
+          }
+
+          @Component({
+            selector: 'some-cmp',
+            templateUrl: './app.html',
+            standalone: false,
+          })
+          export class SomeCmp<T extends PrivateInterface> {
+            title = 'Hello';
+          }
+
+          @NgModule({
+            declarations: [SomeCmp],
+          })
+          export class AppModule {}
+        `,
+        'app.html': ``,
+      });
+
+      expectQuickInfo({
+        templateOverride: `<div>{{tit¦le}}</div>`,
+        expectedSpanText: 'title',
+        expectedDisplayString: '(property) SomeCmp<T extends PrivateInterface>.title: string',
+      });
+    });
+
+    it('should get quick info for a non-exported standalone component', () => {
+      project = env.addProject('test', {
+        'app.ts': `
+          import {Component} from '@angular/core';
+
+          @Component({
+            selector: 'some-cmp',
+            templateUrl: './app.html',
+            standalone: true,
+          })
+          class SomeCmp {
+            title = 'Hello';
+          }
+        `,
+        'app.html': ``,
+      });
+
+      expectQuickInfo({
+        templateOverride: `<div>{{tit¦le}}</div>`,
+        expectedSpanText: 'title',
+        expectedDisplayString: '(property) SomeCmp.title: string',
+      });
+    });
+
+    it('should get quick info for a standalone component defined in a closure', () => {
+      project = env.addProject('test', {
+        'app.ts': `
+          import {Component} from '@angular/core';
+
+          (function() {
+            @Component({
+              selector: 'some-cmp',
+              templateUrl: './app.html',
+              standalone: true,
+            })
+            class TestComponent {
+              value = 0;
+            }
+          })();
+        `,
+        'app.html': ``,
+      });
+
+      expectQuickInfo({
+        templateOverride: `<div>{{val¦ue}}</div>`,
+        expectedSpanText: 'value',
+        expectedDisplayString: '(property) TestComponent.value: number',
+      });
+    });
+
+    it('should get quick info for a component with constrained generic types requiring inline TCB', () => {
+      project = env.addProject('test', {
+        'app.ts': `
+          import {Component} from '@angular/core';
+
+          interface InternalBound {}
+
+          @Component({
+            selector: 'some-cmp',
+            templateUrl: './app.html',
+            standalone: true,
+          })
+          export class SomeCmp<T extends InternalBound> {
+            title = 'Hello';
+          }
+        `,
+        'app.html': ``,
+      });
+
+      expectQuickInfo({
+        templateOverride: `<div>{{tit¦le}}</div>`,
+        expectedSpanText: 'title',
+        expectedDisplayString: '(property) SomeCmp<T extends InternalBound>.title: string',
+      });
+    });
+
+    it('should get quick info when using a non-exported pipe requiring inline TCB', () => {
+      project = env.addProject('test', {
+        'app.ts': `
+          import {Component, Pipe, PipeTransform} from '@angular/core';
+
+          @Pipe({
+            name: 'internalPipe',
+            standalone: true,
+          })
+          class InternalPipe implements PipeTransform {
+            transform(value: string): string { return value; }
+          }
+
+          @Component({
+            selector: 'some-cmp',
+            templateUrl: './app.html',
+            standalone: true,
+            imports: [InternalPipe],
+          })
+          export class SomeCmp {
+            title = 'Hello';
+          }
+        `,
+        'app.html': ``,
+      });
+
+      expectQuickInfo({
+        templateOverride: `<div>{{tit¦le | internalPipe}}</div>`,
+        expectedSpanText: 'title',
+        expectedDisplayString: '(property) SomeCmp.title: string',
       });
     });
   });

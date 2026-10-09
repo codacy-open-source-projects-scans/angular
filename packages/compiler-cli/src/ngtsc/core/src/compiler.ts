@@ -6,7 +6,14 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
-import {TypeCheckingConfig} from '@angular/compiler';
+import {
+  generateIndexerAnalysis,
+  IndexedComponent,
+  IndexingContext,
+  LEGACY_OPTIONAL_CHAINING_DEFAULT,
+  NodeAdapter,
+  TypeCheckingConfig,
+} from '@angular/compiler';
 import ts from 'typescript';
 
 import {
@@ -21,9 +28,9 @@ import {
 import {InjectableClassRegistry, JitDeclarationRegistry} from '../../annotations/common';
 import {CycleAnalyzer, CycleHandlingStrategy, ImportGraph} from '../../cycles';
 import {
-  COMPILER_ERRORS_WITH_GUIDES,
-  ERROR_DETAILS_PAGE_BASE_URL,
+  addDiagnosticDetails,
   ErrorCode,
+  errorCodeWithGuideFromDiagnosticCode,
   isFatalDiagnosticError,
   ngErrorCode,
 } from '../../diagnostics';
@@ -63,7 +70,6 @@ import {
   IncrementalState,
 } from '../../incremental';
 import {SemanticSymbol} from '../../incremental/semantic_graph';
-import {generateAnalysis, IndexedComponent, IndexingContext} from '../../indexer';
 import {
   CompoundMetadataReader,
   CompoundMetadataRegistry,
@@ -87,7 +93,7 @@ import {
   PerfEvent,
   PerfPhase,
 } from '../../perf';
-import {FileUpdate, ProgramDriver, UpdateMode} from '../../program_driver';
+import {FileUpdate, InliningMode, ProgramDriver, UpdateMode} from '../../program_driver';
 import {DeclarationNode, isNamedClassDeclaration, TypeScriptReflectionHost} from '../../reflection';
 import {AdapterResourceLoader} from '../../resource';
 import {
@@ -396,6 +402,7 @@ export class NgCompiler {
   private readonly implicitStandaloneValue: boolean;
   private readonly enableSelectorless: boolean;
   private readonly emitDeclarationOnly: boolean;
+  private readonly enableTemplateSourceLocations: boolean;
 
   /**
    * `NgCompiler` can be reused for multiple compilations (for resource-only changes), and each
@@ -471,6 +478,7 @@ export class NgCompiler {
       this.angularCoreVersion === null ||
       coreVersionSupportsFeature(this.angularCoreVersion, '>= 18.1.0');
     this.enableSelectorless = options['_enableSelectorless'] ?? false;
+    this.enableTemplateSourceLocations = options['enableTemplateSourceLocations'] ?? false;
     this.emitDeclarationOnly =
       !!options.emitDeclarationOnly && !!options._experimentalAllowEmitDeclarationOnly;
     // Standalone by default is enabled since v19. We need to toggle it here,
@@ -675,12 +683,18 @@ export class NgCompiler {
    */
   private addMessageTextDetails(diagnostics: ts.Diagnostic[]): ts.Diagnostic[] {
     return diagnostics.map((diag) => {
-      if (diag.code && COMPILER_ERRORS_WITH_GUIDES.has(ngErrorCode(diag.code))) {
+      const errorCode = errorCodeWithGuideFromDiagnosticCode(diag.code);
+      if (errorCode !== null) {
+        const messageText =
+          typeof diag.messageText === 'string'
+            ? addDiagnosticDetails(errorCode, diag.messageText)
+            : {
+                ...diag.messageText,
+                messageText: addDiagnosticDetails(errorCode, diag.messageText.messageText),
+              };
         return {
           ...diag,
-          messageText:
-            diag.messageText +
-            `. Find more at ${ERROR_DETAILS_PAGE_BASE_URL}/NG${ngErrorCode(diag.code)}`,
+          messageText,
         };
       }
       return diag;
@@ -915,11 +929,21 @@ export class NgCompiler {
    *
    * See the `indexing` package for more details.
    */
-  getIndexedComponents(): Map<DeclarationNode, IndexedComponent> {
+  getIndexedComponents(): Map<DeclarationNode, IndexedComponent<DeclarationNode>> {
     const compilation = this.ensureAnalyzed();
-    const context = new IndexingContext();
+    const context = new IndexingContext<DeclarationNode>();
     compilation.traitCompiler.index(context);
-    return generateAnalysis(context);
+
+    const adapter: NodeAdapter<DeclarationNode> = {
+      getName(node: DeclarationNode): string {
+        return ts.isClassDeclaration(node) && node.name ? node.name.getText() : '';
+      },
+      getFileName(node: DeclarationNode): string {
+        return node.getSourceFile().fileName;
+      },
+    };
+
+    return generateIndexerAnalysis(context, adapter);
   }
 
   /**
@@ -1070,31 +1094,37 @@ export class NgCompiler {
     let typeCheckingConfig: TypeCheckingConfig;
     if (strictTemplates) {
       typeCheckingConfig = {
-        applyTemplateContextGuards: strictTemplates,
-        checkQueries: false,
+        applyTemplateContextGuards: true,
         checkTemplateBodies: true,
         alwaysCheckSchemaInTemplateBodies: true,
-        checkTypeOfInputBindings: strictTemplates,
+        checkTypeOfInputBindings: true,
         honorAccessModifiersForInputBindings: false,
         checkControlFlowBodies: true,
-        strictNullInputBindings: strictTemplates,
-        checkTypeOfAttributes: strictTemplates,
+        strictNullInputBindings: true,
+        checkTypeOfAttributes: true,
         // Even in full template type-checking mode, DOM binding checks are not quite ready yet.
         checkTypeOfDomBindings: false,
-        checkTypeOfOutputEvents: strictTemplates,
-        checkTypeOfAnimationEvents: strictTemplates,
+        checkTypeOfOutputEvents: true,
+        checkTypeOfAnimationEvents: true,
         // Checking of DOM events currently has an adverse effect on developer experience,
         // e.g. for `<input (blur)="update($event.target.value)">` enabling this check results in:
         // - error TS2531: Object is possibly 'null'.
         // - error TS2339: Property 'value' does not exist on type 'EventTarget'.
-        checkTypeOfDomEvents: strictTemplates,
-        checkTypeOfDomReferences: strictTemplates,
+        checkTypeOfDomEvents: true,
+
+        // TODO: Enable those 2 flags by default in v23
+        checkUnclaimedEventNames: false, // 3p-only
+        // g3-only checkUnclaimedEventNames: true,
+        checkUnknownElements: false, // 3p-only
+        // g3-only checkUnknownElements: true,
+
+        checkTypeOfDomReferences: true,
         // Non-DOM references have the correct type in View Engine so there is no strictness flag.
         checkTypeOfNonDomReferences: true,
         // Pipes are checked in View Engine so there is no strictness flag.
         checkTypeOfPipes: true,
-        strictSafeNavigationTypes: strictTemplates,
-        useContextGenericType: strictTemplates,
+        strictSafeNavigationTypes: true,
+        useContextGenericType: true,
         strictLiteralTypes: true,
         enableTemplateTypeChecker: this.enableTemplateTypeChecker,
         useInlineTypeConstructors,
@@ -1108,7 +1138,6 @@ export class NgCompiler {
     } else {
       typeCheckingConfig = {
         applyTemplateContextGuards: false,
-        checkQueries: false,
         checkTemplateBodies: false,
         checkControlFlowBodies: false,
         // Enable deep schema checking in "basic" template type-checking mode only if Closure
@@ -1122,6 +1151,7 @@ export class NgCompiler {
         checkTypeOfOutputEvents: false,
         checkTypeOfAnimationEvents: false,
         checkTypeOfDomEvents: false,
+        checkUnclaimedEventNames: false,
         checkTypeOfDomReferences: false,
         checkTypeOfNonDomReferences: false,
         checkTypeOfPipes: false,
@@ -1136,6 +1166,7 @@ export class NgCompiler {
           this.options.extendedDiagnostics?.defaultCategory || DiagnosticCategoryLabel.Warning,
         allowSignalsInTwoWayBindings,
         allowDomEventAssertion,
+        checkUnknownElements: false,
       };
     }
 
@@ -1158,6 +1189,9 @@ export class NgCompiler {
     }
     if (this.options.strictDomEventTypes !== undefined) {
       typeCheckingConfig.checkTypeOfDomEvents = this.options.strictDomEventTypes;
+    }
+    if (this.options.strictUnclaimedEventNames !== undefined) {
+      typeCheckingConfig.checkUnclaimedEventNames = this.options.strictUnclaimedEventNames;
     }
     if (this.options.strictSafeNavigationTypes !== undefined) {
       typeCheckingConfig.strictSafeNavigationTypes = this.options.strictSafeNavigationTypes;
@@ -1183,6 +1217,9 @@ export class NgCompiler {
     if (this.options.extendedDiagnostics?.checks?.unusedStandaloneImports !== undefined) {
       typeCheckingConfig.unusedStandaloneImports =
         this.options.extendedDiagnostics.checks.unusedStandaloneImports;
+    }
+    if (this.options.strictUnknownElements !== undefined) {
+      typeCheckingConfig.checkUnknownElements = this.options.strictUnknownElements;
     }
 
     return typeCheckingConfig;
@@ -1531,7 +1568,8 @@ export class NgCompiler {
         typeCheckHostBindings,
         this.enableSelectorless,
         this.emitDeclarationOnly,
-        this.options.legacyOptionalChaining ?? false,
+        this.options.legacyOptionalChaining ?? LEGACY_OPTIONAL_CHAINING_DEFAULT,
+        this.enableTemplateSourceLocations,
       ),
 
       // TODO(alxhub): understand why the cast here is necessary (something to do with `null`
@@ -1561,7 +1599,7 @@ export class NgCompiler {
         this.usePoisonedData,
         typeCheckHostBindings,
         this.emitDeclarationOnly,
-        this.options.legacyOptionalChaining ?? false,
+        this.options.legacyOptionalChaining ?? LEGACY_OPTIONAL_CHAINING_DEFAULT,
       ) as Readonly<DecoratorHandler<unknown, unknown, SemanticSymbol | null, unknown>>,
       // Pipe handler must be before injectable handler in list so pipe factories are printed
       // before injectable factories (so injectable factories can delegate to them)
@@ -1880,6 +1918,10 @@ class NotifyingProgramDriverWrapper implements ProgramDriver {
     private notifyNewProgram: (program: ts.Program) => void,
   ) {
     this.getSourceFileVersion = this.delegate.getSourceFileVersion?.bind(this);
+  }
+
+  get inliningMode(): InliningMode {
+    return this.delegate.inliningMode;
   }
 
   get supportsInlineOperations() {

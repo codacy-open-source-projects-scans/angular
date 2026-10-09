@@ -169,20 +169,20 @@ export interface InMemoryScrollingOptions {
    * in the following example.
    *
    * ```ts
-   * class AppComponent {
-   *   movieData: any;
+   * class App {
+   *   movieData = signal<MovieData | null>(null);
+   *   private router = inject(Router);
+   *   private viewportScroller = inject(ViewportScroller);
+   *   private changeDetectorRef = inject(ChangeDetectorRef);
    *
-   *   constructor(private router: Router, private viewportScroller: ViewportScroller,
-   * changeDetectorRef: ChangeDetectorRef) {
-   *   router.events.pipe(filter((event: Event): event is Scroll => event instanceof Scroll)
+   *   constructor() {
+   *    this.router.events.pipe(filter((event: Event): event is Scroll => event instanceof Scroll)
    *     ).subscribe(e => {
    *       fetch('http://example.com/movies.json').then(response => {
-   *         this.movieData = response.json();
-   *         // update the template with the data before restoring scroll
-   *         changeDetectorRef.detectChanges();
+   *         this.movieData.set(response.json());
    *
    *         if (e.position) {
-   *           viewportScroller.scrollToPosition(e.position);
+   *           this.viewportScroller.scrollToPosition(e.position);
    *         }
    *       });
    *     });
@@ -208,6 +208,17 @@ export interface ComponentInputBindingOptions {
    * inputs.
    */
   queryParams?: boolean;
+
+  /**
+   * Configures the behavior when an input is not matched by any key in the router data.
+   *
+   * - `'alwaysUndefined'`: (Default) Binds `undefined` to the input. This ensures that stale data
+   *   is not retained.
+   * - `'undefinedIfStale'`: Binds `undefined` only if the input was previously available
+   *   in the router data during the lifetime of the active route in this outlet. This avoids
+   *   setting `undefined` for inputs that were never expected to be set by the router.
+   */
+  unmatchedInputBehavior?: 'alwaysUndefined' | 'undefinedIfStale';
 }
 
 /**

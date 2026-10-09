@@ -7,7 +7,9 @@
  */
 
 import {
+  AbsoluteSourceSpan,
   AST,
+  ForeignComponentMeta,
   LiteralPrimitive,
   ParseSourceSpan,
   PropertyRead,
@@ -334,6 +336,14 @@ export interface TemplateTypeChecker {
   ): TypeCheckableDirectiveMeta[] | null;
 
   /**
+   * Gets the foreign component that matched the given template element.
+   */
+  getForeignComponent(
+    component: ts.ClassDeclaration,
+    element: TmplAstElement,
+  ): ForeignComponentMeta | null;
+
+  /**
    * Gets the directives that have been used in a component's template.
    */
   getUsedDirectives(component: ts.ClassDeclaration): TypeCheckableDirectiveMeta[] | null;
@@ -357,10 +367,14 @@ export interface TemplateTypeChecker {
 
   /**
    * Constructs a `ts.Diagnostic` for a given `ParseSourceSpan` within a template.
+   *
+   * @param relatedInformation Optional list of secondary related messages:
+   *   - Omit `sourceFile` when `start` and `end` offsets are locations within the template itself.
+   *   - Specify `sourceFile` only when referencing a separate file (e.g. directive class declaration).
    */
   makeTemplateDiagnostic<T extends ErrorCode>(
     clazz: ts.ClassDeclaration,
-    sourceSpan: ParseSourceSpan,
+    sourceSpan: ParseSourceSpan | AbsoluteSourceSpan,
     category: ts.DiagnosticCategory,
     errorCode: T,
     message: string,
@@ -368,7 +382,7 @@ export interface TemplateTypeChecker {
       text: string;
       start: number;
       end: number;
-      sourceFile: ts.SourceFile;
+      sourceFile?: ts.SourceFile;
     }[],
   ): NgTemplateDiagnostic<T>;
 }

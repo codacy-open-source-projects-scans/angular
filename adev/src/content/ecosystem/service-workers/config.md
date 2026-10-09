@@ -85,7 +85,7 @@ For example, an asset group that matches `/foo.js` should appear before one that
 Each asset group specifies both a group of resources and a policy that governs them.
 This policy determines when the resources are fetched and what happens when changes are detected.
 
-Asset groups follow the Typescript interface shown here:
+Asset groups follow the TypeScript interface shown here:
 
 ```ts
 interface AssetGroup {
@@ -179,7 +179,7 @@ The first data group that matches the requested resource handles the request.
 It is recommended that you put the more specific data groups higher in the list.
 For example, a data group that matches `/api/foo.json` should appear before one that matches `/api/*.json`.
 
-Data groups follow this Typescript interface:
+Data groups follow this TypeScript interface:
 
 ```ts
 export interface DataGroup {
@@ -201,7 +201,7 @@ export interface DataGroup {
 
 Each `DataGroup` is defined by the following data group properties.
 
-#### `name`
+#### `name` {#datagroups-name}
 
 Similar to `assetGroups`, every data group has a `name` which uniquely identifies it.
 
@@ -318,7 +318,7 @@ If you are not able to implement CORS — for example, if you don't control the 
 
 </docs-callout>
 
-#### `cacheQueryOptions`
+#### `cacheQueryOptions` {#datagroups-cachequeryoptions}
 
 See [assetGroups](#assetgroups) for details.
 
@@ -332,7 +332,7 @@ The ServiceWorker redirects navigation requests that don't match any `asset` or 
 A request is considered to be a navigation request if:
 
 - Its [method](https://developer.mozilla.org/docs/Web/API/Request/method) is `GET`
-- Its [mode](https://developer.mozilla.org/docs/Web/API/Request/mode) is `navigation`
+- Its [mode](https://developer.mozilla.org/docs/Web/API/Request/mode) is `navigate`
 - It accepts a `text/html` response as determined by the value of the `Accept` header
 - Its URL matches the following criteria:
   - The URL must not contain a file extension (that is, a `.`) in the last path segment

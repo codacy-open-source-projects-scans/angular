@@ -39,12 +39,16 @@ export class ResourceParamsStatus extends Error {
   static readonly LOADING = new ResourceParamsStatus('LOADING');
 }
 
-/** Context received by a resource's `params` or `request` function. */
+/**
+ * Context received by a resource's `params` or `request` function.
+ *
+ * @see [Chaining resources](guide/signals/resource#chaining-resources)
+ */
 export interface ResourceParamsContext {
   /**
    * Chains the current params off of the value of another resource, returning the value
-   * of the other resource if it is available, or propagating the status to the current resource by
-   * throwing the appropriate status code if the value is not available.
+   * of the other resource only when its status is `resolved` or `local`, or propagating status to
+   * the current resource by throwing the appropriate status code when the value is not available.
    */
   readonly chain: <T>(resource: Resource<T>) => T;
 }
@@ -70,7 +74,7 @@ export interface ResourceParamsContext {
  *
  * `local` - The resource's value was set locally via `.set()` or `.update()`.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export type ResourceStatus = 'idle' | 'error' | 'loading' | 'reloading' | 'resolved' | 'local';
 
@@ -81,7 +85,7 @@ export type ResourceStatus = 'idle' | 'error' | 'loading' | 'reloading' | 'resol
  * The usual way of creating a `Resource` is through the `resource` function, but various other APIs
  * may present `Resource` instances to describe their own concepts.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface Resource<T> {
   /**
@@ -125,7 +129,7 @@ export interface Resource<T> {
  *
  * Overwriting the value of a resource sets it to the 'local' state.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface WritableResource<T> extends Resource<T> {
   readonly value: WritableSignal<T>;
@@ -160,7 +164,7 @@ export interface WritableResource<T> extends Resource<T> {
 /**
  * A `WritableResource` created through the `resource` function.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface ResourceRef<T> extends WritableResource<T> {
   hasValue(this: T extends undefined ? this : never): this is ResourceRef<Exclude<T, undefined>>;
@@ -176,7 +180,7 @@ export interface ResourceRef<T> extends WritableResource<T> {
  * Parameter to a `ResourceLoader` which gives the request and other options for the current loading
  * operation.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface ResourceLoaderParams<R> {
   params: NoInfer<Exclude<R, undefined>>;
@@ -189,14 +193,14 @@ export interface ResourceLoaderParams<R> {
 /**
  * Loading function for a `Resource`.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export type ResourceLoader<T, R> = (param: ResourceLoaderParams<R>) => PromiseLike<T>;
 
 /**
  * Streaming loader for a `Resource`.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export type ResourceStreamingLoader<T, R> = (
   param: ResourceLoaderParams<R>,
@@ -205,7 +209,7 @@ export type ResourceStreamingLoader<T, R> = (
 /**
  * Options to the `resource` function, for creating a resource.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface BaseResourceOptions<T, R> {
   /**
@@ -231,12 +235,18 @@ export interface BaseResourceOptions<T, R> {
    * Overrides the `Injector` used by `resource`.
    */
   injector?: Injector;
+
+  /**
+   * Identifier used to cache the resource data in the `TransferState` during server-side rendering and to retrieve it on the client side.
+   * This value value needs to be identical for both the client and server.
+   */
+  id?: string;
 }
 
 /**
  * Options to the `resource` function, for creating a resource.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface PromiseResourceOptions<T, R> extends BaseResourceOptions<T, R> {
   /**
@@ -253,7 +263,7 @@ export interface PromiseResourceOptions<T, R> extends BaseResourceOptions<T, R> 
 /**
  * Options to the `resource` function, for creating a resource.
  *
- * @experimental
+ * @publicApi 22.0
  */
 export interface StreamingResourceOptions<T, R> extends BaseResourceOptions<T, R> {
   /**
@@ -269,7 +279,7 @@ export interface StreamingResourceOptions<T, R> extends BaseResourceOptions<T, R
 }
 
 /**
- * @experimental
+ * @publicApi 22.0
  */
 export type ResourceOptions<T, R> = (
   | PromiseResourceOptions<T, R>
@@ -282,14 +292,14 @@ export type ResourceOptions<T, R> = (
 };
 
 /**
- * @experimental
+ * @publicApi 22.0
  */
 export type ResourceStreamItem<T> = {value: T} | {error: Error};
 
 /**
  * An explicit representation of a resource's state.
  *
- * @experimental
+ * @publicApi 22.0
  * @see [Resource composition with snapshots](guide/signals/resource#resource-composition-with-snapshots)
  */
 export type ResourceSnapshot<T> =
@@ -302,6 +312,8 @@ export type ResourceSnapshot<T> =
  * Options for `debounced`.
  *
  * @see [Debouncing signals with `debounced`](guide/signals/debounced)
+ *
+ * @experimental 22.0
  */
 export interface DebouncedOptions<T> {
   /** The `Injector` to use for the debounced resource. */
@@ -315,6 +327,8 @@ export interface DebouncedOptions<T> {
  * Can be a number of milliseconds or a function that returns a Promise.
  *
  * @see [Debouncing signals with `debounced`](guide/signals/debounced)
+ *
+ * @experimental 22.0
  */
 export type DebounceTimer<T> =
   | number

@@ -6,8 +6,10 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
+import {timeout} from '@angular/private/testing';
 import {
   ApplicationRef,
+  ɵCACHE_ACTIVE as CACHE_ACTIVE,
   Component,
   computed,
   createEnvironmentInjector,
@@ -16,12 +18,13 @@ import {
   Injector,
   Input,
   inputBinding,
+  makeStateKey,
   resource,
   ResourceRef,
   ResourceStatus,
   signal,
+  TransferState,
 } from '../../src/core';
-import {promiseWithResolvers} from '../../src/util/promise_with_resolvers';
 import {TestBed} from '../../testing';
 
 abstract class MockBackend<T, R> {
@@ -49,7 +52,7 @@ abstract class MockBackend<T, R> {
       entry.reject(reason);
     }
 
-    return flushMicrotasks();
+    return timeout();
   }
 
   async flush(): Promise<void> {
@@ -61,7 +64,7 @@ abstract class MockBackend<T, R> {
     this.pending.clear();
 
     await Promise.all(allPending);
-    await flushMicrotasks();
+    await timeout();
   }
 
   protected abstract prepareResponse(request: T): R;
@@ -129,7 +132,7 @@ describe('resource', () => {
     });
 
     TestBed.tick();
-    await flushMicrotasks();
+    await timeout();
 
     expect(prevStatus).toBe('idle');
   });
@@ -340,7 +343,7 @@ describe('resource', () => {
     const res = resource({
       params: request,
       loader: async ({params}) => {
-        const p = promiseWithResolvers<number>();
+        const p = Promise.withResolvers<number>();
         resolve.push(() => p.resolve(params));
         return p.promise;
       },
@@ -358,7 +361,7 @@ describe('resource', () => {
 
     // Resolve the first load.
     resolve[0]();
-    await flushMicrotasks();
+    await timeout();
 
     // The resource should still be loading. Ticking (triggering the 2nd effect)
     // should not change the loading status.
@@ -369,7 +372,7 @@ describe('resource', () => {
 
     // Resolve the second load.
     resolve[1]?.();
-    await flushMicrotasks();
+    await timeout();
 
     // We should see the resolved value.
     expect(res.status()).toBe('resolved');
@@ -1105,10 +1108,6 @@ describe('resource', () => {
   });
 });
 
-function flushMicrotasks(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 function extractError(fn: () => unknown): Error | undefined {
   try {
     fn();
@@ -1117,3 +1116,69 @@ function extractError(fn: () => unknown): Error | undefined {
     return err as Error;
   }
 }
+
+describe('with TransferState', () => {
+  let transferState: TransferState;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [TransferState, {provide: CACHE_ACTIVE, useValue: {isActive: true}}],
+    });
+    transferState = TestBed.inject(TransferState);
+  });
+
+  it('should read from TransferState if a key is present', async () => {
+    const key = makeStateKey<number>('test-key');
+    transferState.set(key, 123);
+
+    const testResource = resource({
+      loader: async () => 456,
+      id: key,
+      injector: TestBed.inject(Injector),
+    });
+
+    // Should be synchronously resolved from cache
+    expect(testResource.status()).toBe('resolved');
+    expect(testResource.value()).toBe(123);
+
+    // Should prevent loader from running
+    await timeout();
+    expect(testResource.value()).toBe(123);
+  });
+
+  it('should write to TransferState on server when resolved', async () => {
+    (globalThis as any).ngServerMode = true;
+    const key = 'server-key';
+
+    const testResource = resource({
+      loader: async () => 789,
+      id: key,
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(testResource.status()).toBe('loading');
+
+    await timeout();
+
+    expect(testResource.status()).toBe('resolved');
+    expect(testResource.value()).toBe(789);
+    expect(transferState.get(makeStateKey<number>(key), null!)).toBe(789);
+    (globalThis as any).ngServerMode = undefined;
+  });
+
+  it('should not write to TransferState on client when resolved', async () => {
+    const key = 'client-key';
+
+    const testResource = resource({
+      loader: async () => 101112,
+      id: key,
+      injector: TestBed.inject(Injector),
+    });
+
+    await timeout();
+
+    expect(testResource.status()).toBe('resolved');
+    expect(testResource.value()).toBe(101112);
+    expect(transferState.hasKey(makeStateKey(key))).toBeFalse();
+  });
+});

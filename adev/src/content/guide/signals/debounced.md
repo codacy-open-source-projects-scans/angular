@@ -5,7 +5,7 @@ IMPORTANT: `debounced` is [experimental](reference/releases#experimental). It's 
 Use `debounced` to delay reacting to a signal's value until it stops changing. It returns a `Resource` whose value reflects the debounced value of the source signal.
 
 ```angular-ts
-import {debounced, resource, signal} from '@angular/core';
+import {Component, debounced, resource, signal} from '@angular/core';
 
 @Component({
   template: `
@@ -35,7 +35,7 @@ export class Search {
 
 ## Status during debounce
 
-While the debounce timer is counting down, `status()` is `'loading'` and `value()` returns the previously resolved value. When the timer expires, the resource settles to `'resolved'`. If the source signal throws, the resource enters `'error'` immediately no timer runs.
+While the debounce timer is counting down, `status()` is `'loading'` and `value()` returns the previously resolved value. When the timer expires, the resource settles to `'resolved'`. If the source signal throws, the resource enters `'error'` immediately; no timer runs.
 
 See [Resource status](/guide/signals/resource#resource-status) for the full list of statuses and their `value()` behavior.
 
@@ -74,7 +74,7 @@ debouncedFilter = debounced(filter, 200, {
 To use `debounced` outside of an injection context, pass an explicit `Injector` via the options:
 
 ```ts
-@Injectable({providedIn: 'root'})
+@Service()
 export class SearchService {
   private injector = inject(Injector);
 

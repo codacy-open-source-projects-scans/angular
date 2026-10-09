@@ -17,6 +17,20 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {marked} from 'marked';
 import {ApplicationComplexity, RECOMMENDATIONS, Step} from './recommendations';
 
+/**
+ * Configure marked with a custom link renderer so external links in the
+ * update guide open in a new tab, matching the convention applied elsewhere
+ * in adev via the `ExternalLink` directive.
+ */
+marked.use({
+  renderer: {
+    link({href, title, text}) {
+      const titleAttr = title ? ` title="${title}"` : '';
+      return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+    },
+  },
+});
+
 interface Option {
   id: keyof Step;
   name: string;
@@ -67,6 +81,7 @@ export default class UpdateComponent {
   protected afterRecommendations: Step[] = [];
 
   protected readonly versions = [
+    {name: '22.0', number: 2200},
     {name: '21.0', number: 2100},
     {name: '20.0', number: 2000},
     {name: '19.0', number: 1900},
@@ -105,9 +120,9 @@ export default class UpdateComponent {
     {name: '2.1', number: 201},
     {name: '2.0', number: 200},
   ];
-  protected from = this.versions.find((version) => version.name === '20.0')!;
-  protected to = this.versions.find((version) => version.name === '21.0')!;
-  protected futureVersion = 2200;
+  protected from = this.versions.find((version) => version.name === '21.0')!;
+  protected to = this.versions.find((version) => version.name === '22.0')!;
+  protected futureVersion = 2300;
 
   protected readonly steps: Step[] = RECOMMENDATIONS;
 
@@ -137,6 +152,18 @@ export default class UpdateComponent {
       this.clipboard.copy(textContent!);
       this.snackBar.open('Copied to clipboard', '', {duration: 2000});
     }
+  }
+
+  protected toggleRecommendation(event: MouseEvent, checkbox: MatCheckbox): void {
+    const target = event.target as Element | null;
+
+    // Keep links in the recommendation independently operable.
+    if (target?.closest('a')) {
+      return;
+    }
+
+    checkbox.toggle();
+    checkbox.focus();
   }
 
   async showUpdatePath() {

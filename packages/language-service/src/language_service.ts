@@ -8,17 +8,18 @@
 
 import {AST, TmplAstNode} from '@angular/compiler';
 import {
-  AbsoluteFsPath,
   absoluteFrom,
+  AbsoluteFsPath,
   CompilerOptions,
   ConfigurationHost,
   ErrorCode,
   FileUpdate,
+  InliningMode,
   isExternalResource,
   isFatalDiagnosticError,
   isNamedClassDeclaration,
-  ngErrorCode,
   NgCompiler,
+  ngErrorCode,
   OptimizeFor,
   PerfPhase,
   ProgramDriver,
@@ -57,6 +58,7 @@ import {ReferencesBuilder, RenameBuilder} from './references_and_rename';
 import {createLocationKey} from './references_and_rename_utils';
 import {getClassificationsForTemplate, TokenEncodingConsts} from './semantic_tokens';
 import {getSignatureHelp} from './signature_help';
+import {getTemplateSelectionRange} from './smart_selection';
 import {
   getTargetAtPosition,
   getTcbNodesOfTemplateAtPosition,
@@ -281,6 +283,7 @@ export class LanguageService {
                     compiler,
                     typeCheckInfo,
                     span,
+                    fileName,
                     config,
                   );
                   hints.push(...templateHints);
@@ -297,7 +300,13 @@ export class LanguageService {
           // For external template files (HTML), find the associated component
           const typeCheckInfo = getTypeCheckInfoAtPosition(fileName, span.start, compiler);
           if (typeCheckInfo) {
-            const templateHints = getInlayHintsForTemplate(compiler, typeCheckInfo, span, config);
+            const templateHints = getInlayHintsForTemplate(
+              compiler,
+              typeCheckInfo,
+              span,
+              fileName,
+              config,
+            );
             hints.push(...templateHints);
           }
         }
@@ -573,6 +582,21 @@ export class LanguageService {
       }
 
       return getSignatureHelp(compiler, this.tsLS, fileName, position, options);
+    });
+  }
+
+  /**
+   * Gets the smart selection range (nested ranges used by the editor's
+   * "Expand/Shrink Selection" feature) at a position inside an Angular
+   * template. The ranges follow the template AST, so expressions, control flow
+   * blocks (`@if`, `@for`, ...) and their bodies become selection steps.
+   * Returns `undefined` outside templates; merging with the surrounding
+   * TypeScript structure is left to the editor, which combines the ranges of
+   * every registered selection range provider.
+   */
+  getTemplateSelectionRange(fileName: string, position: number): ts.SelectionRange | undefined {
+    return this.withCompilerAndPerfTracing(PerfPhase.LsSmartSelection, (compiler) => {
+      return getTemplateSelectionRange(compiler, fileName, position);
     });
   }
 
@@ -891,7 +915,7 @@ export class LanguageService {
         project.readFile(path),
       );
 
-      if (!this.options.strictTemplates) {
+      if (this.options.strictTemplates === false) {
         diagnostics.push({
           messageText:
             'Some language features are not available. ' +
@@ -986,6 +1010,17 @@ function parseNgCompilerOptions(
     }
   }
 
+  // Prior to v22, strictTemplates was set to false by default
+  if (options.strictTemplates === undefined && typeof options['_angularCoreVersion'] === 'string') {
+    const version = options['_angularCoreVersion'];
+    if (version !== `0.0.0-${'PLACEHOLDER'}`) {
+      const major = parseInt(version.split('.')[0], 10);
+      if (!Number.isNaN(major) && major < 22) {
+        options.strictTemplates = false;
+      }
+    }
+  }
+
   return options;
 }
 
@@ -1035,6 +1070,7 @@ function detectAngularCoreVersion(
 
 function createProgramDriver(project: ts.server.Project): ProgramDriver {
   return {
+    inliningMode: InliningMode.CopySourceToTcb,
     supportsInlineOperations: false,
     getProgram(): ts.Program {
       const program = project.getLanguageService().getProgram();

@@ -40,10 +40,10 @@ Writable signals have the type `WritableSignal`.
 
 #### Converting writable signals to readonly
 
-`WritableSignal` provide a `asReadonly()` method that returns a readonly version of the signal. This is useful when you want to expose a signal's value to consumers without allowing them to modify it directly:
+`WritableSignal` provides an `asReadonly()` method that returns a readonly version of the signal. This is useful when you want to expose a signal's value to consumers without allowing them to modify it directly:
 
 ```ts
-@Injectable({providedIn: 'root'})
+@Service()
 export class CounterState {
   // Private writable state
   private readonly _count = signal(0);
@@ -55,9 +55,7 @@ export class CounterState {
   }
 }
 
-@Component({
-  /* ... */
-})
+@Component({/* ... */})
 export class AwesomeCounter {
   state = inject(CounterState);
 
@@ -75,7 +73,7 @@ IMPORTANT: The readonly signals do **not** have any built-in mechanism that woul
 
 ### Computed signals
 
-**Computed signal** are read-only signals that derive their value from other signals. You define computed signals using the `computed` function and specifying a derivation:
+**Computed signals** are read-only signals that derive their value from other signals. You define computed signals using the `computed` function and specifying a derivation:
 
 ```typescript
 const count: WritableSignal<number> = signal(0);
@@ -224,11 +222,11 @@ All signal APIs are synchronous— `signal`, `computed`, `input`, etc. However, 
 
 ## Executing side effects on non-reactive APIs
 
-Synchronous or asynchronous derivations are recommended when we want to react to state changes. However, this doesn't cover all the possible use cases, and you'll sometimes find yourself in a situation where you need to react to signal changes on non-reactive apis. Use `effect` or `afterRenderEffect` for those specific usecases. For more information see [Side effects for non-reactive APIs](/guide/signals/effect) guide.
+Synchronous or asynchronous derivations are recommended when we want to react to state changes. However, this doesn't cover all the possible use cases, and you'll sometimes find yourself in a situation where you need to react to signal changes on non-reactive APIs. Use `effect` or `afterRenderEffect` for those specific use cases. For more information see [Side effects for non-reactive APIs](/guide/signals/effect) guide.
 
 ## Reading signals in `OnPush` components
 
-When you read a signal within an `OnPush` component's template, Angular tracks the signal as a dependency of that component. When the value of that signal changes, Angular automatically [marks](api/core/ChangeDetectorRef#markforcheck) the component to ensure it gets updated the next time change detection runs. Refer to the [Skipping component subtrees](best-practices/skipping-subtrees) guide for more information about `OnPush` components.
+When you read a signal within an `OnPush` component's template, Angular tracks the signal as a dependency of that component. When the value of that signal changes, Angular automatically [marks](api/core/ChangeDetectorRef#markForCheck) the component to ensure it gets updated the next time change detection runs. Refer to the [Skipping component subtrees](best-practices/skipping-subtrees) guide for more information about `OnPush` components.
 
 ## Advanced topics
 

@@ -59,6 +59,11 @@ class R3AstHumanizer implements t.Visitor<void> {
     this.visitAll([content.attributes, content.children]);
   }
 
+  visitContentBlock(block: t.ContentBlock) {
+    this.result.push(['ContentBlock', block.name]);
+    this.visitAll([block.variables, block.children]);
+  }
+
   visitVariable(variable: t.Variable) {
     this.result.push(['Variable', variable.name, variable.value]);
   }
@@ -119,7 +124,10 @@ class R3AstHumanizer implements t.Visitor<void> {
   }
 
   visitForLoopBlock(block: t.ForLoopBlock): void {
-    const result: any[] = ['ForLoopBlock', unparse(block.expression), unparse(block.trackBy)];
+    const result: any[] = ['ForLoopBlock', unparse(block.expression)];
+    if (block.trackBy !== null) {
+      result.push(unparse(block.trackBy));
+    }
     this.result.push(result);
     this.visitAll([[block.item], block.contextVariables, block.children]);
     block.empty?.visit(this);
@@ -143,6 +151,16 @@ class R3AstHumanizer implements t.Visitor<void> {
     const toVisit = [block.children];
     block.expressionAlias !== null && toVisit.unshift([block.expressionAlias]);
     this.visitAll(toVisit);
+  }
+
+  visitBoundaryBlock(block: t.BoundaryBlock): void {
+    this.result.push(['BoundaryBlock']);
+    this.visitAll([block.children, block.errorBlocks]);
+  }
+
+  visitBoundaryErrorBlock(block: t.BoundaryErrorBlock): void {
+    this.result.push(['BoundaryErrorBlock', block.expression ? unparse(block.expression) : null]);
+    this.visitAll([block.contextVariables, block.children]);
   }
 
   visitDeferredTrigger(trigger: t.DeferredTrigger): void {
@@ -256,6 +274,35 @@ describe('R3 template transform', () => {
   describe('ParseSpan on nodes toString', () => {
     it('should create valid text span on Element with adjacent start and end tags', () => {
       expectSpanFromHtml('<div></div>').toBe('<div></div>');
+    });
+  });
+
+  describe('Boundary blocks', () => {
+    it('should parse @boundary blocks with multiple @error blocks', () => {
+      expectFromHtml(`
+        @boundary {
+          <div>Content</div>
+        } @error (when err instanceof SpecificError) {
+          <div>Specific Error</div>
+        } @error (let err) {
+          <div>General Error {{ err }}</div>
+        }
+      `).toEqual([
+        ['BoundaryBlock'],
+        ['Element', 'div'],
+        ['Text', 'Content'],
+        ['BoundaryErrorBlock', 'err instanceof SpecificError'],
+        ['Variable', '$error', '$error'],
+        ['Variable', '$reset', '$reset'],
+        ['Element', 'div'],
+        ['Text', 'Specific Error'],
+        ['BoundaryErrorBlock', null],
+        ['Variable', '$error', '$error'],
+        ['Variable', '$reset', '$reset'],
+        ['Variable', 'err', '$error'],
+        ['Element', 'div'],
+        ['BoundText', 'General Error {{ err }}'],
+      ]);
     });
   });
 
@@ -914,13 +961,32 @@ describe('R3 template transform', () => {
     });
   });
 
-  describe('Ignored elements', () => {
+  describe('<script> and <style> elements', () => {
     it('should ignore <script> elements', () => {
       expectFromHtml('<script></script>a').toEqual([['Text', 'a']]);
     });
 
+    it('should ignore <script> elements inherited into custom namespaces', () => {
+      expectFromHtml(
+        '<xhtml:div xmlns:xhtml="http://www.w3.org/1999/xhtml"><script [textContent]="evil"></script><span>safe</span></xhtml:div>',
+      ).toEqual([
+        ['Element', ':xhtml:div'],
+        ['TextAttribute', ':xmlns:xhtml', 'http://www.w3.org/1999/xhtml'],
+        ['Element', ':xhtml:span'],
+        ['Text', 'safe'],
+      ]);
+    });
+
     it('should ignore <style> elements', () => {
       expectFromHtml('<style></style>a').toEqual([['Text', 'a']]);
+    });
+
+    it('should not ignore namespaced SVG <style> elements', () => {
+      expectFromHtml('<svg><style>.a { fill: none; }</style></svg>').toEqual([
+        ['Element', ':svg:svg'],
+        ['Element', ':svg:style'],
+        ['Text', '.a { fill: none; }'],
+      ]);
     });
   });
 
@@ -978,6 +1044,17 @@ describe('R3 template transform', () => {
         ['Element', 'div'],
         ['TextAttribute', 'ngNonBindable', ''],
         ['Text', 'a'],
+      ]);
+    });
+
+    it('should ignore custom-namespaced <script> elements inside of elements with ngNonBindable', () => {
+      expectFromHtml(
+        '<foo:div ngNonBindable><script>evil</script><span>safe</span></foo:div>',
+      ).toEqual([
+        ['Element', ':foo:div'],
+        ['TextAttribute', 'ngNonBindable', ''],
+        ['Element', ':foo:span'],
+        ['Text', 'safe'],
       ]);
     });
 
@@ -1368,10 +1445,14 @@ describe('R3 template transform', () => {
 
     it('should parse a viewport trigger with an options parameter', () => {
       expectFromHtml(
-        '@defer (on viewport({trigger: foo, rootMargin: "123px", threshold: [1, 2, 3]})){hello}',
+        '@defer (on viewport({trigger: foo, rootMargin: "123px", scrollMargin: "456px", threshold: [1, 2, 3]})){hello}',
       ).toEqual([
         ['DeferredBlock'],
-        ['ViewportDeferredTrigger', 'foo', '{rootMargin: "123px", threshold: [1, 2, 3]}'],
+        [
+          'ViewportDeferredTrigger',
+          'foo',
+          '{rootMargin: "123px", scrollMargin: "456px", threshold: [1, 2, 3]}',
+        ],
         ['Text', 'hello'],
       ]);
     });
@@ -1416,7 +1497,7 @@ describe('R3 template transform', () => {
           /@loading block can only be used after an @defer block/,
         );
         expect(() => parse('@error {error}')).toThrowError(
-          /@error block can only be used after an @defer block/,
+          /@error block can only be used after an @defer or @boundary block/,
         );
       });
 
@@ -1732,10 +1813,16 @@ describe('R3 template transform', () => {
 
     it('should parse a switch block with a default never case', () => {
       expectFromHtml(`
-          @switch (cond.kind) {
-            @default never;
-          }
-        `).toEqual([['SwitchBlock', 'cond.kind'], ['SwitchExhaustiveCheck']]);
+        @switch (cond.kind) {
+          @default never;
+        }
+      `).toEqual([['SwitchBlock', 'cond.kind'], ['SwitchExhaustiveCheck']]);
+
+      expectFromHtml(`
+        @switch (cond.kind) {
+          @default                              never;
+        }
+      `).toEqual([['SwitchBlock', 'cond.kind'], ['SwitchExhaustiveCheck']]);
     });
 
     // This is a special case for `switch` blocks, because `preserveWhitespaces` will cause
@@ -2998,5 +3085,69 @@ describe('R3 template transform', () => {
     const template = `<ng-container *ngIf"test" [ngTemplateOutlet]="foo"></ng-container>`;
     const errors = parse(template, {ignoreError: true}).errors;
     expect(errors.length).toBe(0);
+  });
+
+  describe('@content blocks', () => {
+    it('should parse a valid @content block', () => {
+      expectFromHtml(`
+        @content(icon) {
+          <span>Icon content</span>
+        }
+      `).toEqual([
+        ['ContentBlock', 'icon'],
+        ['Element', 'span'],
+        ['Text', 'Icon content'],
+      ]);
+    });
+
+    it('should error on invalid name', () => {
+      expect(() => parse(`@content(inv-alid) {}`)).toThrowError(
+        /@content name must be a valid JavaScript identifier/,
+      );
+    });
+
+    it('should error if @content block has missing parameter', () => {
+      expect(() => parse(`@content {}`)).toThrowError(
+        /@content block must have one or two parameters/,
+      );
+    });
+
+    it('should error if @content block has multiple parameters', () => {
+      expect(() => parse(`@content(icon, text) {}`)).toThrowError(
+        /@content block must have exactly one name parameter/,
+      );
+    });
+
+    it('should parse a valid @content block with variables', () => {
+      expectFromHtml(`
+        @content(icon; let a, b) {
+          <span>Icon content</span>
+        }
+      `).toEqual([
+        ['ContentBlock', 'icon'],
+        ['Variable', 'a', ''],
+        ['Variable', 'b', ''],
+        ['Element', 'span'],
+        ['Text', 'Icon content'],
+      ]);
+    });
+
+    it('should error if a variable is assigned a value', () => {
+      expect(() => parse(`@content(icon; let a = 123) {}`)).toThrowError(
+        /@content block variables cannot be assigned a value/,
+      );
+      expect(() => parse(`@content(icon; let a, b = something) {}`)).toThrowError(
+        /@content block variables cannot be assigned a value/,
+      );
+    });
+
+    it('should error on invalid variable name', () => {
+      expect(() => parse(`@content(icon; let inv-alid) {}`)).toThrowError(
+        /Variable name "inv-alid" must be a valid JavaScript identifier/,
+      );
+      expect(() => parse(`@content(icon; let a, inv-alid) {}`)).toThrowError(
+        /Variable name "inv-alid" must be a valid JavaScript identifier/,
+      );
+    });
   });
 });

@@ -7,7 +7,6 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "LICENSE",
-    "karma-js.conf.js",
     "package.json",
 ])
 
@@ -23,7 +22,7 @@ filegroup(
 )
 
 validate_ts_version_matching(
-    module_lock_file = "MODULE.bazel.lock",
+    module_bazel = "MODULE.bazel",
     package_json = "package.json",
 )
 

@@ -7,27 +7,27 @@
  */
 
 import {
-  Injectable,
   InjectionToken,
   Provider,
+  Service,
   debounced,
   inject,
   linkedSignal,
   resource,
   signal,
 } from '@angular/core';
-import {ENVIRONMENT} from '../providers/index';
-import type {Environment, SearchResult, SearchResultItem, SnippetResult} from '../interfaces/index';
 import {
-  LiteClient,
-  liteClient as algoliasearch,
-  SearchResponses,
   SearchResult as AlgoliaSearchResult,
+  LiteClient,
+  SearchResponses,
+  liteClient as algoliasearch,
 } from 'algoliasearch/lite';
+import type {Environment, SearchResult, SearchResultItem, SnippetResult} from '../interfaces/index';
+import {ENVIRONMENT} from '../providers/index';
 
-export const SEARCH_DELAY = 200;
+const SEARCH_DELAY = 200;
 // Maximum number of facet values to return for each facet during a regular search.
-export const MAX_VALUE_PER_FACET = 5;
+const MAX_VALUE_PER_FACET = 5;
 
 export const ALGOLIA_CLIENT: InjectionToken<LiteClient> = new InjectionToken<LiteClient>(
   'Search service',
@@ -40,9 +40,7 @@ export const provideAlgoliaSearchClient = (config: Environment): Provider => {
   };
 };
 
-@Injectable({
-  providedIn: 'root',
-})
+@Service()
 export class Search {
   readonly searchQuery = signal('');
 
@@ -59,6 +57,20 @@ export class Search {
   readonly searchResults = linkedSignal<SearchResultItem[] | undefined, SearchResultItem[]>({
     source: this.resultsResource.value,
     computation: (next, prev) => (!next && this.searchQuery() ? prev?.value : next) ?? [],
+  });
+
+  readonly emptyState = linkedSignal<{query: string; pending: boolean}, 'start' | 'no-results'>({
+    source: () => ({
+      query: this.searchQuery(),
+      pending:
+        this.searchQuery() !== this.debounceParams.value() || this.resultsResource.isLoading(),
+    }),
+    computation: ({query, pending}, prev) => {
+      if (!query) {
+        return 'start';
+      }
+      return pending ? (prev?.value ?? 'start') : 'no-results';
+    },
   });
 
   private getUniqueSearchResultItems(items: SearchResult[]): SearchResult[] {

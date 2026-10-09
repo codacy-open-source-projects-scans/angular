@@ -18,6 +18,7 @@ export * from './src/perform_compile';
 // TODO(tbosch): remove this once usages in G3 are changed to `CompilerOptions`
 export {CompilerOptions as AngularCompilerOptions} from './src/transformers/api';
 
+// 3p-only-start
 // Internal exports needed for packages relying on the compiler-cli.
 // TODO: Remove this when the CLI has switched to the private entry-point.
 export * from './private/tooling';
@@ -27,6 +28,7 @@ export * from './private/hybrid_analysis';
 // Exposed as they are needed for relying on the `linker`.
 export * from './src/ngtsc/logging';
 export * from './src/ngtsc/file_system';
+// 3p-only-end
 
 // Exports for dealing with the `ngtsc` program.
 export {NgTscPlugin, PluginCompilerHost} from './src/ngtsc/tsc_plugin';
@@ -61,7 +63,7 @@ export {
 } from './src/ngtsc/reflection';
 export {isFatalDiagnosticError} from './src/ngtsc/diagnostics';
 export {PerfPhase} from './src/ngtsc/perf';
-export {type FileUpdate, type ProgramDriver} from './src/ngtsc/program_driver';
+export {type FileUpdate, InliningMode, type ProgramDriver} from './src/ngtsc/program_driver';
 export {TrackedIncrementalBuildStrategy} from './src/ngtsc/incremental';
 export {isShim} from './src/ngtsc/shims';
 export {getRootDirs} from './src/ngtsc/util/src/typescript';

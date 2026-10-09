@@ -36,8 +36,9 @@
 
 version: 3
 
-#availability:
-#  users_unavailable: []
+availability:
+  users_unavailable:
+    - devversion
 
 # Meta field that goes unused by PullApprove to allow for defining aliases to be
 # used throughout the config.
@@ -99,11 +100,11 @@ groups:
     reviewers:
       users:
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - atscott
         - crisbeto
         - devversion
-        - thePunderWoman
+        - ~thePunderWoman
         - kirjs
         - JoostK
         - ~amishne
@@ -119,6 +120,7 @@ groups:
     conditions:
       - >
         contains_any_globs(files.exclude('packages/core/primitives/*'), [
+          '.agent/skills/**/{*,.*}',
           'contributing-docs/public-api-surface.md',
           'dev-app/**/{*,.*}',
           'integration/**/{*,.*}',
@@ -136,6 +138,7 @@ groups:
           'packages/platform-browser/**/{*,.*}',
           'packages/platform-browser-dynamic/**/{*,.*}',
           'packages/platform-server/**/{*,.*}',
+          'packages/private/**/{*,.*}',
           'packages/ssr/**/{*,.*}',
           'packages/router/**/{*,.*}',
           'packages/service-worker/**/{*,.*}',
@@ -145,12 +148,12 @@ groups:
     reviewers:
       users:
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - atscott
         - crisbeto
         - devversion
         - kirjs
-        - thePunderWoman
+        - ~thePunderWoman
         - ~pkozlowski-opensource
         - JeanMeche
         - ~amishne
@@ -200,12 +203,13 @@ groups:
       users:
         - ~JiaLiPassion
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - atscott
         - crisbeto
         - devversion
         - kirjs
-        - thePunderWoman
+        - alan-agius4
+        - ~thePunderWoman
         - ~pkozlowski-opensource
         - ~amishne
         - ~leonsenft
@@ -250,13 +254,13 @@ groups:
       users:
         - alan-agius4
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - atscott
         - bencodezen
         - crisbeto
         - kirjs
         - JeanMeche
-        - thePunderWoman
+        - ~thePunderWoman
         - devversion
         - josephperrott
         - ~pkozlowski-opensource
@@ -282,13 +286,14 @@ groups:
     reviewers:
       users:
         - AleksanderBodurri
+        - csmick
         - ~devversion
         - dgp1130
+        - eduhmc
         - hawkgs
-        - hybrist
-        - ~josephperrott
         - JeanMeche
-        - milomg
+        - ~josephperrott
+        - ~milomg
 
   # =========================================================
   #  Dev-infra
@@ -298,9 +303,10 @@ groups:
     conditions:
       - >
         contains_any_globs(files
-            .exclude('.pullapprove.yml') 
+            .exclude('.pullapprove.yml')
             .exclude('tools/manual_api_docs/blocks/*.md')
-            .exclude('tools/manual_api_docs/elements/*.md'),
+            .exclude('tools/manual_api_docs/elements/*.md')
+            .exclude('.agent/**/*.md'),
         [
           '{*,.*}',
           '.agent/**/{*,.*}',
@@ -317,7 +323,6 @@ groups:
           'modules/{*,.*}',
           'packages/{*,.*}',
           'packages/examples/test-utils/**/{*,.*}',
-          'packages/private/**/{*,.*}',
           'packages/examples/{*,.*}',
           'scripts/**/{*,.*}',
           'third_party/**/{*,.*}',
@@ -369,10 +374,10 @@ groups:
         ])
     reviewers:
       users:
-        - AndrewKushnir
+        - ~AndrewKushnir
         - ~alxhub
         - atscott
-        - thePunderWoman
+        - ~thePunderWoman
         - ~pkozlowski-opensource
         - kirjs
         - crisbeto
@@ -405,10 +410,11 @@ groups:
     reviewers:
       users:
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - atscott
         - kirjs
-        - thePunderWoman
+        - JeanMeche
+        - ~thePunderWoman
         - ~pkozlowski-opensource
         - ~amishne
         - ~leonsenft
@@ -453,10 +459,10 @@ groups:
     reviewers:
       users:
         - ~alxhub
-        - AndrewKushnir
+        - ~AndrewKushnir
         - andrewseguin
         - dgp1130
-        - thePunderWoman
+        - ~thePunderWoman
         - josephperrott
 
   # =========================================================
@@ -475,26 +481,12 @@ groups:
       users:
         - ~pkozlowski-opensource # Pawel Kozlowski
         - ~alxhub # Alex Rickabaugh
-        - thePunderWoman # Jessica Janiuk
-        - AndrewKushnir # Andrew Kushnir
+        - ~thePunderWoman # Jessica Janiuk
+        - ~AndrewKushnir # Andrew Kushnir
         - atscott # Andrew Scott
-
-  # External team required reviews
-  primitives-shared:
-    <<: *defaults
-    conditions:
-      - >
-        contains_any_globs(files.exclude('packages/core/primitives/**/*spec.ts'), [
-          'packages/core/primitives/**/{*,.*}',
-        ])
-    reviewers:
-      users:
-        - csmick # Cameron Smick
-        - mturco # Matt Turco
-        - iteriani # Thomas Nguyen
-        - tbondwilkinson # Tom Wilkinson
         - rahatarmanahmed # Rahat Ahmed
-        - ENAML # Ethan Cline
+        - e-cline # Ethan Cline
+        - rockymeza # Rocky Meza
 
   ####################################################################################
   # Override managed result groups

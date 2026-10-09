@@ -21,8 +21,7 @@ import {
 import {ProfilerEvent} from '../../primitives/devtools';
 import {ZONELESS_ENABLED} from '../change_detection/scheduling/zoneless_scheduling';
 import {Console} from '../console';
-import {inject} from '../di';
-import {Injectable} from '../di/injectable';
+import {inject, Service} from '../di';
 import {InjectionToken} from '../di/injection_token';
 import {Injector} from '../di/injector';
 import {EnvironmentInjector, type R3Injector} from '../di/r3_injector';
@@ -39,6 +38,7 @@ import {ComponentFactory} from '../render3/component_ref';
 import {getComponentDef, isStandalone} from '../render3/def_getters';
 import type {Binding, DirectiveWithBindings} from '../render3/dynamic_bindings';
 import {ChangeDetectionMode, detectChangesInternal} from '../render3/instructions/change_detection';
+import {getDeclarationComponentDef} from '../render3/instructions/element_validation';
 import {profiler} from '../render3/profiler';
 import {isReactiveLViewConsumer} from '../render3/reactive_lview_consumer';
 import {EffectScheduler} from '../render3/reactivity/root_effect_scheduler';
@@ -72,14 +72,24 @@ export function publishDefaultGlobalUtils() {
  * Sets the error for an invalid write to a signal to be an Angular `RuntimeError`.
  */
 export function publishSignalConfiguration(): void {
-  setThrowInvalidWriteToSignalError(() => {
+  setThrowInvalidWriteToSignalError((node) => {
     let errorMessage = '';
     if (ngDevMode) {
       const activeConsumer = getActiveConsumer();
-      errorMessage =
-        activeConsumer && isReactiveLViewConsumer(activeConsumer)
-          ? 'Writing to signals is not allowed while Angular renders the template (eg. interpolations)'
-          : 'Writing to signals is not allowed in a `computed`';
+      if (activeConsumer && isReactiveLViewConsumer(activeConsumer)) {
+        errorMessage =
+          'Writing to signals is not allowed while Angular renders the template (eg. interpolations)';
+        const componentName =
+          activeConsumer.lView && getDeclarationComponentDef(activeConsumer.lView)?.type?.name;
+        if (componentName) {
+          errorMessage += `. Template location: '${componentName}' component`;
+        }
+      } else {
+        errorMessage = 'Writing to signals is not allowed in a `computed`';
+      }
+      if (node.debugName) {
+        errorMessage += `. Signal: '${node.debugName}'`;
+      }
     }
     throw new RuntimeError(RuntimeErrorCode.SIGNAL_WRITE_FROM_ILLEGAL_CONTEXT, errorMessage);
   });
@@ -251,7 +261,7 @@ export function optionsReducer<T extends Object>(dst: T, objs: T | T[]): T {
  *
  * @publicApi
  */
-@Injectable({providedIn: 'root'})
+@Service()
 export class ApplicationRef {
   /** @internal */
   _runningTick: boolean = false;

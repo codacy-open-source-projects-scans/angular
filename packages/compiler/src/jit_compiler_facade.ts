@@ -21,6 +21,7 @@ import {
   R3DeclareFactoryFacade,
   R3DeclareInjectableFacade,
   R3DeclareInjectorFacade,
+  R3DeclareNgModuleDependencyFacade,
   R3DeclareNgModuleFacade,
   R3DeclarePipeDependencyFacade,
   R3DeclarePipeFacade,
@@ -47,6 +48,7 @@ import {
   ViewEncapsulation,
 } from './core';
 import {compileInjectable} from './injectable_compiler_2';
+import {LEGACY_OPTIONAL_CHAINING_DEFAULT} from './legacy_optional_chaining_default';
 import {
   DeclareVarStmt,
   Expression,
@@ -86,6 +88,7 @@ import {
   R3DirectiveMetadata,
   R3HostMetadata,
   R3InputMetadata,
+  R3NgModuleDependencyMetadata,
   R3PipeDependencyMetadata,
   R3QueryMetadata,
   R3TemplateDependency,
@@ -359,6 +362,8 @@ export class CompilerFacadeImpl implements CompilerFacade {
       relativeContextFilePath: '',
       i18nUseExternalIds: true,
       relativeTemplatePath: null,
+      foreignImports: null,
+      enableTemplateSourceLocations: false,
     };
     const jitExpressionSourceMap = `ng:///${facade.name}.js`;
     return this.compileComponentFromMeta(angularCoreEnv, jitExpressionSourceMap, meta);
@@ -516,7 +521,7 @@ function convertDirectiveFacadeToMetadata(facade: R3DirectiveMetadataFacade): R3
   const inputsFromType: Record<string, R3InputMetadata> = {};
   const outputsFromType: Record<string, string> = {};
   for (const field in propMetadata) {
-    if (propMetadata.hasOwnProperty(field)) {
+    if (Object.hasOwn(propMetadata, field)) {
       propMetadata[field].forEach((ann) => {
         if (isInput(ann)) {
           inputsFromType[field] = {
@@ -609,7 +614,7 @@ function convertDeclareDirectiveFacadeToMetadata(
       declaration.isStandalone ?? getJitStandaloneDefaultForVersion(declaration.version),
     isSignal: declaration.isSignal ?? false,
     hostDirectives,
-    legacyOptionalChaining: declaration.legacyOptionalChaining ?? false,
+    legacyOptionalChaining: declaration.legacyOptionalChaining ?? LEGACY_OPTIONAL_CHAINING_DEFAULT,
   };
 }
 
@@ -676,6 +681,9 @@ function convertDeclareComponentFacadeToMetadata(
         case 'pipe':
           declarations.push(convertPipeDeclarationToMetadata(innerDep));
           break;
+        case 'ngmodule':
+          declarations.push(convertNgModuleDeclarationToMetadata(innerDep));
+          break;
       }
     }
   } else if (decl.components || decl.directives || decl.pipes) {
@@ -715,7 +723,9 @@ function convertDeclareComponentFacadeToMetadata(
     i18nUseExternalIds: true,
     relativeTemplatePath: null,
     hasDirectiveDependencies,
-    legacyOptionalChaining: decl.legacyOptionalChaining ?? false,
+    legacyOptionalChaining: decl.legacyOptionalChaining ?? LEGACY_OPTIONAL_CHAINING_DEFAULT,
+    foreignImports: null,
+    enableTemplateSourceLocations: false,
   };
 }
 
@@ -769,6 +779,15 @@ function convertPipeDeclarationToMetadata(
   };
 }
 
+function convertNgModuleDeclarationToMetadata(
+  ngModule: R3DeclareNgModuleDependencyFacade,
+): R3NgModuleDependencyMetadata {
+  return {
+    kind: R3TemplateDependencyKind.NgModule,
+    type: new WrappedNodeExpr(ngModule.type),
+  };
+}
+
 function parseJitTemplate(
   template: string,
   typeName: string,
@@ -803,7 +822,7 @@ function convertToProviderExpression(
   obj: any,
   property: string,
 ): MaybeForwardRefExpression | undefined {
-  if (obj.hasOwnProperty(property)) {
+  if (Object.hasOwn(obj, property)) {
     return createMayBeForwardRefExpression(
       new WrappedNodeExpr(obj[property]),
       ForwardRefHandling.None,
@@ -814,7 +833,7 @@ function convertToProviderExpression(
 }
 
 function wrapExpression(obj: any, property: string): WrappedNodeExpr<any> | undefined {
-  if (obj.hasOwnProperty(property)) {
+  if (Object.hasOwn(obj, property)) {
     return new WrappedNodeExpr(obj[property]);
   } else {
     return undefined;
@@ -907,15 +926,9 @@ function extractHostBindings(
   // First parse the declarations from the metadata.
   const bindings = parseHostBindings(host || {});
 
-  // After that check host bindings for errors
-  const errors = verifyHostBindings(bindings, sourceSpan);
-  if (errors.length) {
-    throw new Error(errors.map((error: ParseError) => error.msg).join('\n'));
-  }
-
   // Next, loop over the properties of the object, looking for @HostBinding and @HostListener.
   for (const field in propMetadata) {
-    if (propMetadata.hasOwnProperty(field)) {
+    if (Object.hasOwn(propMetadata, field)) {
       propMetadata[field].forEach((ann) => {
         if (isHostBinding(ann)) {
           // Since this is a decorator, we know that the value is a class member. Always access it
@@ -930,6 +943,12 @@ function extractHostBindings(
         }
       });
     }
+  }
+
+  // After that check host bindings for errors
+  const errors = verifyHostBindings(bindings, sourceSpan);
+  if (errors.length) {
+    throw new Error(errors.map((error: ParseError) => error.msg).join('\n'));
   }
 
   return bindings;

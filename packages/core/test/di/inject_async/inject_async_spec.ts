@@ -28,6 +28,7 @@ import {
 import {TestBed} from '@angular/core/testing';
 import {IDLE_SERVICE, IdleService} from '../../../src/defer/idle_service';
 import {injectAsync} from '../../../src/di/inject_async';
+import DefaultExportedFooService from './test_service';
 
 describe('injectAsync', () => {
   it('should inject asynchronously', async () => {
@@ -48,16 +49,20 @@ describe('injectAsync', () => {
     });
   });
 
+  it('should inject asynchronously from a default import shape', async () => {
+    await TestBed.runInInjectionContext(async () => {
+      const foo = await injectAsync(() => import('./test_service'))();
+      expect(foo).toBeInstanceOf(DefaultExportedFooService);
+    });
+  });
+
   it('should inject asynchronously with custom prefetch', async () => {
     TestBed.configureTestingModule({
       providers: [{provide: FooService, useClass: MyMockedFooService}],
     });
 
     await TestBed.runInInjectionContext(async () => {
-      let prefetchResolve!: () => void;
-      const prefetchPromise = new Promise<void>((resolve) => {
-        prefetchResolve = resolve;
-      });
+      const {promise: prefetchPromise, resolve: prefetchResolve} = Promise.withResolvers<void>();
 
       let prefetchCalled = false;
       const loader = () => {
@@ -292,5 +297,40 @@ describe('injectAsync', () => {
     });
 
     jasmine.clock().uninstall();
+  });
+
+  it('should not cause an unhandled promise rejection if prefetch trigger rejects', async () => {
+    await TestBed.runInInjectionContext(async () => {
+      const fooPromise = injectAsync(() => Promise.resolve(FooService), {
+        prefetch: () => Promise.reject(new Error('prefetch error')),
+      });
+
+      await Promise.resolve();
+
+      const foo = await fooPromise();
+      expect(foo).toBeInstanceOf(FooService);
+    });
+  });
+
+  it('should not cause an unhandled promise rejection if loader rejects during prefetch', async () => {
+    await TestBed.runInInjectionContext(async () => {
+      const fooPromise = injectAsync(() => Promise.reject(new Error('loader error')), {
+        prefetch: () => Promise.resolve(),
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      let error!: Error;
+      try {
+        await fooPromise();
+      } catch (e: any) {
+        error = e;
+      }
+
+      expect(error).toBeDefined();
+      expect(error.message).toBe('loader error');
+    });
   });
 });

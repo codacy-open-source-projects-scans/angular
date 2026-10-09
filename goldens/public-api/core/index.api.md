@@ -48,7 +48,7 @@ export function afterNextRender<E = never, W = never, M = never>(spec: {
 export function afterNextRender(callback: VoidFunction, options?: AfterRenderOptions): AfterRenderRef;
 
 // @public
-export function afterRenderEffect(callback: (onCleanup: EffectCleanupRegisterFn) => void, options?: AfterRenderOptions): AfterRenderRef;
+export function afterRenderEffect(callback: (onCleanup: EffectCleanupRegisterFn) => void, options?: AfterRenderEffectOptions): AfterRenderRef;
 
 // @public
 export function afterRenderEffect<E = never, W = never, M = never>(spec: {
@@ -56,7 +56,12 @@ export function afterRenderEffect<E = never, W = never, M = never>(spec: {
     write?: (...args: [...ɵFirstAvailableSignal<[E]>, EffectCleanupRegisterFn]) => W;
     mixedReadWrite?: (...args: [...ɵFirstAvailableSignal<[W, E]>, EffectCleanupRegisterFn]) => M;
     read?: (...args: [...ɵFirstAvailableSignal<[M, W, E]>, EffectCleanupRegisterFn]) => void;
-}, options?: AfterRenderOptions): AfterRenderRef;
+}, options?: AfterRenderEffectOptions): AfterRenderRef;
+
+// @public
+export interface AfterRenderEffectOptions extends AfterRenderOptions {
+    debugName?: string;
+}
 
 // @public
 export interface AfterRenderOptions {
@@ -80,7 +85,7 @@ export interface AfterViewInit {
 }
 
 // @public
-export const ANIMATION_MODULE_TYPE: InjectionToken<"NoopAnimations" | "BrowserAnimations">;
+export const ANIMATION_MODULE_TYPE: InjectionToken<"BrowserAnimations" | "NoopAnimations">;
 
 // @public
 export type AnimationCallbackEvent = {
@@ -115,7 +120,7 @@ export class ApplicationInitStatus {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<ApplicationInitStatus, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<ApplicationInitStatus>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public
@@ -155,7 +160,7 @@ export class ApplicationRef {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<ApplicationRef, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<ApplicationRef>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public (undocumented)
@@ -189,6 +194,7 @@ export interface AttributeDecorator {
 export interface BaseResourceOptions<T, R> {
     defaultValue?: NoInfer<T>;
     equal?: ValueEqualityFn<T>;
+    id?: string;
     injector?: Injector;
     params?: (ctx: ResourceParamsContext) => R;
 }
@@ -249,7 +255,7 @@ export class Compiler {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<Compiler, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<Compiler>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public
@@ -434,6 +440,7 @@ export function createComponent<C>(component: Type<C>, options: {
     projectableNodes?: Node[][];
     directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[];
     bindings?: Binding[];
+    onError?: (error: Error, details: ErrorDetails) => void;
 }): ComponentRef<C>;
 
 // @public
@@ -540,7 +547,15 @@ export class DebugNode {
 }
 
 // @public
+export function declareExperimentalWebMcpTool<const InputSchema extends JsonSchemaForInference>(tool: WebMcpToolDescriptor<InputSchema>, injector?: Injector): Promise<void>;
+
+// @public
 export const DEFAULT_CURRENCY_CODE: InjectionToken<string>;
+
+// @public
+export interface DefaultExport<T> {
+    default: T;
+}
 
 // @public @deprecated (undocumented)
 export class DefaultIterableDiffer<V> implements IterableDiffer<V>, IterableChanges<V> {
@@ -701,9 +716,21 @@ export type EnvironmentProviders = {
 };
 
 // @public
+export interface ErrorDetails {
+    readonly boundary?: {
+        readonly type: Type<unknown>;
+        readonly reset: () => void;
+    };
+    readonly caughtBy?: Function;
+    readonly declarationInstance: unknown;
+    readonly declarationType: Type<unknown>;
+}
+
+// @public
 export class ErrorHandler {
     // (undocumented)
     handleError(error: any): void;
+    onViewError?(error: Error, details: ErrorDetails): void;
 }
 
 // @public
@@ -910,6 +937,9 @@ export interface InjectableType<T> extends Type<T> {
 // @public
 export function injectAsync<T>(loader: () => Promise<ProviderToken<T>>, options?: InjectAsyncOptions): () => Promise<T>;
 
+// @public (undocumented)
+export function injectAsync<T>(loader: () => Promise<DefaultExport<ProviderToken<T>>>, options?: InjectAsyncOptions): () => Promise<T>;
+
 // @public
 export interface InjectAsyncOptions {
     prefetch?: PrefetchTrigger;
@@ -1017,6 +1047,8 @@ export interface InputFunction {
     <T>(initialValue: undefined, opts: InputOptionsWithoutTransform<T>): InputSignal<T | undefined>;
     <T, TransformT>(initialValue: T, opts: InputOptionsWithTransform<T, TransformT>): InputSignalWithTransform<T, TransformT>;
     <T, TransformT>(initialValue: undefined, opts: InputOptionsWithTransform<T | undefined, TransformT>): InputSignalWithTransform<T | undefined, TransformT>;
+    <T>(initialValue: T, opts: InputOptionsWithTransform<T, unknown>): InputSignalWithTransform<T, unknown>;
+    <T>(initialValue: undefined, opts: InputOptionsWithTransform<T | undefined, unknown>): InputSignalWithTransform<T | undefined, unknown>;
     required: {
         <T>(opts?: InputOptionsWithoutTransform<T>): InputSignal<T>;
         <T, TransformT>(opts: InputOptionsWithTransform<T, TransformT>): InputSignalWithTransform<T, TransformT>;
@@ -1154,6 +1186,7 @@ export class KeyValueDiffers {
 export function linkedSignal<D>(computation: () => D, options?: {
     equal?: ValueEqualityFn<NoInfer<D>>;
     debugName?: string;
+    set?: (value: NoInfer<D>, rawSet: (value: NoInfer<D>) => void) => void;
 }): WritableSignal<D>;
 
 // @public
@@ -1165,6 +1198,7 @@ export function linkedSignal<S, D>(options: {
     }) => D;
     equal?: ValueEqualityFn<NoInfer<D>>;
     debugName?: string;
+    set?: (value: NoInfer<D>, rawSet: (value: NoInfer<D>) => void) => void;
 }): WritableSignal<D>;
 
 // @public
@@ -1450,7 +1484,7 @@ export class PlatformRef {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<PlatformRef, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<PlatformRef>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public
@@ -1484,6 +1518,9 @@ export function provideCheckNoChangesConfig(options: {
 
 // @public
 export function provideEnvironmentInitializer(initializerFn: () => void): EnvironmentProviders;
+
+// @public
+export function provideExperimentalWebMcpTools<const InputSchema extends JsonSchemaForInference>(tools: WebMcpToolDescriptor<InputSchema>[]): EnvironmentProviders;
 
 // @public
 export function provideIdleServiceWith(useExisting: AbstractType<IdleService> | InjectionToken<IdleService>): EnvironmentProviders;
@@ -1671,7 +1708,7 @@ export interface ResourceLoaderParams<R> {
     };
 }
 
-// @public (undocumented)
+// @public
 export type ResourceOptions<T, R> = (PromiseResourceOptions<T, R> | StreamingResourceOptions<T, R>) & {
     debugName?: string;
 };
@@ -1717,7 +1754,7 @@ export type ResourceStatus = 'idle' | 'error' | 'loading' | 'reloading' | 'resol
 // @public
 export type ResourceStreamingLoader<T, R> = (param: ResourceLoaderParams<R>) => Signal<ResourceStreamItem<T>> | PromiseLike<Signal<ResourceStreamItem<T>>> | undefined;
 
-// @public (undocumented)
+// @public
 export type ResourceStreamItem<T> = {
     value: T;
 } | {
@@ -1752,6 +1789,8 @@ export interface SchemaMetadata {
 
 // @public
 export enum SecurityContext {
+    // (undocumented)
+    ATTRIBUTE_NO_BINDING = 6,
     // (undocumented)
     HTML = 1,
     // (undocumented)
@@ -1792,12 +1831,15 @@ export const Service: ServiceDecorator;
 // @public
 export interface ServiceDecorator {
     (): TypeDecorator;
-    (options?: {
+    (options: {
         autoProvided: false;
     }): TypeDecorator;
+    <T>(options: {
+        autoProvided?: true;
+        factory: () => T;
+    }): <C extends Type<unknown> | AbstractType<unknown>>(target: C) => C extends Type<unknown> ? Type<T> : abstract new (...args: any[]) => T;
     (options?: {
         autoProvided?: true;
-        factory?: () => unknown;
     }): TypeDecorator;
 }
 
@@ -1889,7 +1931,7 @@ export class Testability implements PublicTestability {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<Testability, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<Testability>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public
@@ -1904,7 +1946,7 @@ export class TestabilityRegistry {
     // (undocumented)
     static ɵfac: ɵɵFactoryDeclaration<TestabilityRegistry, never>;
     // (undocumented)
-    static ɵprov: ɵɵInjectableDeclaration<TestabilityRegistry>;
+    static ɵprov: ɵɵInjectableDeclaration<any>;
 }
 
 // @public
@@ -2074,10 +2116,12 @@ export abstract class ViewContainerRef {
         projectableNodes?: Node[][];
         directives?: (Type<unknown> | DirectiveWithBindings<unknown>)[];
         bindings?: Binding[];
+        onError?: (error: Error, context: ErrorDetails) => void;
     }): ComponentRef<C>;
     abstract createEmbeddedView<C>(templateRef: TemplateRef<C>, context?: C, options?: {
         index?: number;
         injector?: Injector;
+        onError?: (error: Error, details: ErrorDetails) => void;
     }): EmbeddedViewRef<C>;
     abstract createEmbeddedView<C>(templateRef: TemplateRef<C>, context?: C, index?: number): EmbeddedViewRef<C>;
     abstract detach(index?: number): ViewRef | null;
@@ -2107,6 +2151,23 @@ export abstract class ViewRef extends ChangeDetectorRef {
     abstract get destroyed(): boolean;
     abstract onDestroy(callback: Function): void;
 }
+
+// @public
+export interface WebMcpClient {
+    signal: AbortSignal;
+}
+
+// @public
+export interface WebMcpToolDescriptor<InputSchema extends JsonSchemaForInference> {
+    annotations?: Annotations;
+    description: string;
+    execute: WebMcpToolExecute<InputSchema>;
+    inputSchema: InputSchema;
+    name: string;
+}
+
+// @public
+export type WebMcpToolExecute<InputSchema extends JsonSchemaForInference> = (args: InferArgsFromInputSchema<InputSchema>, client: WebMcpClient) => unknown;
 
 // @public
 export interface WritableResource<T> extends Resource<T> {

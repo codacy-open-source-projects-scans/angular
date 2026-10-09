@@ -7,20 +7,26 @@
  */
 
 import {
-  DirectiveMeta as T2DirectiveMeta,
-  Expression,
-  SchemaMetadata,
-  ExternalReference,
-  MatchSource,
-  ClassPropertyName,
-  InputOrOutput,
   ClassPropertyMapping,
+  ClassPropertyName,
+  Expression,
+  ExternalReference,
+  InputOrOutput,
+  MatchSource,
+  SchemaMetadata,
+  DirectiveMeta as T2DirectiveMeta,
+  ForeignComponentMeta as T2ForeignComponentMeta,
   TemplateGuardMeta,
 } from '@angular/compiler';
 import ts from 'typescript';
 
 import {Reference} from '../../imports';
 import {ClassDeclaration} from '../../reflection';
+
+/** Metadata for a resolved foreign component import. */
+export interface ForeignComponentMeta extends T2ForeignComponentMeta {
+  rawExpression: ts.Expression;
+}
 
 /**
  * Metadata collected for an `NgModule`.
@@ -251,6 +257,14 @@ export interface DirectiveMeta extends T2DirectiveMeta, DirectiveTypeCheckMeta {
   imports: Reference<ClassDeclaration>[] | null;
 
   /**
+   * For standalone components, the list of imported foreign components.
+   *
+   * Note that while a foreign import is not likely to be a class, this type is used
+   * because it includes the expected identifier we'll need, making further code simpler.
+   */
+  foreignImports: ForeignComponentMeta[] | null;
+
+  /**
    * Node declaring the `imports` of a standalone component. Used to produce diagnostics.
    */
   rawImports: ts.Expression | null;
@@ -260,6 +274,11 @@ export interface DirectiveMeta extends T2DirectiveMeta, DirectiveTypeCheckMeta {
    * in `@defer` blocks (when only explicit dependencies are allowed).
    */
   deferredImports: Reference<ClassDeclaration>[] | null;
+
+  /**
+   * Map of block name -> resolved deferred imports when `deferredImports` is an object literal.
+   */
+  deferredImportsByBlock?: Map<string, Reference<ClassDeclaration>[]> | null;
 
   /**
    * For standalone components, the list of schemas declared.
@@ -286,6 +305,12 @@ export interface DirectiveMeta extends T2DirectiveMeta, DirectiveTypeCheckMeta {
    * scope via `@Component.deferredImports` field.
    */
   isExplicitlyDeferred: boolean;
+
+  /**
+   * Block names in `@Component.deferredImports` under which this class was imported,
+   * if `deferredImports` was configured as an object literal. `null` if flat array.
+   */
+  deferredBlocks?: Set<string> | null;
 
   /** Whether selectorless is enabled for the specific component. */
   selectorlessEnabled: boolean;
@@ -345,6 +370,7 @@ export interface PipeMeta {
   isPure: boolean;
   decorator: ts.Decorator | null;
   isExplicitlyDeferred: boolean;
+  deferredBlocks?: Set<string> | null;
 }
 
 /**

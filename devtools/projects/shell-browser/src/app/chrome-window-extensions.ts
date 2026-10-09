@@ -12,10 +12,10 @@ import {
   getInjectorFromElementNode,
   findNodeFromSerializedPosition,
   queryDirectiveForest,
-} from '../../../ng-devtools-backend/src/lib/component-tree/component-tree';
+} from '../../../ng-devtools-backend/src/lib/directive-forest/component-tree/component-tree';
 
 import {ElementPosition, SignalNodePosition} from '../../../protocol';
-import {ngDebugClient} from '../../../ng-devtools-backend/src/lib/ng-debug-api/ng-debug-api';
+import {ngDebugClient} from '../../../ng-devtools-backend/src/lib/shared/ng-debug-api/ng-debug-api';
 
 export const initializeExtendedWindowOperations = () => {
   extendWindowOperations(globalThis, {inspectedApplication: chromeWindowExtensions});
@@ -74,7 +74,7 @@ const chromeWindowExtensions = {
       console.error(`Cannot find element associated with node ${element}`);
       return undefined;
     }
-    const injector = getInjectorFromElementNode(node.nativeElement!);
+    const injector = node.injector ?? getInjectorFromElementNode(node.nativeElement!);
     if (!injector) {
       return;
     }

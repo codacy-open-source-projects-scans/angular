@@ -19,6 +19,7 @@ import {
   SchemaMetadata,
   TmplAstDeferredBlock,
   ClassPropertyMapping,
+  SelectorlessMatcher,
 } from '@angular/compiler';
 import ts from 'typescript';
 
@@ -26,9 +27,11 @@ import {Reference} from '../../../imports';
 import {
   DirectiveResources,
   DirectiveTypeCheckMeta,
+  ForeignComponentMeta,
   HostDirectiveMeta,
   InputMapping,
 } from '../../../metadata';
+export {ForeignComponentMeta} from '../../../metadata';
 import {ClassDeclaration, Import} from '../../../reflection';
 import {SubsetOfKeys} from '../../../util/src/typescript';
 
@@ -92,13 +95,16 @@ export interface ComponentAnalysisData {
 
   rawImports: ts.Expression | null;
   resolvedImports: Reference<ClassDeclaration>[] | null;
+  foreignImports: ForeignComponentMeta[] | null;
   rawDeferredImports: ts.Expression | null;
   resolvedDeferredImports: Reference<ClassDeclaration>[] | null;
+  resolvedDeferredImportsByBlock?: Map<string, Reference<ClassDeclaration>[]> | null;
 
   /**
    * Map of symbol name -> import path for types from `@Component.deferredImports` field.
    */
   explicitlyDeferredTypes: R3DeferPerComponentDependency[] | null;
+  explicitlyDeferredTypesByBlock?: Map<string, R3DeferPerComponentDependency[]> | null;
 
   schemas: SchemaMetadata[] | null;
 

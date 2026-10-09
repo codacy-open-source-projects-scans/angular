@@ -79,6 +79,7 @@ export interface TcbPipeMetadata {
   name: string;
   ref: TcbReferenceMetadata;
   isExplicitlyDeferred: boolean;
+  deferredBlocks?: Set<string> | null;
 }
 
 /**
@@ -109,6 +110,7 @@ export interface TcbDirectiveMetadata {
   isStructural: boolean;
   isStandalone: boolean;
   isExplicitlyDeferred: boolean;
+  deferredBlocks?: Set<string> | null;
   preserveWhitespaces: boolean;
   exportAs: string[] | null;
   matchSource: MatchSource;
@@ -204,6 +206,12 @@ export interface TypeCheckingConfig {
   checkTypeOfDomEvents: boolean;
 
   /**
+   * Whether to report event bindings on elements with matched directives whose name matches
+   * neither an output of the matched directives nor a known native DOM event.
+   */
+  checkUnclaimedEventNames: boolean;
+
+  /**
    * Whether to infer the type of local references to DOM elements.
    */
   checkTypeOfDomReferences: boolean;
@@ -245,11 +253,6 @@ export interface TypeCheckingConfig {
   alwaysCheckSchemaInTemplateBodies: boolean;
 
   /**
-   * Whether to check resolvable queries.
-   */
-  checkQueries: false;
-
-  /**
    * Whether to check if control flow syntax will prevent a node from being projected.
    */
   controlFlowPreventingContentProjection: 'error' | 'warning' | 'suppress';
@@ -288,4 +291,9 @@ export interface TypeCheckingConfig {
    * Whether to descend into the bodies of control flow blocks (`@if`, `@switch` and `@for`).
    */
   checkControlFlowBodies: boolean;
+
+  /**
+   * Whether to validate unknown element tags even when matched by attribute directives.
+   */
+  checkUnknownElements: boolean;
 }

@@ -23,10 +23,12 @@ import {
   CHILD_TAIL,
   CONTEXT,
   ENVIRONMENT,
+  FLAGS,
   HEADER_OFFSET,
   HOST,
   INJECTOR,
   LView,
+  LViewFlags,
   NEXT,
   PARENT,
   RENDERER,
@@ -70,7 +72,7 @@ export function ɵɵgetReplaceMetadataURL(id: string, timestamp: string, base: s
  * Replaces the metadata of a component type and re-renders all live instances of the component.
  * @param type Class whose metadata will be replaced.
  * @param applyMetadata Callback that will apply a new set of metadata on the `type` when invoked.
- * @param environment Syntehtic namespace imports that need to be passed along to the callback.
+ * @param environment Synthetic namespace imports that need to be passed along to the callback.
  * @param locals Local symbols from the source location that have to be exposed to the callback.
  * @param importMeta `import.meta` from the call site of the replacement function. Optional since
  *   it isn't used internally.
@@ -307,7 +309,9 @@ function recreateLView(
     // Creation pass for the new view.
     renderView(newTView, newLView, instance);
 
-    // Update pass for the new view.
+    // Consume the initial refresh flag before updating, as in normal change detection,
+    // so views dirtied during this pass (e.g. by an error boundary) can schedule a refresh.
+    newLView[FLAGS] &= ~LViewFlags.RefreshView;
     refreshView(newTView, newLView, newTView.template, instance);
   };
 

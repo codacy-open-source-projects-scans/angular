@@ -91,6 +91,13 @@ export function compileComponent(type: Type<any>, metadata: Component): void {
           type: type,
         });
 
+        if (metadata.foreignImports !== undefined) {
+          throw new Error(
+            `Foreign components are not supported in JIT mode. ` +
+              `Component '${type.name}' cannot specify 'foreignImports'.`,
+          );
+        }
+
         if (componentNeedsResolution(metadata)) {
           const error = [`Component '${type.name}' is not resolved:`];
           if (metadata.templateUrl) {
@@ -154,7 +161,6 @@ export function compileComponent(type: Type<any>, metadata: Component): void {
           // dependency might be a directive dependency.
           hasDirectiveDependencies:
             !baseMeta.isStandalone || (metadata.imports != null && metadata.imports.length > 0),
-          legacyOptionalChaining: false, // fallback to false in JIT
         };
 
         compilationDepth++;
@@ -377,7 +383,8 @@ export function directiveMetadata(type: Type<any>, metadata: Directive): R3Direc
 
   return {
     name: type.name,
-    legacyOptionalChaining: false,
+    // g3-only legacyOptionalChaining: true,
+    legacyOptionalChaining: false, // 3p-only
     type: type,
     selector: metadata.selector !== undefined ? metadata.selector : null,
     host: metadata.host || EMPTY_OBJ,
@@ -450,7 +457,7 @@ function extractQueriesMetadata(
   const signalQueriesMeta: R3QueryMetadataFacade[] = [];
   const decoratorQueriesMeta: R3QueryMetadataFacade[] = [];
   for (const field in propMetadata) {
-    if (propMetadata.hasOwnProperty(field)) {
+    if (Object.hasOwn(propMetadata, field)) {
       const annotations = propMetadata[field];
       annotations.forEach((ann) => {
         if (isQueryAnn(ann)) {

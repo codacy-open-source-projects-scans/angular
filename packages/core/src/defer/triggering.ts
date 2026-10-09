@@ -41,7 +41,6 @@ import {onViewportWrapper} from './dom_triggers';
 import {onIdle} from './idle_scheduler';
 import {
   DEFER_BLOCK_STATE,
-  DeferBlockBehavior,
   DeferBlockState,
   DeferBlockTrigger,
   DeferDependenciesLoadingState,
@@ -56,11 +55,11 @@ import {
 } from './interfaces';
 import {DEHYDRATED_BLOCK_REGISTRY, DehydratedBlockRegistry} from './registry';
 import {
-  DEFER_BLOCK_CONFIG,
   DEFER_BLOCK_DEPENDENCY_INTERCEPTOR,
   renderDeferBlockState,
   renderDeferStateAfterResourceLoading,
   renderPlaceholder,
+  shouldTriggerDeferBlock,
 } from './rendering';
 import {onTimer} from './timer_scheduler';
 import {
@@ -314,24 +313,6 @@ export function triggerResourceLoading(
 }
 
 /**
- * Defines whether we should proceed with triggering a given defer block.
- */
-function shouldTriggerDeferBlock(triggerType: TriggerType, lView: LView): boolean {
-  // prevents triggering regular triggers when on the server.
-  if (triggerType === TriggerType.Regular && typeof ngServerMode !== 'undefined' && ngServerMode) {
-    return false;
-  }
-
-  // prevents triggering in the case of a test run with manual defer block configuration.
-  const injector = lView[INJECTOR];
-  const config = injector.get(DEFER_BLOCK_CONFIG, null, {optional: true});
-  if (config?.behavior === DeferBlockBehavior.Manual) {
-    return false;
-  }
-  return true;
-}
-
-/**
  * Attempts to trigger loading of defer block dependencies.
  * If the block is already in a loading, completed or an error state -
  * no additional actions are taken.
@@ -517,13 +498,34 @@ export async function triggerHydrationForBlockQueue(
     replayQueuedEventsFn(hydrationQueue);
   }
 
+  // `cleanupHydratedDeferBlocks` -> `cleanupDehydratedViews` walks all LViews
+  // registered with ApplicationRef and removes dehydrated views that aren't
+  // associated with a defer block. This is only safe once the app is stable.
+  // There may still be other pending tasks that need one of those views before
+  // they get a chance to hydrate it.
+  //
+  // This block's task is removed above, but other tasks may still be pending.
+  // Wait for those before treating any remaining dehydrated views as orphaned.
+  //
+  // Don't wait if there are no other pending tasks. Calling `whenStable()`
+  // creates another subscription to the stability signal, which can move this
+  // cleanup to a later microtask than callers already waiting on
+  // `appRef.whenStable()`. Keeping this path synchronous preserves the existing
+  // behavior when the app is already stable.
+  const appRef = injector.get(ApplicationRef);
+  // Read the block before waiting, so it is looked up at the same point as before.
+  const lastDeferBlock = dehydratedBlockRegistry.get(lastBlockName);
+  if (pendingTasks.hasPendingTasks) {
+    await appRef.whenStable();
+
+    // The app can be destroyed while we wait. The bootstrap cleanup checks this too.
+    if (appRef.destroyed) {
+      return;
+    }
+  }
+
   // Cleanup after hydration of all affected defer blocks.
-  cleanupHydratedDeferBlocks(
-    dehydratedBlockRegistry.get(lastBlockName),
-    hydrationQueue,
-    dehydratedBlockRegistry,
-    injector.get(ApplicationRef),
-  );
+  cleanupHydratedDeferBlocks(lastDeferBlock, hydrationQueue, dehydratedBlockRegistry, appRef);
 }
 
 export function deferBlockHasErrored(deferBlock: DehydratedDeferBlock): boolean {
@@ -560,7 +562,7 @@ function cleanupRemainingHydrationQueue(
   dehydratedBlockRegistry: DehydratedBlockRegistry,
 ) {
   const blocksBeingHydrated = dehydratedBlockRegistry.hydrating;
-  for (const dehydratedBlockId in hydrationQueue) {
+  for (const dehydratedBlockId of hydrationQueue) {
     blocksBeingHydrated.get(dehydratedBlockId)?.reject();
   }
   dehydratedBlockRegistry.cleanup(hydrationQueue);

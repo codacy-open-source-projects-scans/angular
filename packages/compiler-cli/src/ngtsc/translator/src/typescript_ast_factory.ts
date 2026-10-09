@@ -47,6 +47,8 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
       '+': ts.SyntaxKind.PlusToken,
       '-': ts.SyntaxKind.MinusToken,
       '!': ts.SyntaxKind.ExclamationToken,
+      '++': ts.SyntaxKind.PlusPlusToken,
+      '--': ts.SyntaxKind.MinusMinusToken,
     }))();
 
   private readonly BINARY_OPERATORS: Record<BinaryOperator, ts.BinaryOperator> =
@@ -80,6 +82,12 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
       '&&=': ts.SyntaxKind.AmpersandAmpersandEqualsToken,
       '||=': ts.SyntaxKind.BarBarEqualsToken,
       '??=': ts.SyntaxKind.QuestionQuestionEqualsToken,
+      '&=': ts.SyntaxKind.AmpersandEqualsToken,
+      '|=': ts.SyntaxKind.BarEqualsToken,
+      '>>=': ts.SyntaxKind.GreaterThanGreaterThanEqualsToken,
+      '>>>=': ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken,
+      '<<=': ts.SyntaxKind.LessThanLessThanEqualsToken,
+      '^=': ts.SyntaxKind.CaretEqualsToken,
       'in': ts.SyntaxKind.InKeyword,
       'instanceof': ts.SyntaxKind.InstanceOfKeyword,
     }))();
@@ -198,6 +206,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
     functionName: string,
     parameters: Parameter<ts.TypeNode>[],
     body: ts.Statement,
+    returnType: ts.TypeNode | null,
   ): ts.Statement {
     if (!ts.isBlock(body)) {
       throw new Error(`Invalid syntax, expected a block, but got ${ts.SyntaxKind[body.kind]}.`);
@@ -208,7 +217,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
       functionName,
       undefined,
       parameters.map((param) => this.createParameter(param)),
-      undefined,
+      returnType ?? undefined,
       body,
     );
   }
@@ -217,6 +226,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
     functionName: string | null,
     parameters: Parameter<ts.TypeNode>[],
     body: ts.Statement,
+    returnType: ts.TypeNode | null,
   ): ts.Expression {
     if (!ts.isBlock(body)) {
       throw new Error(`Invalid syntax, expected a block, but got ${ts.SyntaxKind[body.kind]}.`);
@@ -227,7 +237,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
       functionName ?? undefined,
       undefined,
       parameters.map((param) => this.createParameter(param)),
-      undefined,
+      returnType ?? undefined,
       body,
     );
   }
@@ -235,6 +245,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
   createArrowFunctionExpression(
     parameters: Parameter<ts.TypeNode>[],
     body: ts.Statement | ts.Expression,
+    returnType: ts.TypeNode | null,
   ): ts.Expression {
     if (ts.isStatement(body) && !ts.isBlock(body)) {
       throw new Error(`Invalid syntax, expected a block, but got ${ts.SyntaxKind[body.kind]}.`);
@@ -244,7 +255,7 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
       undefined,
       undefined,
       parameters.map((param) => this.createParameter(param)),
-      undefined,
+      returnType ?? undefined,
       undefined,
       body,
     );
@@ -295,12 +306,16 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
           return ts.factory.createSpreadAssignment(prop.expression);
         }
 
-        return ts.factory.createPropertyAssignment(
+        const propNode = ts.factory.createPropertyAssignment(
           prop.quoted
             ? ts.factory.createStringLiteral(prop.propertyName)
             : ts.factory.createIdentifier(prop.propertyName),
           prop.value,
         );
+        if (prop.leadingComments) {
+          attachComments(propNode, prop.leadingComments);
+        }
+        return propNode;
       }),
     );
   }
@@ -381,8 +396,15 @@ export class TypeScriptAstFactory implements AstFactory<ts.Statement, ts.Express
 
   createVoidExpression = ts.factory.createVoidExpression;
 
-  createUnaryExpression(operator: UnaryOperator, operand: ts.Expression): ts.Expression {
-    return ts.factory.createPrefixUnaryExpression(this.UNARY_OPERATORS[operator], operand);
+  createUnaryExpression(
+    operator: UnaryOperator,
+    operand: ts.Expression,
+    isPrefix = true,
+  ): ts.Expression {
+    const token = this.UNARY_OPERATORS[operator];
+    return isPrefix
+      ? ts.factory.createPrefixUnaryExpression(token, operand)
+      : ts.factory.createPostfixUnaryExpression(operand, token as ts.PostfixUnaryOperator);
   }
 
   createVariableDeclaration(
@@ -513,7 +535,7 @@ export function createTemplateTail(cooked: string, raw: string): ts.TemplateTail
  * @param leadingComments The comments to attach to the statement.
  */
 export function attachComments(
-  statement: ts.Statement | ts.Expression,
+  statement: ts.Statement | ts.Expression | ts.ObjectLiteralElementLike,
   leadingComments: LeadingComment[],
 ): void {
   for (const comment of leadingComments) {

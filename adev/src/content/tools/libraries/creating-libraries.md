@@ -23,7 +23,7 @@ You should be very careful when choosing the name of your library if you want to
 See [Publishing your library](tools/libraries/creating-libraries#publishing-your-library).
 
 Avoid using a name that is prefixed with `ng-`, such as `ng-library`.
-The `ng-` prefix is a reserved keyword used from the Angular framework and its libraries.
+The `ng-` prefix is a reserved keyword used by the Angular framework and its libraries.
 The `ngx-` prefix is preferred as a convention used to denote that the library is suitable for use with Angular.
 It is also an excellent indication to consumers of the registry to differentiate between libraries of different JavaScript frameworks.
 
@@ -75,6 +75,93 @@ The public API for your library is maintained in the `public-api.ts` file in you
 Anything exported from this file is made public when your library is imported into an application.
 
 Your library should supply documentation \(typically a README file\) for installation and maintenance.
+
+## Entry points
+
+An _entry point_ is a module specifier that consumers import from, together with the public API that specifier exposes.
+Every library has one _primary entry point_, and can add any number of _secondary entry points_.
+
+The primary entry point is the package itself.
+The `ng-package.json` file at the root of the library configures it, and `lib.entryFile` names the file that defines its public API.
+
+```json {header: 'projects/my-lib/ng-package.json'}
+{
+  "$schema": "../../node_modules/ng-packagr/ng-package.schema.json",
+  "dest": "../../dist/my-lib",
+  "lib": {
+    "entryFile": "src/public-api.ts"
+  }
+}
+```
+
+Consumers import the primary entry point by the package name:
+
+```ts
+import {ThemeService} from 'my-lib';
+```
+
+A secondary entry point is a directory inside the library with its own `ng-package.json` file.
+The path of that directory relative to the library root defines the import subpath.
+For example, a `button` directory makes `my-lib/button` available to consumers:
+
+```ts
+import {ButtonComponent} from 'my-lib/button';
+```
+
+Angular packages use this same structure.
+For example, `@angular/core` is the primary entry point and `@angular/core/testing` is a secondary entry point of the same package.
+
+HELPFUL: For an architectural overview of how entry points enable code splitting and define chunk boundaries in the Angular Package Format, see [Entrypoints and code splitting](tools/libraries/angular-package-format#entrypoints-and-code-splitting).
+
+### Adding a secondary entry point
+
+Create a directory inside the library with its own `ng-package.json` and public API file:
+
+```text
+projects/my-lib/
+├── ng-package.json      (primary entry point: my-lib)
+├── package.json
+├── src/
+│   ├── public-api.ts
+│   └── lib/ …
+└── button/
+    ├── ng-package.json  (secondary entry point: my-lib/button)
+    └── src/
+        ├── public-api.ts
+        └── button.ts
+```
+
+The secondary `ng-package.json` configures only the entry point itself:
+
+```json {header: 'projects/my-lib/button/ng-package.json'}
+{
+  "$schema": "../../../node_modules/ng-packagr/ng-entrypoint.schema.json",
+  "lib": {
+    "entryFile": "src/public-api.ts"
+  }
+}
+```
+
+IMPORTANT: A secondary `ng-package.json` accepts only the `lib` options. Package-wide options such as `dest` and `assets` belong in the `ng-package.json` at the library root and apply to every entry point.
+
+You do not need to register the secondary entry point anywhere else.
+During the build, `ng-packagr` automatically discovers every `ng-package.json` under the library root and derives the import subpath from its directory path (for example, `button/` becomes `my-lib/button` and `testing/harness/` becomes `my-lib/testing/harness`).
+
+To import a secondary entry point from an application in the same workspace, add a wildcard path mapping in the workspace `tsconfig.json`.
+By default, `ng generate library` maps only the package root, which does not cover subpaths:
+
+```json {header: 'tsconfig.json'}
+{
+  "compilerOptions": {
+    "paths": {
+      "my-lib": ["./dist/my-lib"],
+      "my-lib/*": ["./dist/my-lib/*"]
+    }
+  }
+}
+```
+
+IMPORTANT: When importing code from another entry point in the same library, always use its package import path (for example, `import {ThemeService} from 'my-lib'`) instead of a relative path. `ng-packagr` builds each entry point separately in dependency order, so relative imports across entry points and circular dependencies between entry points will fail the build.
 
 ## Refactoring parts of an application into a library
 
@@ -131,7 +218,7 @@ For more information, see [Schematics Overview](tools/cli/schematics) and [Schem
 
 Use the Angular CLI and the npm package manager to build and publish your library as an npm package.
 
-Angular CLI uses a tool called [ng-packagr](https://github.com/ng-packagr/ng-packagr/blob/master/README.md) to create packages from your compiled code that can be published to npm.
+Angular CLI uses a tool called [ng-packagr](https://github.com/ng-packagr/ng-packagr/blob/main/README.md) to create packages from your compiled code that can be published to npm.
 See [Building libraries with Ivy](tools/libraries/creating-libraries#publishing-libraries) for information on the distribution formats supported by `ng-packagr` and guidance on how
 to choose the right format for your library.
 
@@ -149,7 +236,7 @@ npm publish
 ## Managing assets in a library
 
 In your Angular library, the distributable can include additional assets like theming files, Sass mixins, or documentation \(like a changelog\).
-For more information [copy assets into your library as part of the build](https://github.com/ng-packagr/ng-packagr/blob/master/docs/copy-assets.md) and [embed assets in component styles](https://github.com/ng-packagr/ng-packagr/blob/master/docs/embed-assets-css.md).
+For more information [copy assets into your library as part of the build](https://github.com/ng-packagr/ng-packagr/blob/main/docs/copy-assets.md) and [embed assets in component styles](https://github.com/ng-packagr/ng-packagr/blob/main/docs/embed-assets-css.md).
 
 IMPORTANT: When including additional assets like Sass mixins or pre-compiled CSS.
 You need to add these manually to the conditional ["exports"](tools/libraries/angular-package-format#exports) in the `package.json` of the primary entrypoint.
@@ -242,7 +329,7 @@ TypeScript path mappings should _not_ point to the library source `.ts` files.
 
 This section explains how to use your package manager's local linking feature
 (such as [`npm link`](https://docs.npmjs.com/cli/v11/commands/npm-link) or [`pnpm link`](https://pnpm.io/cli/link)) to test a standalone Angular library with an external application during
-local development, without relying on the monorepo workspace structure or publishing to the NPM registry.
+local development, without relying on the monorepo workspace structure or publishing to the npm registry.
 
 NOTE: If your library and application are in the same Angular workspace (a monorepo setup), the standard monorepo workflow automatically handles the linking and is generally more efficient. This local linking approach is best when:
 

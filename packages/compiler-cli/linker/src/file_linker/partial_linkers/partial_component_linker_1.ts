@@ -254,6 +254,8 @@ export class PartialComponentLinkerVersion1<
       i18nUseExternalIds: false,
       declarations,
       hasDirectiveDependencies: !baseMeta.isStandalone || hasDirectiveDependencies,
+      foreignImports: null,
+      enableTemplateSourceLocations: false,
     };
   }
 

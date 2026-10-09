@@ -11,6 +11,7 @@
  * @description
  * Entry point for all public APIs of this package.
  */
+export * from './src/api/assertions';
 export * from './src/api/control';
 export * from './src/api/di';
 export * from './src/api/rules';
@@ -22,3 +23,4 @@ export * from './src/api/transformed_value';
 export * from './src/api/types';
 export * from './src/directive/form_field';
 export * from './src/directive/form_root';
+export * from './src/webmcp';

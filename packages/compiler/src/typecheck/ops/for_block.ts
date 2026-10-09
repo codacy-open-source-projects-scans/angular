@@ -45,14 +45,25 @@ export class TcbForOfOp extends TcbOp {
 
     // It's common to have a for loop over a nullable value (e.g. produced by the `async` pipe).
     // Add a non-null expression to allow such values to be assigned.
-    const expression = new TcbExpr(
-      `${tcbExpression(this.block.expression, this.tcb, this.scope).print()}!`,
+    const expr = tcbExpression(this.block.expression, this.tcb, this.scope).wrapForTypeChecker();
+    const expression = new TcbExpr(`${expr.print()}!`).addParseSpanInfo(
+      this.block.expression.sourceSpan,
     );
-    const trackTranslator = new TcbForLoopTrackTranslator(this.tcb, loopScope, this.block);
-    const trackExpression = trackTranslator.translate(this.block.trackBy);
-    const block = getStatementsBlock([...loopScope.render(), trackExpression]);
+
+    let statements: TcbExpr[];
+
+    if (this.block.trackBy === null) {
+      statements = loopScope.render();
+    } else {
+      const trackTranslator = new TcbForLoopTrackTranslator(this.tcb, loopScope, this.block);
+      const trackExpression = trackTranslator.translate(this.block.trackBy);
+      statements = [...loopScope.render(), trackExpression];
+    }
+
     this.scope.addStatement(
-      new TcbExpr(`for (${initializer.print()} of ${expression.print()}) {\n${block} }`),
+      new TcbExpr(
+        `for (${initializer.print()} of ${expression.print()}) {\n${getStatementsBlock(statements)} }`,
+      ),
     );
     return null;
   }

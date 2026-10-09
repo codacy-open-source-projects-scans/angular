@@ -33,8 +33,7 @@ import {
   ChangeDetectionScheduler,
   NotificationSource,
 } from '../change_detection/scheduling/zoneless_scheduling';
-import {DEHYDRATED_BLOCK_REGISTRY, DehydratedBlockRegistry} from '../defer/registry';
-import {processAndInitTriggers} from '../defer/triggering';
+import {DEHYDRATED_BLOCK_REGISTRY} from '../defer/registry';
 import {DOCUMENT} from '../document';
 import {DOC_PAGE_BASE_URL} from '../error_details_base_url';
 import {cleanupDehydratedViews} from './cleanup';
@@ -43,7 +42,11 @@ import {
   enablePrepareI18nBlockForHydrationImpl,
   setIsI18nHydrationSupportEnabled,
 } from './i18n';
-import {gatherDeferBlocksCommentNodes} from './node_lookup_utils';
+import {
+  createDehydratedBlockRegistry,
+  INCREMENTAL_HYDRATION_BOOTSTRAP,
+  runIncrementalHydrationBootstrap,
+} from './incremental_runtime';
 import {
   IS_HYDRATION_DOM_REUSE_ENABLED,
   IS_I18N_HYDRATION_ENABLED,
@@ -51,13 +54,10 @@ import {
   PRESERVE_HOST_CONTENT,
 } from './tokens';
 import {
-  appendDeferBlocksToJSActionMap,
   countBlocksSkippedByHydration,
-  enableRetrieveDeferBlockDataImpl,
   enableRetrieveHydrationInfoImpl,
   isIncrementalHydrationEnabled,
   NGH_DATA_KEY,
-  processBlockData,
   verifySsrContentsIntegrity,
 } from './utils';
 import {enableFindMatchingDehydratedViewImpl} from './views';
@@ -77,12 +77,6 @@ let isHydrationSupportEnabled = false;
  * whether i18n blocks are serialized or hydrated.
  */
 let isI18nHydrationRuntimeSupportEnabled = false;
-
-/**
- * Indicates whether the incremental hydration code was added,
- * prevents adding it multiple times.
- */
-let isIncrementalHydrationRuntimeSupportEnabled = false;
 
 /**
  * Defines a period of time that Angular waits for the `ApplicationRef.isStable` to emit `true`.
@@ -126,18 +120,6 @@ function enableI18nHydrationRuntimeSupport() {
     enableLocateOrCreateI18nNodeImpl();
     enablePrepareI18nBlockForHydrationImpl();
     enableClaimDehydratedIcuCaseImpl();
-  }
-}
-
-/**
- * Brings the necessary incremental hydration code in tree-shakable manner.
- * Similar to `enableHydrationRuntimeSupport`, the code is only
- * present when `enableIncrementalHydrationRuntimeSupport` is invoked.
- */
-function enableIncrementalHydrationRuntimeSupport() {
-  if (!isIncrementalHydrationRuntimeSupportEnabled) {
-    isIncrementalHydrationRuntimeSupportEnabled = true;
-    enableRetrieveDeferBlockDataImpl();
   }
 }
 
@@ -367,34 +349,36 @@ export function withIncrementalHydration(): Provider[] {
     },
     {
       provide: DEHYDRATED_BLOCK_REGISTRY,
-      useClass: DehydratedBlockRegistry,
-    },
-    {
-      provide: ENVIRONMENT_INITIALIZER,
-      useValue: () => {
-        enableIncrementalHydrationRuntimeSupport();
-        performanceMarkFeature('NgIncrementalHydration');
-      },
-      multi: true,
+      useFactory: createDehydratedBlockRegistry,
     },
   ];
 
   if (typeof ngServerMode === 'undefined' || !ngServerMode) {
-    providers.push({
-      provide: APP_BOOTSTRAP_LISTENER,
-      useFactory: () => {
-        const injector = inject(Injector);
-        const doc = inject(DOCUMENT);
-
-        return () => {
-          const deferBlockData = processBlockData(injector);
-          const commentsByBlockId = gatherDeferBlocksCommentNodes(doc, doc.body);
-          processAndInitTriggers(injector, deferBlockData, commentsByBlockId);
-          appendDeferBlocksToJSActionMap(doc, injector);
-        };
+    providers.push(
+      {
+        provide: INCREMENTAL_HYDRATION_BOOTSTRAP,
+        useFactory: () => ({
+          requested: false,
+          activated: false,
+          injector: inject(Injector),
+          document: inject(DOCUMENT),
+        }),
       },
-      multi: true,
-    });
+      {
+        provide: APP_BOOTSTRAP_LISTENER,
+        useFactory: () => {
+          const state = inject(INCREMENTAL_HYDRATION_BOOTSTRAP);
+
+          return () => {
+            if (!state.requested) {
+              state.requested = true;
+              runIncrementalHydrationBootstrap(state);
+            }
+          };
+        },
+        multi: true,
+      },
+    );
   }
 
   return providers;

@@ -18,7 +18,7 @@ You can use interceptors to implement a variety of common patterns, such as:
 - Customizing the parsing of responses.
 - Measuring server response times and logging them.
 - Driving UI elements such as a loading spinner while network operations are in progress.
-- Collecting and batch requests made within a certain timeframe.
+- Collecting and batching requests made within a certain timeframe.
 - Automatically failing requests after a configurable deadline or timeout.
 - Regularly polling the server and refreshing results.
 
@@ -215,9 +215,9 @@ export function authRedirectInterceptor(
 
 ## Working with response types
 
-When `HttpClient` uses the fetch backend, responses include a `type` property that indicates how the browser handled the response based on CORS policies and request mode. This property aligns with the native Fetch API specification and provides valuable insights for debugging CORS issues and understanding response accessibility.
+When `HttpClient` uses the fetch backend, responses include a `responseType` property that indicates how the browser handled the response based on CORS policies and request mode. This property aligns with the native Fetch API specification and provides valuable insights for debugging CORS issues and understanding response accessibility.
 
-The response `type` property can have the following values:
+The response `responseType` property can have the following values:
 
 - `'basic'` - Same-origin response with all headers accessible
 - `'cors'` - Cross-origin response with CORS headers properly configured
@@ -233,7 +233,7 @@ export function responseTypeInterceptor(
   next: HttpHandlerFn,
 ): Observable<HttpEvent<unknown>> {
   return next(req).pipe(
-    map((event) => {
+    tap((event) => {
       if (event.type === HttpEventType.Response) {
         // Handle different response types appropriately
         switch (event.responseType) {
