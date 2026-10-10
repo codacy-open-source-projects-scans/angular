@@ -8,12 +8,12 @@
 
 import * as path from 'path';
 import * as rpc from 'vscode-jsonrpc/node';
-import {TestEnv, startTestServer} from './test_helpers';
+import {TestEnv, getTestWorkspacePath, startTestServer} from './test_helpers';
 import {TestFileManager} from './test_file_manager';
 
 import {TsGoFacade} from '../src/facade';
 
-const testWorkspacePath = path.join(__dirname, 'test-workspace');
+const testWorkspacePath = getTestWorkspacePath();
 
 describe('Incremental Analysis', () => {
   let connection: rpc.MessageConnection;
@@ -51,10 +51,8 @@ describe('Incremental Analysis', () => {
     `;
 
     await env.run('app_inc_test.ts', appTsContent, async (ls, filePath) => {
-      // Initial check
       await env.expectHoverAtCursor(ls, filePath, ['string']);
 
-      // Now change the file content
       const updatedContent = `
       import {Component} from '@angular/core';
       @Component({ template: '<div [title]="¦name"></div>'})
@@ -64,7 +62,6 @@ describe('Incremental Analysis', () => {
     `;
       await env.editFile(filePath, updatedContent, 'virtual');
 
-      // Request again
       await env.expectHoverAtCursor(ls, filePath, ['number']);
     });
   });
@@ -84,14 +81,11 @@ describe('Incremental Analysis', () => {
     `;
 
     await env.run('app_add_test.ts', appTsContent, async (ls, filePath) => {
-      // Now add the file!
       const newFilePath = path.join(testWorkspacePath, 'new_file.ts');
       const newFileContent = `export const value = "hello";`;
 
-      // Notify server of new file
       await env.openFile(newFilePath, newFileContent);
 
-      // Request hover again
       await env.expectHoverAtCursor(ls, filePath, ['"hello"']);
     });
   });

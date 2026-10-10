@@ -82,7 +82,7 @@ import * as i0 from '@angular/core';
 // LOCAL mode emits `ɵinj.imports` as the verbatim, entry-by-entry concatenation of the
 // `imports` array elements: a ModuleWithProviders call (`SharedModule.forRoot()`) and a
 // spread (`...SHARED_IMPORTS`) both survive unresolved. Mirrors ngtsc handler.ts#L670-L688:
-// https://github.com/angular/angular/blob/e3ac727dfc/packages/compiler-cli/src/ngtsc/annotations/ng_module/src/handler.ts#L670-L688
+// https://github.com/angular/angular/blob/e3ac727/packages/compiler-cli/src/ngtsc/annotations/ng_module/src/handler.ts#L670-L688
 export class AppModule {
   // @ts-ignore
   static ɵfac: i0.ɵɵFactoryDeclaration<AppModule, never> = function AppModule_Factory(

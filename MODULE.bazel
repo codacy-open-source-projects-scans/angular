@@ -19,7 +19,7 @@ bazel_dep(name = "yq.bzl", version = "0.4.0")
 bazel_dep(name = "rules_angular")
 git_override(
     module_name = "rules_angular",
-    commit = "a54e041aa87df476ca79dfb4d8e3d168c35fc240",
+    commit = "2d9142c529ac31dddf1bb4e7e5a61c696f97a8f4",
     remote = "https://github.com/angular/rules_angular.git",
 )
 
@@ -96,6 +96,7 @@ npm.npm_translate_lock(
         "//packages/compiler:package.json",
         "//packages/compiler-cli:package.json",
         "//packages/compiler-cli/linker/babel/test:package.json",
+        "//packages/compiler-cli/preprocessor/language-service:package.json",
         "//packages/core:package.json",
         "//packages/core/test/bundling:package.json",
         "//packages/elements:package.json",

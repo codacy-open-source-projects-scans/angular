@@ -65,6 +65,8 @@ Use `stream` for these continuously updating data sources. Unlike `loader`, whic
 
 Use `loader` for one-time asynchronous operations, such as fetching data from an HTTP endpoint.
 
+In this example, `userUpdates` simulates an external source such as a WebSocket or SSE connection.
+
 ```typescript
 const userUpdates = signal({value: 'Alice'});
 
@@ -72,7 +74,7 @@ const userResource = resource({
   stream: () => userUpdates,
 });
 
-// Later, when new data arrives:
+// Simulate a new value arriving from the external data source:
 userUpdates.set({value: 'Bob'});
 ```
 

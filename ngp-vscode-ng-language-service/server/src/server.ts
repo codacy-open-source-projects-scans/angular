@@ -162,7 +162,7 @@ connection.onInitialize(async (params: InitializeParams) => {
   projectManager = new ProjectManager({
     facade,
     api,
-    nodeModulesPathOverride: process.env.NG_HYBRID_NODE_MODULES_OVERRIDE,
+    nodeModulesPathOverride: process.env['NG_HYBRID_NODE_MODULES_OVERRIDE'],
     onLog: (msg) => connection.console.log(msg),
     onError: (msg) => connection.console.error(msg),
   });
@@ -228,6 +228,7 @@ function withProject<P extends {textDocument: {uri: string}}, R>(
   return async (params: P) => {
     const info = await getProjectInfo(params.textDocument.uri);
     if (!info) return null;
+    await info.project.hybridCompiler.ensureReady();
     return handler(params, {
       workspaceRoot,
       languageService: info.project.languageService,
@@ -249,6 +250,7 @@ connection.onCompletionResolve(async (item: CompletionItem) => {
   if (data?.filePath) {
     const project = await projectManager.getProjectForFile(data.filePath);
     if (project) {
+      await project.hybridCompiler.ensureReady();
       return onCompletionResolve(item, {
         workspaceRoot,
         languageService: project.languageService,
