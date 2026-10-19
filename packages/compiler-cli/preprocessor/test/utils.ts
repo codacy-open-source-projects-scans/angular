@@ -21,7 +21,6 @@ import type {TestFile} from './golden_markdown.js';
 import {getDiagnosticPath, serializeDiagnostics, HybridCompiler} from '../src/hybrid_compiler.js';
 import {createAnalyzer} from '../api.js';
 import {buildTypeCheckingConfig} from '../src/tcb.js';
-import type {AnalysisResult, CompilationChunk} from '../src/types.js';
 
 export {
   parseMarkdownContent,
@@ -83,6 +82,47 @@ export function resolveWasmBinding(): string {
   );
 }
 
+export function resolveSidecarBinary(): string {
+  const ext = process.platform === 'win32' ? '.exe' : '';
+  const runfilesDir = process.env['JS_BINARY__RUNFILES'] || process.env['RUNFILES_DIR'];
+  if (runfilesDir) {
+    const candidates = [
+      path.join(
+        runfilesDir,
+        `_main/packages/compiler-cli/preprocessor/ng-analyze/ng_analyze_bin${ext}`,
+      ),
+      path.join(
+        runfilesDir,
+        `angular/packages/compiler-cli/preprocessor/ng-analyze/ng_analyze_bin${ext}`,
+      ),
+      path.join(runfilesDir, `packages/compiler-cli/preprocessor/ng-analyze/ng_analyze_bin${ext}`),
+    ];
+    for (const c of candidates) {
+      if (fsSync.existsSync(c)) {
+        return c;
+      }
+    }
+  }
+  const relativeCandidates = [
+    path.resolve(
+      process.cwd(),
+      `../../packages/compiler-cli/preprocessor/ng-analyze/ng_analyze_bin${ext}`,
+    ),
+    path.resolve(
+      process.cwd(),
+      `dist/bin/packages/compiler-cli/preprocessor/ng-analyze/ng_analyze_bin${ext}`,
+    ),
+  ];
+  for (const c of relativeCandidates) {
+    if (fsSync.existsSync(c)) {
+      return c;
+    }
+  }
+  throw new Error(
+    `Could not find ng_analyze_bin in runfiles. Checked runfilesDir=${runfilesDir}, cwd=${process.cwd()}`,
+  );
+}
+
 function resolvePackagePath(pkg: string): string | null {
   const runfilesDir = process.env['JS_BINARY__RUNFILES'] || process.env['RUNFILES_DIR'];
   if (runfilesDir) {
@@ -128,8 +168,70 @@ export function getOrCreateSyntheticNodeModules(): string | null {
       }
     }
   }
+  const runfilesDir = process.env['JS_BINARY__RUNFILES'] || process.env['RUNFILES_DIR'];
+  if (runfilesDir) {
+    for (const extPkg of ['rxjs', 'tslib']) {
+      for (const prefix of ['_main', 'angular']) {
+        const candidate = path.join(runfilesDir, prefix, 'node_modules', extPkg);
+        const target = path.join(dir, extPkg);
+        if (fsSync.existsSync(candidate) && !fsSync.existsSync(target)) {
+          try {
+            fsSync.symlinkSync(candidate, target, 'junction');
+          } catch {}
+        }
+      }
+    }
+  }
   syntheticNodeModules = dir;
   return dir;
+}
+
+/**
+ * Whether `nodeModules/@angular/core` is a *built* package. In this repository the workspace's
+ * `node_modules/@angular/{core,common}` are pnpm links to `packages/{core,common}` — TypeScript
+ * sources with no `.d.ts` metadata — which the analyzer resolves to nothing: `CommonModule` then
+ * exports no directives, core DI tokens become unverifiable, and goldens silently change.
+ */
+function hasBuiltAngularCore(nodeModules: string): boolean {
+  return fsSync.existsSync(path.join(nodeModules, '@angular', 'core', 'index.d.ts'));
+}
+
+/**
+ * The `node_modules` fixtures resolve `@angular/*` from.
+ *
+ * The packages Bazel built (`//packages/{core,common}:npm_package`) always win, so `bazel test`
+ * and `bazel run` (golden updates) see the same packages. Previously the first
+ * `node_modules/@angular` found walking up from `cwd` won instead; under `bazel test` the sandbox
+ * has none and the built packages were used, while under `bazel run` the walk reached the
+ * workspace's source-linked copy, producing spurious golden diffs. The walk-up remains only for
+ * running outside Bazel, and only accepts a built package.
+ */
+let fixtureNodeModules: string | null = null;
+export function resolveFixtureNodeModules(): string {
+  if (fixtureNodeModules) return fixtureNodeModules;
+
+  const synthetic = getOrCreateSyntheticNodeModules();
+  if (synthetic) {
+    fixtureNodeModules = synthetic;
+    return synthetic;
+  }
+
+  let dir = process.cwd();
+  while (true) {
+    const candidate = path.join(dir, 'node_modules');
+    if (hasBuiltAngularCore(candidate)) {
+      fixtureNodeModules = candidate;
+      return candidate;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  throw new Error(
+    'Could not find a built @angular/core for fixtures: neither the Bazel npm_package runfiles ' +
+      `nor a node_modules with @angular/core/index.d.ts above cwd=${process.cwd()}.`,
+  );
 }
 
 /**
@@ -250,9 +352,8 @@ export async function runPipeline(
   sourceFiles: TestFile[],
   options: {
     optimize: boolean;
-    wasm?: boolean;
-    enableSelectorless?: boolean;
     sidecar?: boolean;
+    enableSelectorless?: boolean;
     templateParseOptions?: Record<string, any>;
     errors?: string[];
     format?: boolean;
@@ -262,19 +363,7 @@ export async function runPipeline(
   const maybeFormat = (p: string, content: string): Promise<string> =>
     options.format === false ? Promise.resolve(content) : formatContent(p, content);
 
-  // Find real node_modules path (walk up from current dir)
-  let nodeModulesPath = process.cwd();
-  while (!(await pathExists(path.join(nodeModulesPath, 'node_modules', '@angular')))) {
-    const parent = path.dirname(nodeModulesPath);
-    if (parent === nodeModulesPath) break;
-    nodeModulesPath = parent;
-  }
-  const candidatePath = path.join(nodeModulesPath, 'node_modules');
-  if (await pathExists(path.join(candidatePath, '@angular'))) {
-    nodeModulesPath = candidatePath;
-  } else {
-    nodeModulesPath = getOrCreateSyntheticNodeModules() || candidatePath;
-  }
+  const nodeModulesPath = resolveFixtureNodeModules();
 
   const virtualFiles: Record<string, string> = {};
   for (const f of sourceFiles) {
@@ -336,16 +425,27 @@ export async function runPipeline(
     virtualFileMap.set('/' + withoutSlash, f.content);
   }
 
-  const wasmBinding = resolveWasmBinding();
-  const analyzer = await createAnalyzer(tsconfigFile.path, {
-    backend: 'wasm',
-    wasmBinding,
-    virtualFiles,
-    optimize: options.optimize,
-    nodeModulesPathOverride: nodeModulesPath,
-    workspaceName,
-    rootDirs,
-  });
+  let analyzer;
+  if (options.sidecar) {
+    const {SidecarAnalyzer} = await import('../api.js');
+    const sidecar = new SidecarAnalyzer(resolveSidecarBinary());
+    await sidecar.initialize(tsconfigFile.path, options.optimize, virtualFiles, nodeModulesPath, {
+      workspaceName,
+      rootDirs,
+    });
+    analyzer = sidecar;
+  } else {
+    const wasmBinding = resolveWasmBinding();
+    analyzer = await createAnalyzer(tsconfigFile.path, {
+      backend: 'wasm',
+      wasmBinding,
+      virtualFiles,
+      optimize: options.optimize,
+      nodeModulesPathOverride: nodeModulesPath,
+      workspaceName,
+      rootDirs,
+    });
+  }
 
   const compiler = new HybridCompiler(analyzer, {
     optimize: options.optimize,
@@ -396,13 +496,7 @@ export async function runPipeline(
       if (!content) continue;
 
       try {
-        const processed = await compiler.processFile(
-          filePath,
-          content,
-          (p) => virtualFileMap.get(normalizePathKey(p)),
-          result,
-          chunkContext,
-        );
+        const processed = await compiler.processFile(filePath, content, result, chunkContext);
         const emitted = processed.magicString.toString();
 
         const outPath = '/out/' + filePath.replace(/\\/g, '/').replace(/^\//, '');
@@ -526,9 +620,11 @@ function normalizeWhitespace(s: string): string {
     .join('\n')
     .trim();
 
-  // Normalize Prettier 3.8 vs 3.9 semicolon placement for trailing block comments on statements
+  // Normalize Prettier 3.8 vs 3.9 semicolon placement for trailing block comments on statements.
+  // Only consider comments on the same line as the semicolon, otherwise we'd also capture
+  // leading comments of the next statement.
   while (true) {
-    const next = normalized.replace(/;\s*(\/\*[\s\S]*?\*\/)/g, ' $1;');
+    const next = normalized.replace(/;[ \t]*(\/\*[\s\S]*?\*\/)/g, ' $1;');
     if (next === normalized) break;
     normalized = next;
   }
@@ -539,14 +635,4 @@ function normalizeWhitespace(s: string): string {
   normalized = normalized.replace(/\):\s*any\s*\{/g, ') {');
 
   return normalized;
-}
-
-export async function* flatten(
-  iterator: AsyncIterable<CompilationChunk>,
-): AsyncGenerator<AnalysisResult, void, unknown> {
-  for await (const chunk of iterator) {
-    for (const file of chunk.files) {
-      yield file;
-    }
-  }
 }

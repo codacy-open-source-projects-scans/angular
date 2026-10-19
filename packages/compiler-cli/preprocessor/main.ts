@@ -117,6 +117,7 @@ import {run} from './ngp.js';
 
     const workspaceName = angularCompilerOptions?.workspaceName || bazelOptions?.workspaceName;
     const rootDirs = angularCompilerOptions?.rootDirs || bazelOptions?.rootDirs;
+    const enableHmr = angularCompilerOptions?._enableHmr;
 
     let innerAnalyzer: IAnalyzer;
     if (sidecarPath) {
@@ -124,6 +125,7 @@ import {run} from './ngp.js';
       await sidecar.initialize(tsconfigPath, optimize, undefined, undefined, {
         workspaceName,
         rootDirs,
+        enableHmr,
       });
       innerAnalyzer = sidecar;
     } else {
@@ -132,8 +134,9 @@ import {run} from './ngp.js';
 
       try {
         await fs.access(ngAnalyzeDir);
+      } catch {
         ngAnalyzeDir = path.resolve(__dirname, '../../ng-analyze');
-      } catch {}
+      }
 
       innerAnalyzer = await NapiAnalyzer.create(tsconfigPath, {
         optimize,
@@ -141,6 +144,7 @@ import {run} from './ngp.js';
         ngAnalyzeDir,
         workspaceName,
         rootDirs,
+        enableHmr,
       });
     }
     const compiler = new HybridCompiler(innerAnalyzer, {
@@ -162,7 +166,7 @@ import {run} from './ngp.js';
       enableI18nLegacyMessageIdFormat: angularCompilerOptions?.enableI18nLegacyMessageIdFormat,
       i18nUseExternalIds: angularCompilerOptions?.i18nUseExternalIds,
       i18nNormalizeLineEndingsInICUs: angularCompilerOptions?.i18nNormalizeLineEndingsInICUs,
-      enableHmr: angularCompilerOptions?._enableHmr,
+      enableHmr,
       rootDir,
       workspaceName,
       rootDirs,

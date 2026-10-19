@@ -142,10 +142,14 @@ pub struct ClassData {
     pub unexpected_param_decorators: Vec<UnexpectedParamDecorator>,
     pub member_decorators: Vec<crate::DecoratedMemberMetadata>,
     pub later_declaration_references: Vec<oxc_span::Span>,
+    pub top_level_references: Option<Vec<super::TopLevelReference>>,
     pub type_parameters: Option<Vec<TypeParameterData>>,
     pub has_ng_template_context_guard: bool,
     pub ng_template_guards: Vec<TemplateGuardMetadata>,
     pub has_ng_field_directive: bool,
+    /// Public instance method names ngtsc's `publicMethods` would hold: the class's own after
+    /// single-file analysis, merged with its base classes' once Stage 2 flattens inheritance.
+    pub public_methods: Vec<String>,
     pub uses_inheritance: bool,
     pub uses_on_changes: bool,
     pub is_exported: bool,
@@ -204,6 +208,7 @@ pub struct HostBindingData {
     pub host_property_name: Option<Resolved<String>>,
     pub decorator_span: oxc_span::Span,
     pub member_span: oxc_span::Span,
+    pub is_accessor: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -254,6 +259,11 @@ pub struct DirectiveData {
     /// The `hostDirectives` expression, partially evaluated. Kept as a `Resolved` so
     /// Stage 2 can chase cross-file arrays and aliases before it is projected onto the wire.
     pub host_directives: Option<Resolved<Vec<HostDirectiveEntry>>>,
+    /// The directive's own `hostDirectives`, resolved in stage 2 — what ngtsc's
+    /// `TypeCheckScopeRegistry` puts in `directivesOnHost` ahead of the directive itself when
+    /// type-checking its host bindings. Components keep theirs on
+    /// [`ComponentData::resolved_host_directives`].
+    pub resolved_host_directives: Option<Vec<ResolvedHostDirective>>,
     pub providers_span: Option<oxc_span::Span>,
     pub args_span: Option<oxc_span::Span>,
     pub preserved_decorator_properties: Option<Vec<oxc_span::Span>>,
@@ -372,17 +382,45 @@ async fn complete_style_urls<Fs: crate::ResourceResolverFs + Clone + 'static>(
     }
     let file_path = ctx.lookup_path(reference_id.file);
     let resource_resolver = crate::ResourceResolver::new(&ctx.fs, ctx.resolver.as_ref());
-    crate::analyzer::component::load_style_urls(
-        &sources,
-        c,
-        &resource_resolver,
-        &file_path,
-        &ctx.fs,
-    );
+    crate::analyzer::component::load_style_urls(&sources, c, &resource_resolver, &file_path);
     for style_url in c.style_urls.iter().flatten() {
         ctx.resource_registry.register_template(
             std::path::PathBuf::from(&style_url.resolved_path),
             file_path.clone(),
+            reference_id.symbol,
+        );
+    }
+}
+
+/// Stage 2 for a `templateUrl` that named a constant from another file: complete the
+/// expression, then read the template exactly as Stage 1 reads a literal URL — still relative
+/// to the component's own file, not to the file declaring the constant, as ngtsc's
+/// `resourceLoader.resolve(templateUrl, containingFile)` does — and register it so an edit to
+/// the template invalidates this component.
+/// https://github.com/angular/angular/blob/e3ac727/packages/compiler-cli/src/ngtsc/annotations/component/src/resources.ts#L392-L439
+async fn complete_template_url<Fs: crate::ResourceResolverFs + Clone + 'static>(
+    c: &mut ComponentData,
+    reference_id: crate::query::ReferenceId,
+    ctx: &crate::query::QueryContext<Fs>,
+    foreign: &[&dyn crate::evaluator::ForeignFunctionResolver],
+) {
+    let Some(mut source) = c.pending_template_url.take() else {
+        return;
+    };
+    source.url.complete_with(ctx, foreign).await;
+    let file_path = ctx.lookup_path(reference_id.file);
+    let resource_resolver = crate::ResourceResolver::new(&ctx.fs, ctx.resolver.as_ref());
+    crate::analyzer::component::load_template_url(
+        &source,
+        c,
+        &resource_resolver,
+        &file_path,
+        reference_id.file,
+    );
+    if let Some(template_url) = &c.template_url {
+        ctx.resource_registry.register_template(
+            std::path::PathBuf::from(&template_url.resolved_path),
+            file_path,
             reference_id.symbol,
         );
     }
@@ -404,6 +442,7 @@ impl Default for DirectiveData {
             host_span: None,
             host_properties: Vec::new(),
             host_directives: None,
+            resolved_host_directives: None,
             providers_span: None,
             args_span: None,
             preserved_decorator_properties: None,
@@ -502,6 +541,16 @@ pub struct ValueIssue {
     pub message: String,
 }
 
+/// The `templateUrl` expression, as ngtsc's `parseTemplateDeclaration` evaluates it: must
+/// evaluate to a string (`NG1010` otherwise).
+/// https://github.com/angular/angular/blob/e3ac727/packages/compiler-cli/src/ngtsc/annotations/component/src/resources.ts#L392-L439
+#[derive(Clone, Debug)]
+pub struct TemplateUrlSource {
+    pub url: Resolved<String>,
+    /// The span of the value when it is written as a string literal.
+    pub string_literal_span: Option<oxc_span::Span>,
+}
+
 /// One stylesheet URL expression, as ngtsc's `extractComponentStyleUrls` walks `styleUrl` and
 /// `styleUrls`.
 #[derive(Clone, Debug)]
@@ -582,7 +631,13 @@ pub struct ComponentData {
     /// with runtime `${...}` interpolation). ngtsc rejects such templates; we surface
     /// it so the pipeline errors instead of silently emitting an empty template.
     pub template_dynamic: bool,
+    /// The evaluated `templateUrl`, loaded. `None` while [`Self::pending_template_url`] is
+    /// set, and `None` for good when the property evaluated to something other than a string.
     pub template_url: Option<UrlData>,
+    /// The `templateUrl` expression, kept only while it still waits on a constant from another
+    /// file. Stage 2 (and local compilation, which evaluates it like ngtsc's does) completes it
+    /// and loads `template_url` and `template` from the result.
+    pub pending_template_url: Option<TemplateUrlSource>,
     /// `@Component.styles` as the partial evaluator sees it.
     pub styles: Option<Resolved<crate::evaluator::ComponentStyles>>,
     pub styles_span: Option<oxc_span::Span>,
@@ -690,6 +745,8 @@ pub struct PipeData {
     /// The `standalone` property's value expression span, present whenever the property is.
     pub standalone_span: Option<oxc_span::Span>,
     pub args_span: Option<oxc_span::Span>,
+    /// The metadata object literal span, present when an object literal was passed.
+    pub metadata_span: Option<oxc_span::Span>,
     /// Weak `@Injectable` accompanying this pipe.
     pub injectable: Option<InjectableData>,
     /// Weak `@Service` accompanying this pipe.
@@ -892,10 +949,11 @@ pub struct NgModuleData {
     pub local_imports_element_spans: Option<Vec<oxc_span::Span>>,
     pub local_exports_element_spans: Option<Vec<oxc_span::Span>>,
 
-    /// Syntactic type-tuple classification of `imports`/`exports` for `emitDeclarationOnly`
-    /// (`R3NgModuleMetadataKind.Isolated`). Computed at syntax time from the single-file AST +
-    /// partial evaluator, matching `analyzeForDeclarationOnly` in
-    /// `ngtsc/annotations/ng_module/src/handler.ts`.
+    /// Type-tuple classification of `imports`/`exports` for `emitDeclarationOnly`
+    /// (`R3NgModuleMetadataKind.Isolated`), matching `analyzeForDeclarationOnly` in
+    /// `ngtsc/annotations/ng_module/src/handler.ts`. Elements that depend on other files are
+    /// kept as [`IsolatedTypeElementData::Deferred`] and completed by
+    /// [`ClassData::complete_isolated_type_tuples`].
     pub isolated_imports: Option<IsolatedTypeTupleData>,
     pub isolated_exports: Option<IsolatedTypeTupleData>,
 
@@ -919,12 +977,86 @@ pub enum IsolatedTypeElementData {
     ReferenceTuple { references: Vec<Reference> },
     /// `never` — unsupported expression shape in declaration-only mode.
     Never { span: oxc_span::Span },
+    /// Evaluation that still depends on other files (e.g. `const SHARED = [ImportedPipe]`).
+    /// Classified at wire time once completed, or projected as `fallback` (the syntactic form).
+    Deferred {
+        resolved: Resolved<crate::evaluator::ResolvedValue>,
+        fallback: Box<IsolatedTypeElementData>,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub struct IsolatedTypeTupleData {
     pub is_array_literal: bool,
     pub elements: Vec<IsolatedTypeElementData>,
+}
+
+/// A deferred element's completed value, per ngtsc's `resolvedToTypeTupleElement`.
+pub(crate) enum ResolvedIsolatedElement {
+    /// `typeof Ref`
+    Single(Reference),
+    /// `[typeof A, typeof B]`
+    Tuple(Vec<Reference>),
+}
+
+impl ResolvedIsolatedElement {
+    /// `None` for any other value, including one that still has holes.
+    pub(crate) fn from_value(value: &crate::evaluator::ResolvedValue) -> Option<Self> {
+        use crate::evaluator::ResolvedValue;
+        match value.unwrap_named() {
+            ResolvedValue::Reference(r) => Some(Self::Single(Reference::from_value_reference(r))),
+            ResolvedValue::Array(items) if !items.is_empty() => items
+                .iter()
+                .map(|item| match item.unwrap_named() {
+                    ResolvedValue::Reference(r) => Some(Reference::from_value_reference(r)),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+                .map(Self::Tuple),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn references(&self) -> &[Reference] {
+        match self {
+            Self::Single(r) => std::slice::from_ref(r),
+            Self::Tuple(refs) => refs,
+        }
+    }
+}
+
+impl IsolatedTypeTupleData {
+    /// The evaluations of all `Deferred` elements.
+    pub(crate) fn deferred_values_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut Resolved<crate::evaluator::ResolvedValue>> {
+        self.elements.iter_mut().filter_map(|el| match el {
+            IsolatedTypeElementData::Deferred { resolved, .. } => Some(resolved),
+            _ => None,
+        })
+    }
+
+    /// All references the wire projection may emit.
+    pub(crate) fn references(&self) -> Vec<Reference> {
+        let mut out = Vec::new();
+        for el in &self.elements {
+            match el {
+                IsolatedTypeElementData::Typeof {
+                    reference: Some(r), ..
+                } => out.push(r.clone()),
+                IsolatedTypeElementData::ReferenceTuple { references } => {
+                    out.extend(references.iter().cloned())
+                }
+                IsolatedTypeElementData::Deferred { resolved, .. } => {
+                    if let Some(element) = ResolvedIsolatedElement::from_value(resolved.raw()) {
+                        out.extend(element.references().iter().cloned());
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
 }
 
 // ==================================================================== errors
@@ -986,6 +1118,7 @@ pub struct WireContext<'a> {
     /// Pre-resolved answers for [`crate::analyzer::import_emit::ReferenceEmitStrategy::emit`]'s
     /// `declaring_export_name`; build it with `declaring_export_names[_blocking]`.
     pub declaring_exports: &'a crate::analyzer::import_emit::DeclaringExportNames,
+    pub r3_symbols_path: Option<&'a std::path::Path>,
 }
 
 impl WireContext<'_> {
@@ -1065,6 +1198,50 @@ impl ClassData {
         styles
             .complete_with(ctx, crate::analyzer::resolvers::angular_foreign_resolvers())
             .await;
+    }
+
+    pub async fn complete_resource_urls<Fs: crate::ResourceResolverFs + Clone + 'static>(
+        &mut self,
+        ctx: &crate::query::QueryContext<Fs>,
+    ) {
+        let reference_id = self.reference_id;
+        let Some(c) = self.as_component_mut() else {
+            return;
+        };
+        let foreign = crate::analyzer::resolvers::angular_foreign_resolvers();
+        complete_template_url(c, reference_id, ctx, foreign).await;
+        complete_style_urls(c, reference_id, ctx, foreign).await;
+    }
+
+    /// Resolve cross-file holes in the `emitDeclarationOnly` type tuples. Uses no foreign
+    /// resolvers, like ngtsc's `transformToTypeTupleExpression`.
+    pub async fn complete_isolated_type_tuples<Fs: crate::ResourceResolverFs + Clone + 'static>(
+        &mut self,
+        ctx: &crate::query::QueryContext<Fs>,
+    ) {
+        let DecoratorData::NgModule(m) = &mut self.decorator else {
+            return;
+        };
+        for tuple in [&mut m.isolated_imports, &mut m.isolated_exports]
+            .into_iter()
+            .flatten()
+        {
+            for resolved in tuple.deferred_values_mut() {
+                resolved.complete_with(ctx, &[]).await;
+            }
+        }
+    }
+
+    /// References the `emitDeclarationOnly` type tuples may emit, for the export-name pre-pass.
+    pub(crate) fn isolated_tuple_references(&self) -> Vec<Reference> {
+        let Some(m) = self.as_ng_module() else {
+            return Vec::new();
+        };
+        [&m.isolated_imports, &m.isolated_exports]
+            .into_iter()
+            .flatten()
+            .flat_map(IsolatedTypeTupleData::references)
+            .collect()
     }
 
     /// The `@Injectable` data, whether it is the classification itself or a weak decorator
@@ -1172,6 +1349,11 @@ impl ClassData {
         self.complete_declaration_metadata(ctx).await;
         let foreign = crate::analyzer::resolvers::angular_foreign_resolvers();
         let reference_id = self.reference_id;
+        for reference in self.top_level_references.iter_mut().flatten() {
+            if let Some(const_enum) = &mut reference.const_enum {
+                const_enum.complete_with(ctx, foreign).await;
+            }
+        }
         match &mut self.decorator {
             DecoratorData::Component(c) => {
                 if let Some(host) = &mut c.directive.host_expr {
@@ -1192,6 +1374,7 @@ impl ClassData {
                 if let Some(template) = &mut c.template {
                     template.complete_with(ctx, foreign).await;
                 }
+                complete_template_url(c, reference_id, ctx, foreign).await;
                 if let Some(styles) = &mut c.styles {
                     styles.complete_with(ctx, foreign).await;
                 }
@@ -1241,12 +1424,18 @@ impl ClassData {
             }
             _ => {}
         }
+        self.complete_isolated_type_tuples(ctx).await;
     }
 
     /// Demote every remaining `Incomplete` hole in every `Resolved` field to `Dynamic`.
     /// Stage 2 runs this on its `FileData` copy, making `to_wire_semantic`'s no-hole
     /// invariant hold by construction.
     pub fn demote_resolved(&mut self) {
+        for reference in self.top_level_references.iter_mut().flatten() {
+            if let Some(const_enum) = &mut reference.const_enum {
+                const_enum.demote();
+            }
+        }
         match &mut self.decorator {
             DecoratorData::Component(c) => {
                 c.directive.demote_resolved();
@@ -1287,6 +1476,14 @@ impl ClassData {
                 .flatten()
                 {
                     slot.demote();
+                }
+                for tuple in [&mut m.isolated_imports, &mut m.isolated_exports]
+                    .into_iter()
+                    .flatten()
+                {
+                    for resolved in tuple.deferred_values_mut() {
+                        resolved.demote();
+                    }
                 }
             }
             _ => {}
@@ -1631,7 +1828,7 @@ impl ClassData {
 
         if let Some(ref t_url) = c.template_url {
             if t_url.is_missing {
-                let span = t_url.string_literal_span.unwrap_or(default_span);
+                let span = c.template_url_span.unwrap_or(default_span);
                 push_error(
                     diagnostics,
                     file_path,
@@ -1733,7 +1930,7 @@ impl ClassData {
         converter: &crate::utils::Utf8ToUtf16,
         diagnostics: &mut Vec<crate::NgDiagnostic>,
     ) {
-        let Some(args_span) = p.args_span else {
+        let Some(metadata_span) = p.metadata_span else {
             return;
         };
 
@@ -1748,7 +1945,7 @@ impl ClassData {
                 file_path,
                 converter,
                 "2002",
-                args_span,
+                metadata_span,
                 "@Pipe decorator is missing name field".to_string(),
             );
         } else if p.name.as_ref().and_then(Resolved::get_optional).is_none() {
@@ -1757,7 +1954,7 @@ impl ClassData {
                 file_path,
                 converter,
                 "1010",
-                p.name_span.unwrap_or(args_span),
+                p.name_span.unwrap_or(metadata_span),
                 "@Pipe.name must be a string".to_string(),
             );
         }
@@ -1799,11 +1996,12 @@ impl ClassData {
         diagnostics: &mut Vec<crate::NgDiagnostic>,
     ) {
         if let Some(span) = c.template_url_span {
-            // `template_url` is only populated when the value read as a string, so a present
-            // property with no `UrlData` is ngtsc's "templateUrl must be a string" case.
-            // TODO(parity): `templateUrl` is read syntactically (single-file), while ngtsc
-            // evaluates it, so a constant imported from another file resolves there but is
-            // reported here. Route it through the evaluator like `template` to close the gap.
+            // `template_url` is only populated when the evaluated value is a string, so a
+            // present property with no `UrlData` is ngtsc's "templateUrl must be a string"
+            // case: a dynamic value, a non-string constant, or a constant from another file
+            // the evaluator could not reach. Stage 2 and the local pipeline both complete
+            // `pending_template_url` before validating, so an imported string constant is
+            // loaded rather than reported.
             if c.template_url.is_none() {
                 push_error(
                     diagnostics,
@@ -2021,14 +2219,19 @@ fn push_diagnostic(
 fn host_metadata_wire(
     host: crate::evaluator::HostMetadata,
     source_text: &str,
+    converter: &crate::utils::Utf8ToUtf16,
 ) -> Vec<crate::types::metadata::HostMetadataEntry> {
     let mut entries = Vec::with_capacity(host.0.len());
     for (key, value) in host.0 {
-        let (value, expression) = match value {
-            crate::evaluator::HostMetadataValue::Static(text) => (Some(text), None),
+        let (value, expression, expression_span) = match value {
+            crate::evaluator::HostMetadataValue::Static(text) => (Some(text), None, None),
             crate::evaluator::HostMetadataValue::Dynamic(span) => {
                 match source_text.get(span.start as usize..span.end as usize) {
-                    Some(text) if !text.is_empty() => (None, Some(text.to_string())),
+                    Some(text) if !text.is_empty() => (
+                        None,
+                        Some(text.to_string()),
+                        Some(crate::types::metadata::SpanMetadata::new(span, converter)),
+                    ),
                     _ => continue,
                 }
             }
@@ -2037,9 +2240,63 @@ fn host_metadata_wire(
             key,
             value,
             expression,
+            expression_span,
         });
     }
     entries
+}
+
+fn top_level_reference_wire(
+    reference: &super::TopLevelReference,
+    converter: &crate::utils::Utf8ToUtf16,
+) -> crate::types::metadata::TopLevelReferenceMetadata {
+    use crate::evaluator::{ConstEnumLiteral, ConstEnumResolution};
+    use crate::types::metadata::{ConstEnumMemberKind, ConstEnumMemberMetadata};
+
+    // TODO(parity): ngtsc's local compilation still resolves imported const enums through the
+    // type checker; single-file analysis has no way to.
+    let resolution = reference
+        .const_enum
+        .as_ref()
+        .and_then(Resolved::get_optional)
+        .unwrap_or(ConstEnumResolution::NotConstEnum);
+    let (is_const_enum, const_enum_members) = match resolution {
+        ConstEnumResolution::NotConstEnum => (false, None),
+        ConstEnumResolution::Unevaluable => (true, None),
+        ConstEnumResolution::Members(members) => {
+            let members = members
+                .into_iter()
+                .map(|member| {
+                    let (kind, value) = match member.value {
+                        ConstEnumLiteral::String(s) => (ConstEnumMemberKind::String, s),
+                        ConstEnumLiteral::Number(n) => (
+                            ConstEnumMemberKind::Number,
+                            crate::evaluator::js_number_to_string(n),
+                        ),
+                        ConstEnumLiteral::Boolean(b) => {
+                            (ConstEnumMemberKind::Boolean, b.to_string())
+                        }
+                        ConstEnumLiteral::Null => (ConstEnumMemberKind::Null, String::new()),
+                        ConstEnumLiteral::Undefined => {
+                            (ConstEnumMemberKind::Undefined, String::new())
+                        }
+                    };
+                    ConstEnumMemberMetadata {
+                        key: member.name,
+                        kind,
+                        value,
+                    }
+                })
+                .collect();
+            (true, Some(members))
+        }
+    };
+    crate::types::metadata::TopLevelReferenceMetadata {
+        name: reference.name.clone(),
+        span: crate::types::metadata::SpanMetadata::new(reference.span, converter),
+        is_const_enum,
+        const_enum_members,
+    }
 }
 
 /// An `@angular/core` enum the analyzer resolves by hand, with this tree's member numbering.
@@ -2236,6 +2493,7 @@ impl HostBindingData {
                 converter,
             ),
             member_span: crate::types::metadata::SpanMetadata::new(self.member_span, converter),
+            is_accessor: self.is_accessor,
         }
     }
 }
@@ -2702,6 +2960,12 @@ impl ClassData {
                 .iter()
                 .map(|span| crate::types::metadata::SpanMetadata::new(*span, cx.converter))
                 .collect(),
+            top_level_references: self.top_level_references.as_ref().map(|references| {
+                references
+                    .iter()
+                    .map(|reference| top_level_reference_wire(reference, cx.converter))
+                    .collect()
+            }),
             injectable,
             service,
             component,
@@ -2783,6 +3047,7 @@ impl ClassData {
             has_ng_template_context_guard: self.has_ng_template_context_guard,
             ng_template_guards: self.ng_template_guards.clone(),
             has_ng_field_directive: self.has_ng_field_directive,
+            public_methods: self.public_methods.clone(),
             super_class: self.super_class.clone(),
             uses_inheritance: self.uses_inheritance,
             uses_on_changes: self.uses_on_changes,
@@ -2944,10 +3209,6 @@ impl ClassData {
         tuple: &IsolatedTypeTupleData,
         cx: &WireContext,
     ) -> crate::types::metadata::IsolatedTypeTupleMetadata {
-        use crate::types::metadata::{
-            IsolatedTypeElementKind, IsolatedTypeElementMetadata, IsolatedTypeTupleMetadata,
-            SpanMetadata,
-        };
         let file_id = self.reference_id.file;
         let current_file_path = cx
             .path_lookup
@@ -2956,45 +3217,82 @@ impl ClassData {
         let elements = tuple
             .elements
             .iter()
-            .map(|el| match el {
-                IsolatedTypeElementData::Typeof { span, reference } => {
-                    IsolatedTypeElementMetadata {
-                        kind: IsolatedTypeElementKind::Typeof,
-                        span: span.map(|s| SpanMetadata::new(s, cx.converter)),
-                        references: reference
-                            .as_ref()
-                            .map(|r| vec![self.to_wire_single_ref(r, &current_file_path, cx)]),
-                    }
-                }
-                IsolatedTypeElementData::CallReturnType { callee_span } => {
-                    IsolatedTypeElementMetadata {
-                        kind: IsolatedTypeElementKind::CallReturnType,
-                        span: Some(SpanMetadata::new(*callee_span, cx.converter)),
-                        references: None,
-                    }
-                }
-                IsolatedTypeElementData::ReferenceTuple { references } => {
-                    IsolatedTypeElementMetadata {
-                        kind: IsolatedTypeElementKind::ReferenceTuple,
-                        span: None,
-                        references: Some(
-                            references
-                                .iter()
-                                .map(|r| self.to_wire_single_ref(r, &current_file_path, cx))
-                                .collect(),
-                        ),
-                    }
-                }
-                IsolatedTypeElementData::Never { span } => IsolatedTypeElementMetadata {
-                    kind: IsolatedTypeElementKind::Never,
-                    span: Some(SpanMetadata::new(*span, cx.converter)),
-                    references: None,
-                },
-            })
+            .map(|el| self.to_wire_isolated_element(el, &current_file_path, cx))
             .collect();
-        IsolatedTypeTupleMetadata {
+        crate::types::metadata::IsolatedTypeTupleMetadata {
             is_array_literal: tuple.is_array_literal,
             elements,
+        }
+    }
+
+    fn to_wire_isolated_element(
+        &self,
+        el: &IsolatedTypeElementData,
+        current_file_path: &std::path::Path,
+        cx: &WireContext,
+    ) -> crate::types::metadata::IsolatedTypeElementMetadata {
+        use crate::types::metadata::{
+            IsolatedTypeElementKind, IsolatedTypeElementMetadata, SpanMetadata,
+        };
+        match el {
+            IsolatedTypeElementData::Typeof { span, reference } => IsolatedTypeElementMetadata {
+                kind: IsolatedTypeElementKind::Typeof,
+                span: span.map(|s| SpanMetadata::new(s, cx.converter)),
+                references: reference
+                    .as_ref()
+                    .map(|r| vec![self.to_wire_single_ref(r, current_file_path, cx)]),
+            },
+            IsolatedTypeElementData::CallReturnType { callee_span } => {
+                IsolatedTypeElementMetadata {
+                    kind: IsolatedTypeElementKind::CallReturnType,
+                    span: Some(SpanMetadata::new(*callee_span, cx.converter)),
+                    references: None,
+                }
+            }
+            IsolatedTypeElementData::ReferenceTuple { references } => IsolatedTypeElementMetadata {
+                kind: IsolatedTypeElementKind::ReferenceTuple,
+                span: None,
+                references: Some(
+                    references
+                        .iter()
+                        .map(|r| self.to_wire_single_ref(r, current_file_path, cx))
+                        .collect(),
+                ),
+            },
+            IsolatedTypeElementData::Never { span } => IsolatedTypeElementMetadata {
+                kind: IsolatedTypeElementKind::Never,
+                span: Some(SpanMetadata::new(*span, cx.converter)),
+                references: None,
+            },
+            IsolatedTypeElementData::Deferred { resolved, fallback } => {
+                let Some(element) = ResolvedIsolatedElement::from_value(resolved.raw()) else {
+                    return self.to_wire_isolated_element(fallback, current_file_path, cx);
+                };
+                let emitted: Option<Vec<ReferenceMetadata>> = element
+                    .references()
+                    .iter()
+                    .map(|r| {
+                        let emitted = self.to_wire_single_ref(r, current_file_path, cx);
+                        // Neither a local binding nor an import: unreachable from this file
+                        // (e.g. not exported), so ngtsc's reference emit would fail too.
+                        (emitted.local_alias.is_some() || emitted.consumer_import.is_some())
+                            .then_some(emitted)
+                    })
+                    .collect();
+                let Some(references) = emitted else {
+                    return self.to_wire_isolated_element(fallback, current_file_path, cx);
+                };
+                IsolatedTypeElementMetadata {
+                    kind: match element {
+                        ResolvedIsolatedElement::Single(_) => IsolatedTypeElementKind::Typeof,
+                        ResolvedIsolatedElement::Tuple(_) => {
+                            IsolatedTypeElementKind::ReferenceTuple
+                        }
+                    },
+                    span: None,
+                    references: Some(references),
+                }
+            }
         }
     }
 
@@ -3050,8 +3348,13 @@ impl ClassData {
                 .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
             host_metadata: self
                 .read_optional_field(d.host_expr.as_deref(), cx, "directive.host")?
-                .map(|host| host_metadata_wire(host, cx.source_text)),
+                .map(|host| host_metadata_wire(host, cx.source_text, cx.converter)),
             host_directives: self.to_wire_host_directives(&d.host_directives, cx),
+            resolved_host_directives: d.resolved_host_directives.as_ref().map(|hds| {
+                hds.iter()
+                    .map(|hd| ResolvedHostDirectiveMetadata::to_wire(hd, cx.path_lookup))
+                    .collect()
+            }),
             providers_span: d
                 .providers_span
                 .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
@@ -3076,7 +3379,7 @@ impl ClassData {
                 })
         });
         let template = self.read_optional_string(&c.template, cx, "component.template")?;
-        let template_dynamic = c.template_dynamic || (c.template.is_some() && template.is_none());
+        let template_dynamic = c.template.is_some() && template.is_none();
         let encapsulation = self.read_core_enum_field(
             &c.encapsulation,
             c.encapsulation_span,
@@ -3100,6 +3403,13 @@ impl ClassData {
                 // https://github.com/angular/angular/blob/96b8042/packages/compiler/src/render3/view/compiler.ts#L308-L321
                 .filter(|num| *num != CHANGE_DETECTION_ON_PUSH)
                 .map(|num| num.to_string()),
+        };
+        let change_detection_span = match cx.mode {
+            WireMode::Syntax => change_detection
+                .as_ref()
+                .and(c.change_detection_span)
+                .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
+            WireMode::Semantic => None,
         };
         let import_info_to_wire_ref = |i: &ImportInfo| -> ReferenceMetadata {
             let (consumer_import, typecheck_import) = if let Some(source) = &i.import_source {
@@ -3146,6 +3456,9 @@ impl ClassData {
                 .template_span
                 .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
             template_dynamic,
+            template_url_span: c
+                .template_url_span
+                .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
             template_url: c.template_url.as_ref().map(|t| t.to_wire(cx.converter)),
             styles: self
                 .read_optional_field(c.styles.as_ref(), cx, "component.styles")?
@@ -3257,7 +3570,7 @@ impl ClassData {
                 .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
             host_metadata: self
                 .read_optional_field(c.directive.host_expr.as_deref(), cx, "component.host")?
-                .map(|host| host_metadata_wire(host, cx.source_text)),
+                .map(|host| host_metadata_wire(host, cx.source_text, cx.converter)),
             host_directives: self.to_wire_host_directives(&c.directive.host_directives, cx),
             providers_span: c
                 .directive
@@ -3267,6 +3580,7 @@ impl ClassData {
                 .view_providers_span
                 .map(|s| crate::types::metadata::SpanMetadata::new(s, cx.converter)),
             change_detection,
+            change_detection_span,
             preserve_whitespaces: c.preserve_whitespaces,
             animations_span: c
                 .animations_span
@@ -3418,6 +3732,7 @@ impl ClassData {
             ng_template_guards: self.ng_template_guards.clone(),
             animation_trigger_names,
             has_ng_field_directive: self.has_ng_field_directive,
+            public_methods: self.public_methods.clone(),
             is_structural,
             raw_imports,
             may_declare_providers,

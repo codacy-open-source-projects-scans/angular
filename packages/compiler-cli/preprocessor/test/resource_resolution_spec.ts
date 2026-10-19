@@ -31,7 +31,6 @@ async function runTest(
   files: TestFile[],
   options: {
     optimize?: boolean;
-    wasm?: boolean;
     sidecar?: boolean;
     errors?: string[];
   } = {},
@@ -39,7 +38,7 @@ async function runTest(
   const prepared = await prepareSandbox(testName, files);
   const outputs = await runPipeline(prepared, {
     optimize: options.optimize ?? false,
-    wasm: true,
+    sidecar: options.sidecar,
     errors: options.errors,
   });
   return outputs.map((o) => ({
@@ -603,6 +602,72 @@ describe('Resource Resolution E2E Test Suite', () => {
         const jsOutput = outputs.find((o) => o.path.endsWith('app.component.ts'));
         expect(jsOutput).toBeDefined();
         expect(jsOutput!.content).toContain('.rooted-compiled-scss { border: 1px solid black; }');
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    // F10: Stylesheets linked from the template
+    // -----------------------------------------------------------------------
+    // `<link rel="stylesheet">` in a template resolves from the component file, through the same
+    // resource resolution as the decorator's `styleUrls`.
+    describe('F10: Template-linked stylesheets', () => {
+      it('f10_template_link_resolves_through_secondary_root_dir', async () => {
+        const files: TestFile[] = [
+          {
+            path: 'tsconfig.json',
+            content: JSON.stringify({compilerOptions: {rootDirs: ['./src', './gen']}}),
+          },
+          {
+            path: 'src/app/my.component.ts',
+            content: `
+              import { Component } from '@angular/core';
+              @Component({
+                selector: 'my-cmp',
+                templateUrl: \`./my.component.html\`,
+                styleUrls: [\`./my.component.css\`, \`./generated.css\`],
+              })
+              export class MyComponent {}
+            `,
+          },
+          {
+            path: 'src/app/my.component.html',
+            content: '<link href="generated.css" rel="stylesheet"><p>hello</p>',
+          },
+          {path: 'src/app/my.component.css', content: '.local { color: blue; }'},
+          {path: 'gen/app/generated.css', content: '.generated { color: red; }'},
+        ];
+        const outputs = await runTest(
+          'f10_template_link_resolves_through_secondary_root_dir',
+          files,
+        );
+        expect(outputs.find((o) => o.path.endsWith('.ngdiag.json'))).toBeUndefined();
+        const jsOutput = outputs.find((o) => o.path.endsWith('my.component.ts'));
+        expect(jsOutput).toBeDefined();
+        expect(jsOutput!.content).toContain('.local { color: blue; }');
+        expect(jsOutput!.content).toContain('.generated { color: red; }');
+      });
+
+      it('f10_template_link_preprocessor_fallback', async () => {
+        const files: TestFile[] = [
+          {path: 'tsconfig.json', content: JSON.stringify({compilerOptions: {}})},
+          {
+            path: 'app.component.ts',
+            content: `
+              import { Component } from '@angular/core';
+              @Component({
+                selector: 'app-root',
+                template: '<link rel="stylesheet" href="./theme.scss"><div>Linked</div>',
+              })
+              export class AppComponent {}
+            `,
+          },
+          {path: 'theme.css', content: '.linked-compiled-scss { color: teal; }'},
+        ];
+        const outputs = await runTest('f10_template_link_preprocessor_fallback', files);
+        expect(outputs.find((o) => o.path.endsWith('.ngdiag.json'))).toBeUndefined();
+        const jsOutput = outputs.find((o) => o.path.endsWith('app.component.ts'));
+        expect(jsOutput).toBeDefined();
+        expect(jsOutput!.content).toContain('.linked-compiled-scss { color: teal; }');
       });
     });
   });
@@ -1532,47 +1597,22 @@ describe('Resource Resolution E2E Test Suite', () => {
         {path: 'node_modules/my-lib/style.css', content: '.my-lib-style { margin: 10px; }'},
       ];
 
-      // Run NAPI Mode
-      const napiOutputs = await runTest('t4_tri_modal_parity_audit_napi', files, {
-        wasm: false,
+      // Run WASM Mode
+      const wasmOutputs = await runTest('t4_tri_modal_parity_audit_wasm', files, {
         sidecar: false,
       });
 
-      // Run WASM Mode (if available, otherwise bypass/spot-check)
-      let wasmOutputs: TestFile[] = [];
-      try {
-        wasmOutputs = await runTest('t4_tri_modal_parity_audit_wasm', files, {
-          wasm: true,
-          sidecar: false,
-        });
-      } catch (e) {
-        // WASM might not be compiled or supported in this test run environment, that is fine
-      }
-
       // Run Sidecar Mode
-      let sidecarOutputs: TestFile[] = [];
-      try {
-        sidecarOutputs = await runTest('t4_tri_modal_parity_audit_sidecar', files, {
-          wasm: false,
-          sidecar: true,
-        });
-      } catch (e) {
-        // Sidecar binary might not be compiled or available, that is fine
-      }
+      const sidecarOutputs = await runTest('t4_tri_modal_parity_audit_sidecar', files, {
+        sidecar: true,
+      });
 
-      // Verify that if multiple modes succeeded, their outputs are identical
-      expect(napiOutputs.length).toBeGreaterThan(0);
-      const napiJs = napiOutputs.find((o) => o.path.endsWith('app.component.ts'))!.content;
-
-      if (wasmOutputs.length > 0) {
-        const wasmJs = wasmOutputs.find((o) => o.path.endsWith('app.component.ts'))!.content;
-        expect(wasmJs).toBe(napiJs);
-      }
-
-      if (sidecarOutputs.length > 0) {
-        const sidecarJs = sidecarOutputs.find((o) => o.path.endsWith('app.component.ts'))!.content;
-        expect(sidecarJs).toBe(napiJs);
-      }
+      // Verify that WASM and Sidecar modes produce identical output
+      expect(wasmOutputs.length).toBeGreaterThan(0);
+      expect(sidecarOutputs.length).toBeGreaterThan(0);
+      const wasmJs = wasmOutputs.find((o) => o.path.endsWith('app.component.ts'))!.content;
+      const sidecarJs = sidecarOutputs.find((o) => o.path.endsWith('app.component.ts'))!.content;
+      expect(sidecarJs).toBe(wasmJs);
     });
   });
 });

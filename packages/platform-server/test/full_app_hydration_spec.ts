@@ -26,7 +26,6 @@ import {computeMsgId} from '@angular/compiler';
 import {
   afterEveryRender,
   ApplicationRef,
-  ChangeDetectionStrategy,
   ChangeDetectorRef,
   ɵCLIENT_RENDER_MODE_FLAG as CLIENT_RENDER_MODE_FLAG,
   Component,
@@ -50,6 +49,7 @@ import {
   QueryList,
   signal,
   TemplateRef,
+  Type,
   ViewChild,
   ViewContainerRef,
   ViewEncapsulation,
@@ -215,6 +215,7 @@ describe('platform-server full application hydration integration', () => {
       it('should serialize input values correctly for both null and normal non-empty values during SSR', async () => {
         @Component({
           selector: 'app',
+
           template: `
             <input id="input-null" [value]="nullValue" />
             <input id="input-normal" [value]="normalValue" />
@@ -583,6 +584,7 @@ describe('platform-server full application hydration integration', () => {
         it('should support element containers with *ngIf', async () => {
           @Component({
             selector: 'cmp',
+
             template: 'Hi!',
           })
           class Cmp {}
@@ -956,6 +958,7 @@ describe('platform-server full application hydration integration', () => {
           it('should support hydration on <ng-container> nodes', async () => {
             @Component({
               selector: 'nested-cmp',
+
               imports: [NgIf],
               template: ` <h1 *ngIf="true">Hello World!</h1> `,
             })
@@ -991,6 +994,7 @@ describe('platform-server full application hydration integration', () => {
           it('should support hydration on element nodes', async () => {
             @Component({
               selector: 'nested-cmp',
+
               imports: [NgIf],
               template: ` <h1 *ngIf="true">Hello World!</h1> `,
             })
@@ -1026,6 +1030,7 @@ describe('platform-server full application hydration integration', () => {
           it('should support hydration for nested components', async () => {
             @Component({
               selector: 'nested-cmp',
+
               imports: [NgIf],
               template: ` <h1 *ngIf="true">Hello World!</h1> `,
             })
@@ -1033,6 +1038,7 @@ describe('platform-server full application hydration integration', () => {
 
             @Component({
               selector: 'other-nested-cmp',
+
               imports: [NgComponentOutlet],
               template: ` <ng-container *ngComponentOutlet="NestedComponent" />`,
             })
@@ -1291,15 +1297,17 @@ describe('platform-server full application hydration integration', () => {
 
           it('should hydrate dynamically created components using root component as an anchor (with nested components)', async () => {
             @Component({
-              imports: [CommonModule],
               selector: 'nested-dynamic-a',
+
+              imports: [CommonModule],
               template: ` <p>NestedDynamicComponentA</p> `,
             })
             class NestedDynamicComponentA {}
 
             @Component({
-              imports: [CommonModule],
               selector: 'nested-dynamic-b',
+
+              imports: [CommonModule],
               template: ` <p>NestedDynamicComponentB</p> `,
             })
             class NestedDynamicComponentB {}
@@ -1396,6 +1404,7 @@ describe('platform-server full application hydration integration', () => {
             async () => {
               @Component({
                 selector: 'another-dynamic',
+
                 template: `<span>This is a content of another dynamic component.</span>`,
               })
               class AnotherDynamicComponent {
@@ -1695,6 +1704,7 @@ describe('platform-server full application hydration integration', () => {
         it('should append skip hydration flag if component uses i18n blocks and no `withI18nSupport()` call present', async () => {
           @Component({
             selector: 'app',
+
             template: '<div i18n>Hi!</div>',
           })
           class SimpleComponent {
@@ -2154,6 +2164,7 @@ describe('platform-server full application hydration integration', () => {
         it('should support using translated views as view container anchors', async () => {
           @Component({
             selector: 'dynamic-cmp',
+
             template: `DynamicComponent content`,
           })
           class DynamicComponent {}
@@ -3515,6 +3526,7 @@ describe('platform-server full application hydration integration', () => {
         async () => {
           @Component({
             selector: 'dynamic-cmp',
+
             template: `DynamicComponent content`,
           })
           class DynamicComponent {}
@@ -5606,6 +5618,7 @@ describe('platform-server full application hydration integration', () => {
       it('should support projecting contents outside of a current host element', async () => {
         @Component({
           selector: 'dynamic-cmp',
+
           template: `<div #target></div>`,
         })
         class DynamicComponent {
@@ -5787,6 +5800,7 @@ describe('platform-server full application hydration integration', () => {
 
         @Component({
           selector: 'app',
+
           imports: [NgIf, NgFor],
           template: `
             <div #target></div>
@@ -5838,6 +5852,7 @@ describe('platform-server full application hydration integration', () => {
 
         @Component({
           selector: 'app',
+
           imports: [NgIf, NgFor],
           template: `
             <div #target></div>
@@ -5893,6 +5908,7 @@ describe('platform-server full application hydration integration', () => {
 
         @Component({
           selector: 'app',
+
           template: `<div #anchor></div>`,
         })
         class SimpleComponent {
@@ -5917,7 +5933,6 @@ describe('platform-server full application hydration integration', () => {
             Project?: <span>{{ project ? 'yes' : 'no' }}</span>
             <ng-content *ngIf="project" />
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class ProjectorCmp {
           @Input() project: boolean = false;
@@ -5927,15 +5942,14 @@ describe('platform-server full application hydration integration', () => {
           imports: [ProjectorCmp],
           selector: 'app',
           template: `
-            <projector-cmp [project]="project">
+            <projector-cmp [project]="project()">
               <h1>This node is not projected.</h1>
               <h2>This node is not projected as well.</h2>
             </projector-cmp>
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          project = false;
+          project = signal(false);
         }
 
         const html = await ssr(SimpleComponent);
@@ -5962,7 +5976,7 @@ describe('platform-server full application hydration integration', () => {
         expect(span.textContent).toBe('no');
 
         // Flip the flag to enable content projection.
-        compRef.instance.project = true;
+        compRef.instance.project.set(true);
         compRef.changeDetectorRef.detectChanges();
 
         h1 = clientRootNode.querySelector('h1');
@@ -5982,7 +5996,6 @@ describe('platform-server full application hydration integration', () => {
             Project?: <span>{{ project ? 'yes' : 'no' }}</span>
             <ng-content *ngIf="project" />
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class ProjectorCmp {
           @Input() project: boolean = false;
@@ -5992,15 +6005,14 @@ describe('platform-server full application hydration integration', () => {
           imports: [ProjectorCmp],
           selector: 'app',
           template: `
-            <projector-cmp [project]="project">
+            <projector-cmp [project]="project()">
               <h1>This node is projected.</h1>
               <h2>This node is projected as well.</h2>
             </projector-cmp>
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          project = true;
+          project = signal(true);
         }
 
         const html = await ssr(SimpleComponent);
@@ -6027,7 +6039,7 @@ describe('platform-server full application hydration integration', () => {
         expect(span.textContent).toBe('yes');
 
         // Flip the flag to disable content projection.
-        compRef.instance.project = false;
+        compRef.instance.project.set(false);
         compRef.changeDetectorRef.detectChanges();
 
         h1 = clientRootNode.querySelector('h1');
@@ -6538,6 +6550,7 @@ describe('platform-server full application hydration integration', () => {
       it('should if there are any third-party scripts that manipulate the DOM', async () => {
         @Component({
           selector: 'app',
+
           template: `<div>Original content</div>`,
         })
         class SimpleComponent {
@@ -6872,6 +6885,7 @@ describe('platform-server full application hydration integration', () => {
 
         @Component({
           selector: 'app',
+
           imports: [CommonModule, ProjectorComponent],
           template: `
             <projector-cmp>
@@ -7060,6 +7074,7 @@ describe('platform-server full application hydration integration', () => {
 
         @Component({
           selector: 'app',
+
           template: `Hi!`,
         })
         class SimpleComponent {
@@ -7103,6 +7118,239 @@ describe('platform-server full application hydration integration', () => {
         // Ensure no error has been logged in the console,
         // such as "injector has already been destroyed."
         expect(errorSpy).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('DOM clobbering', () => {
+      function emulateFormDomClobbering(form: HTMLFormElement): () => void {
+        const clobbered = new Set<string>();
+        for (const control of Array.from(form.querySelectorAll('[name],[id]'))) {
+          for (const key of [control.getAttribute('name'), control.getAttribute('id')]) {
+            if (key && !clobbered.has(key)) {
+              clobbered.add(key);
+              Object.defineProperty(form, key, {value: control, configurable: true});
+            }
+          }
+        }
+        return () => {
+          for (const key of clobbered) {
+            delete (form as unknown as Record<string, unknown>)[key];
+          }
+        };
+      }
+
+      /** Undoes the currently installed DOM clobbering emulation, if any. */
+      let restoreDomClobbering: (() => void) | null = null;
+
+      afterEach(() => {
+        restoreDomClobbering?.();
+        restoreDomClobbering = null;
+      });
+
+      function emulateFormDomClobberingOnClient(): void {
+        if (isPlatformBrowser(inject(PLATFORM_ID))) {
+          restoreDomClobbering = emulateFormDomClobbering(inject(DOCUMENT).querySelector('form')!);
+        }
+      }
+
+      async function hydrateWithFormClobbering(
+        html: string,
+        component: Type<unknown>,
+      ): Promise<ApplicationRef> {
+        const appRef = await prepareEnvironmentAndHydrate(doc, html, component);
+        appRef.tick();
+        restoreDomClobbering?.();
+        restoreDomClobbering = null;
+        return appRef;
+      }
+
+      it('should hydrate correctly when a form control has a non-clobbering name', async () => {
+        @Component({
+          selector: 'app',
+          template: `
+            <form>
+              <span>{{ label() }}</span>
+              <input [name]="key" />
+              <div>{{ help() }}</div>
+            </form>
+          `,
+        })
+        class SimpleComponent {
+          label = signal('Label');
+          help = signal('Help text');
+          key = 'username';
+
+          constructor() {
+            emulateFormDomClobberingOnClient();
+          }
+        }
+
+        const html = await ssr(SimpleComponent);
+        const ssrContents = getAppContents(html);
+
+        expect(ssrContents).toContain('<app ngh');
+        expect(ssrContents).toContain('<input name="username">');
+
+        resetTViewsFor(SimpleComponent);
+
+        const appRef = await hydrateWithFormClobbering(html, SimpleComponent);
+        const compRef = getComponentRef<SimpleComponent>(appRef);
+
+        const clientRootNode = compRef.location.nativeElement;
+        verifyAllNodesClaimedForHydration(clientRootNode);
+        verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
+
+        compRef.instance.label.set('Updated label');
+        compRef.instance.help.set('Updated help');
+        appRef.tick();
+
+        expect(clientRootNode.querySelector('span').textContent).toBe('Updated label');
+        expect(clientRootNode.querySelector('div').textContent).toBe('Updated help');
+      });
+
+      async function expectHydrationToFailWithClobbering(
+        component: Type<unknown>,
+        expectedSsrContent: string,
+      ): Promise<Error> {
+        const html = await ssr(component);
+        const ssrContents = getAppContents(html);
+
+        expect(ssrContents).toContain('<app ngh');
+        expect(ssrContents).toContain(expectedSsrContent);
+
+        resetTViewsFor(component);
+
+        try {
+          await prepareEnvironmentAndHydrate(doc, html, component, {
+            envProviders: [withNoopErrorHandler()],
+          });
+        } catch (e: unknown) {
+          return e as Error;
+        }
+        fail('Expected the hydration process to throw.');
+        return null!;
+      }
+
+      it('should throw when a form control clobbers `form.firstChild`', async () => {
+        @Component({
+          selector: 'app',
+          template: `
+            <form>
+              <span>{{ label }}</span>
+              <div><input [name]="key" /></div>
+              <div>{{ help }}</div>
+            </form>
+          `,
+        })
+        class SimpleComponent {
+          label = 'Label';
+          help = 'Help text';
+          key = 'firstChild';
+
+          constructor() {
+            emulateFormDomClobberingOnClient();
+          }
+        }
+
+        const error = await expectHydrationToFailWithClobbering(
+          SimpleComponent,
+          '<input name="firstChild">',
+        );
+        expect(error.message).toBe(
+          'Action failed because the element is clobbered: <input name="firstChild">',
+        );
+      });
+
+      it('should throw when a form control clobbers `form.firstChild` in production mode (ngDevMode off)', async () => {
+        @Component({
+          selector: 'app',
+          template: `
+            <form>
+              <span>{{ label }}</span>
+              <div><input [name]="key" /></div>
+              <div>{{ help }}</div>
+            </form>
+          `,
+        })
+        class SimpleComponent {
+          label = 'Label';
+          help = 'Help text';
+          key = 'firstChild';
+
+          constructor() {
+            emulateFormDomClobberingOnClient();
+          }
+        }
+
+        const previousNgDevMode = (globalThis as any).ngDevMode;
+        (globalThis as any).ngDevMode = false;
+        try {
+          const error = await expectHydrationToFailWithClobbering(
+            SimpleComponent,
+            '<input name="firstChild">',
+          );
+          expect(error instanceof TypeError).toBe(false);
+          expect(error.message).toBe(
+            'Action failed because the element is clobbered: <input name="firstChild">',
+          );
+        } finally {
+          (globalThis as any).ngDevMode = previousNgDevMode;
+        }
+      });
+
+      it('should throw when a form control clobbers `form.nextSibling`', async () => {
+        @Component({
+          selector: 'app',
+          template: `
+            <form>
+              <input [name]="key" />
+            </form>
+            <div>{{ help }}</div>
+          `,
+        })
+        class SimpleComponent {
+          help = 'Help text';
+          key = 'nextSibling';
+
+          constructor() {
+            emulateFormDomClobberingOnClient();
+          }
+        }
+
+        const error = await expectHydrationToFailWithClobbering(
+          SimpleComponent,
+          '<input name="nextSibling">',
+        );
+        expect(error.message).toBe(
+          'Action failed because the element is clobbered: <input name="nextSibling">',
+        );
+      });
+
+      it('should throw when a form control clobbers `form.hasAttribute`', async () => {
+        @Component({
+          selector: 'app',
+          template: `
+            <form>
+              <input [name]="key" />
+            </form>
+          `,
+        })
+        class SimpleComponent {
+          key = 'hasAttribute';
+
+          constructor() {
+            emulateFormDomClobberingOnClient();
+          }
+        }
+
+        const error = await expectHydrationToFailWithClobbering(
+          SimpleComponent,
+          '<input name="hasAttribute">',
+        );
+        expect(error instanceof TypeError).toBe(false);
+        expect(error.message).toBe(
+          'Action failed because the element is clobbered: <input name="hasAttribute">',
+        );
       });
     });
 
@@ -7231,16 +7479,15 @@ describe('platform-server full application hydration integration', () => {
         @Component({
           selector: 'app',
           template: `
-            @if (conditionA) {
+            @if (conditionA()) {
               if block
             } @else {
               else block
             }
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          conditionA = false;
+          conditionA = signal(false);
         }
 
         const html = await ssr(SimpleComponent);
@@ -7268,7 +7515,7 @@ describe('platform-server full application hydration integration', () => {
 
         // Verify that switching `if` condition results
         // in an update to the DOM which was previously hydrated.
-        compRef.instance.conditionA = true;
+        compRef.instance.conditionA.set(true);
         compRef.changeDetectorRef.detectChanges();
 
         expect(clientRootNode.innerHTML).not.toContain(`else block`);
@@ -7700,13 +7947,12 @@ describe('platform-server full application hydration integration', () => {
         @Component({
           selector: 'app',
           template: `
-            @let greeting = name + '!!!';
+            @let greeting = name() + '!!!';
             Hello, {{ greeting }}
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          name = 'Frodo';
+          name = signal('Frodo');
         }
 
         const html = await ssr(SimpleComponent);
@@ -7726,7 +7972,7 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('Hello, Frodo!!!');
 
-        compRef.instance.name = 'Bilbo';
+        compRef.instance.name.set('Bilbo');
         compRef.changeDetectorRef.detectChanges();
         expect(clientRootNode.textContent).toContain('Hello, Bilbo!!!');
       });
@@ -7735,15 +7981,14 @@ describe('platform-server full application hydration integration', () => {
         @Component({
           selector: 'app',
           template: `
-            @let plusOne = value + 1;
+            @let plusOne = value() + 1;
             @let plusTwo = plusOne + 1;
             @let result = plusTwo + 1;
             Result: {{ result }}
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          value = 1;
+          value = signal(1);
         }
 
         const html = await ssr(SimpleComponent);
@@ -7763,7 +8008,7 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('Result: 4');
 
-        compRef.instance.value = 2;
+        compRef.instance.value.set(2);
         compRef.changeDetectorRef.detectChanges();
 
         expect(clientRootNode.textContent).toContain('Result: 5');
@@ -7785,13 +8030,12 @@ describe('platform-server full application hydration integration', () => {
           selector: 'app',
           imports: [DoublePipe],
           template: `
-            @let result = value | double;
+            @let result = value() | double;
             Result: {{ result }}
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          value = 1;
+          value = signal(1);
         }
 
         const html = await ssr(SimpleComponent);
@@ -7811,7 +8055,7 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('Result: 2');
 
-        compRef.instance.value = 2;
+        compRef.instance.value.set(2);
         compRef.changeDetectorRef.detectChanges();
         expect(clientRootNode.textContent).toContain('Result: 4');
       });
@@ -7828,12 +8072,11 @@ describe('platform-server full application hydration integration', () => {
               @let two = one + 1;
             }
 
-            @let one = value + 1;
+            @let one = value() + 1;
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          value = 0;
+          value = signal(0);
         }
 
         const html = await ssr(SimpleComponent);
@@ -7853,7 +8096,7 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('The result is 3');
 
-        compRef.instance.value = 2;
+        compRef.instance.value.set(2);
         compRef.changeDetectorRef.detectChanges();
         expect(clientRootNode.textContent).toContain('The result is 5');
       });
@@ -8047,15 +8290,14 @@ describe('platform-server full application hydration integration', () => {
           selector: 'app',
           template: `
             @boundary {
-              Hello, {{ name }}
+              Hello, {{ name() }}
             } @error {
               Error occurred!
             }
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
-          name = 'Frodo';
+          name = signal('Frodo');
         }
 
         const html = await ssr(SimpleComponent);
@@ -8076,7 +8318,7 @@ describe('platform-server full application hydration integration', () => {
         verifyClientAndSSRContentsMatch(ssrContents, clientRootNode);
         expect(clientRootNode.textContent).toContain('Hello, Frodo');
 
-        compRef.instance.name = 'Bilbo';
+        compRef.instance.name.set('Bilbo');
         compRef.changeDetectorRef.detectChanges();
         expect(clientRootNode.textContent).toContain('Hello, Bilbo');
       });
@@ -8106,7 +8348,6 @@ describe('platform-server full application hydration integration', () => {
               Error occurred on server!
             }
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {
           fail = isPlatformServer(inject(PLATFORM_ID));
@@ -8158,7 +8399,6 @@ describe('platform-server full application hydration integration', () => {
               Error occurred on server and client!
             }
           `,
-          changeDetection: ChangeDetectionStrategy.Eager,
         })
         class SimpleComponent {}
 

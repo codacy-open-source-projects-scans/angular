@@ -193,6 +193,7 @@ pub struct DeclarationData {
     pub ng_template_guards: Vec<crate::types::metadata::TemplateGuardMetadata>,
     pub animation_trigger_names: Option<crate::types::metadata::LegacyAnimationTriggerNames>,
     pub has_ng_field_directive: bool,
+    pub public_methods: Vec<String>,
     pub is_forward_ref: bool,
     pub is_structural: bool,
     /// Reference as written in the emitting file: constructors fill it in the declaring file's
@@ -263,6 +264,7 @@ impl DeclarationData {
             ng_template_guards: local_info.ng_template_guards.clone(),
             animation_trigger_names: local_info.animation_trigger_names.clone(),
             has_ng_field_directive: local_info.has_ng_field_directive,
+            public_methods: flattened_info.public_methods.clone(),
             is_forward_ref,
             is_structural: local_info.is_structural,
             ref_meta,
@@ -379,6 +381,7 @@ impl DeclarationData {
             ng_template_guards: class.ng_template_guards.clone(),
             animation_trigger_names,
             has_ng_field_directive: class.has_ng_field_directive,
+            public_methods: class.public_methods.clone(),
             is_forward_ref,
             is_structural,
             ref_meta,
@@ -430,6 +433,7 @@ pub struct ClassInfo {
     pub schemas: Option<Vec<String>>,
     pub animation_trigger_names: Option<LegacyAnimationTriggerNames>,
     pub has_ng_field_directive: bool,
+    pub public_methods: Vec<String>,
     pub raw_imports: Option<Vec<DeclarationTuple>>,
     /// ngtsc's `mayDeclareProviders`: the NgModule literal carries a non-empty `providers`.
     pub may_declare_providers: bool,
@@ -551,6 +555,12 @@ pub struct FileData {
     /// Byte offsets for implicit signal `debugName` insertions.
     pub(crate) signal_debug_names:
         Vec<crate::analyzer::signal_debug_name::SignalDebugNameInsertion>,
+    /// Whether this file is part of `@angular/core` itself (see
+    /// [`crate::analyzer::imports::detect_is_core`]). Always `false` for `.d.ts` files.
+    pub(crate) is_core: bool,
+    /// Root-scope runtime binding names for HMR (`None` unless the engine runs with
+    /// `enable_hmr`).
+    pub(crate) top_level_value_bindings: Option<Vec<String>>,
 }
 
 impl FileData {
@@ -592,7 +602,20 @@ impl FileData {
                     )
                 })
                 .collect(),
+            r3_symbols_specifier: self.r3_symbols_specifier(cx.r3_symbols_path),
+            top_level_value_bindings: self.top_level_value_bindings.clone(),
         })
+    }
+
+    fn r3_symbols_specifier(&self, r3_symbols_path: Option<&Path>) -> Option<String> {
+        if !self.is_core {
+            return None;
+        }
+        let r3_symbols_path = r3_symbols_path?;
+        Some(crate::analyzer::import_emit::relative_specifier_between(
+            &self.file_path,
+            r3_symbols_path,
+        ))
     }
 
     /// The import table is single-file syntactic data, identical in both projections.
@@ -620,6 +643,9 @@ impl FileData {
                 for r in refs {
                     out.insert((r.file, r.name.clone()));
                 }
+            }
+            for r in class.isolated_tuple_references() {
+                out.insert((r.file, r.name));
             }
         }
         out

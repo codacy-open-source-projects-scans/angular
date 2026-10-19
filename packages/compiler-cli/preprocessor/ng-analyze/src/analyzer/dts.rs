@@ -6,7 +6,7 @@ use crate::{ClassType, HostDirectiveBinding, InputMetadata, OutputMetadata};
 
 use super::imports::{FileExportInfo, LocalExportAlias, ReexportInfo, WildcardExport};
 use super::utils::{
-    extract_property_key, extract_template_guards_and_field_directive, extract_type_parameters,
+    extract_class_body_type_check_meta, extract_property_key, extract_type_parameters,
 };
 use oxc_ast_visit::utf8_to_utf16::Utf8ToUtf16;
 
@@ -261,8 +261,11 @@ fn extract_class_metadata(
             .collect::<Vec<_>>()
     });
 
-    let (has_ng_template_context_guard, ng_template_guards, has_ng_field_directive) =
-        extract_template_guards_and_field_directive(class);
+    let type_check_meta = extract_class_body_type_check_meta(class);
+    let has_ng_template_context_guard = type_check_meta.has_ng_template_context_guard;
+    let ng_template_guards = type_check_meta.ng_template_guards;
+    let has_ng_field_directive = type_check_meta.has_ng_field_directive;
+    let public_methods = type_check_meta.public_methods;
 
     let mut class_type = None;
     let mut selector = None;
@@ -444,10 +447,12 @@ fn extract_class_metadata(
             unexpected_param_decorators: Vec::new(),
             member_decorators: Vec::new(),
             later_declaration_references: Vec::new(),
+            top_level_references: None,
             type_parameters: None,
             has_ng_template_context_guard: false,
             ng_template_guards: Vec::new(),
             has_ng_field_directive: false,
+            public_methods: Vec::new(),
             uses_inheritance,
             uses_on_changes: false,
             is_exported: true,
@@ -477,6 +482,7 @@ fn extract_class_metadata(
             ng_template_guards: Vec::new(),
             animation_trigger_names: None,
             has_ng_field_directive: false,
+            public_methods: Vec::new(),
             is_structural: false,
             raw_imports: None,
             // NgModules declared outside the current compilation are assumed to contain providers, as it
@@ -635,10 +641,12 @@ fn extract_class_metadata(
             unexpected_param_decorators: Vec::new(),
             member_decorators: Vec::new(),
             later_declaration_references: Vec::new(),
+            top_level_references: None,
             type_parameters: raw_type_parameters.map(|extracted| extracted.params),
             has_ng_template_context_guard,
             ng_template_guards: ng_template_guards.clone(),
             has_ng_field_directive,
+            public_methods: public_methods.clone(),
             uses_inheritance,
             uses_on_changes: false,
             is_exported: true,
@@ -669,7 +677,8 @@ fn extract_class_metadata(
             has_ng_template_context_guard,
             ng_template_guards,
             animation_trigger_names: None,
-            has_ng_field_directive: false,
+            has_ng_field_directive,
+            public_methods,
             is_structural: false,
             raw_imports: None,
             // A `.d.ts` carries no decorator literal, so no `providers` to read.
@@ -1308,6 +1317,43 @@ export declare class AppComponent {
             comp.ng_content_selectors.as_ref(),
             Some(&vec!["*".to_string()])
         );
+    }
+
+    #[test]
+    fn test_ng_field_directive_propagates_to_registration() {
+        let source = r#"
+import * as i0 from "@angular/core";
+declare const ɵNgFieldDirective: unique symbol;
+export declare class FormField {
+    readonly [ɵNgFieldDirective]: true;
+    static ɵdir: i0.ɵɵDirectiveDeclaration<FormField, "[formField]", never, { "formField": { "alias": "formField"; "required": true; "isSignal": true; }; }, {}, never, never, true, never>;
+}
+export declare class NotAField {
+    static ɵdir: i0.ɵɵDirectiveDeclaration<NotAField, "[notAField]", never, {}, {}, never, never, true, never>;
+}
+"#;
+        let result = run_analyze_dts(source);
+        let find_class = |name: &str| {
+            result
+                .classes
+                .iter()
+                .find(|c| c.class_name.as_deref() == Some(name))
+                .unwrap()
+        };
+        let find_registration = |name: &str| {
+            result
+                .registrations
+                .iter()
+                .find(|r| r.class_name == name)
+                .unwrap()
+        };
+
+        assert!(find_class("FormField").has_ng_field_directive);
+        // The query engine reads the flag from the registration, so it must be set there too.
+        assert!(find_registration("FormField").has_ng_field_directive);
+
+        assert!(!find_class("NotAField").has_ng_field_directive);
+        assert!(!find_registration("NotAField").has_ng_field_directive);
     }
 
     #[test]

@@ -84,7 +84,7 @@ runInEachFileSystem(() => {
       expect(getSourceCodeForDiagnostic(diags[0])).toBe('does_not_exist');
     });
 
-    it('should not fail with a runtime error when generating TCB', () => {
+    it('should type check templates using a non-exported dependency from the same file', () => {
       env.tsconfig({strictTemplates: true});
       env.write(
         'test.ts',
@@ -107,12 +107,35 @@ runInEachFileSystem(() => {
       `,
       );
 
+      expect(env.driveDiagnostics()).toEqual([]);
+    });
+
+    it('should report binding errors on a non-exported dependency from the same file', () => {
+      env.tsconfig({strictTemplates: true});
+      env.write(
+        'test.ts',
+        `
+        import {Component, input} from '@angular/core';
+
+        @Component({
+          selector: 'sub-cmp',
+          template: '',
+        })
+        class Sub { // intentionally not exported
+          someInput = input.required<string>();
+        }
+
+        @Component({
+          template: \`<sub-cmp [someInput]="1" />\`,
+          imports: [Sub],
+        })
+        export class MyComponent {}
+      `,
+      );
+
       const diagnostics = env.driveDiagnostics();
-      expect(diagnostics).toEqual([
-        jasmine.objectContaining({
-          messageText: jasmine.objectContaining({messageText: 'Unable to import symbol Sub.'}),
-        }),
-      ]);
+      expect(diagnostics.length).toBe(1);
+      expect(diagnostics[0].messageText).toBe(`Type 'number' is not assignable to type 'string'.`);
     });
 
     it('should check regular attributes that are directive inputs', () => {
@@ -8492,6 +8515,106 @@ suppress
           `Node matches the "[bar]" slot of the "Comp" component, but will ` +
             `not be projected into the specific slot because the surrounding @default has more than one node at its root.`,
         );
+      });
+
+      it('should report when an @boundary block prevents an element from being projected', () => {
+        env.write(
+          'test.ts',
+          `
+          import {Component} from '@angular/core';
+
+          @Component({
+            selector: 'comp',
+            template: '<ng-content/> <ng-content select="bar, [foo]"/>',
+          })
+          class Comp {}
+
+          @Component({
+            imports: [Comp],
+            template: \`
+              <comp>
+                @boundary {
+                  <div foo></div>
+                  breaks projection
+                }
+              </comp>
+            \`,
+          })
+          class TestCmp {}
+        `,
+        );
+
+        const diags = env
+          .driveDiagnostics()
+          .map((d) => ts.flattenDiagnosticMessageText(d.messageText, ''));
+        expect(diags.length).toBe(1);
+        expect(diags[0]).toContain(
+          `Node matches the "bar, [foo]" slot of the "Comp" component, but will ` +
+            `not be projected into the specific slot because the surrounding @boundary has more than one node at its root.`,
+        );
+      });
+
+      it('should not report when an @boundary block has only one root node', () => {
+        env.write(
+          'test.ts',
+          `
+          import {Component} from '@angular/core';
+
+          @Component({
+            selector: 'comp',
+            template: '<ng-content/> <ng-content select="bar, [foo]"/>',
+          })
+          class Comp {}
+
+          @Component({
+            imports: [Comp],
+            template: \`
+              <comp>
+                @boundary {
+                  <div foo></div>
+                }
+              </comp>
+            \`,
+          })
+          class TestCmp {}
+        `,
+        );
+
+        const diags = env.driveDiagnostics();
+        expect(diags.length).toBe(0);
+      });
+
+      it('should not report when an @boundary block with one root node has an @error block', () => {
+        env.write(
+          'test.ts',
+          `
+          import {Component} from '@angular/core';
+
+          @Component({
+            selector: 'comp',
+            template: '<ng-content/> <ng-content select="bar, [foo]"/>',
+          })
+          class Comp {}
+
+          @Component({
+            imports: [Comp],
+            template: \`
+              <comp>
+                @boundary {
+                  <div foo></div>
+                } @error {
+                  <div foo></div>
+                  fallback
+                }
+              </comp>
+            \`,
+          })
+          class TestCmp {}
+        `,
+        );
+
+        const diags = env.driveDiagnostics();
+        expect(diags.length).toBe(0);
       });
 
       it('should work with @switch block declared in an ng-template with template scoped variables', () => {

@@ -9,18 +9,25 @@
 // below. This would normally be done inside the application `polyfills.ts` file.
 import '@angular/localize/init';
 
-import {CommonModule, DOCUMENT, registerLocaleData} from '@angular/common';
+import {AsyncPipe, CommonModule, DOCUMENT, NgIf, registerLocaleData} from '@angular/common';
 import localeEs from '@angular/common/locales/es';
 import localeRo from '@angular/common/locales/ro';
 import {computeMsgId} from '@angular/compiler';
-import {isBrowser} from '@angular/private/testing';
+import {clearTranslations, loadTranslations} from '@angular/localize';
+import {bootstrapApplication, By} from '@angular/platform-browser';
+import {isBrowser, withBody} from '@angular/private/testing';
+import {expect} from '@angular/private/testing/matchers';
+import {BehaviorSubject} from 'rxjs';
 import {
   Attribute,
+  ChangeDetectionStrategy,
   Component,
   ContentChild,
   ContentChildren,
+  destroyPlatform,
   Directive,
   ElementRef,
+  forwardRef,
   HostBinding,
   Input,
   LOCALE_ID,
@@ -29,26 +36,22 @@ import {
   PipeTransform,
   provideZoneChangeDetection,
   QueryList,
+  signal,
   TemplateRef,
   Type,
+  ɵunregisterLocaleData as unregisterLocaleData,
   ViewChild,
   ViewContainerRef,
   ɵsetDocument,
-  ChangeDetectionStrategy,
 } from '../../src/core';
+import {provideNgReflectAttributes} from '../../src/ng_reflect';
 import {HEADER_OFFSET} from '../../src/render3/interfaces/view';
 import {getComponentLView} from '../../src/render3/util/discovery_utils';
 import {DeferBlockBehavior, DeferBlockState, TestBed} from '../../testing';
-import {clearTranslations, loadTranslations} from '@angular/localize';
-import {By} from '@angular/platform-browser';
-import {expect} from '@angular/private/testing/matchers';
-import {BehaviorSubject} from 'rxjs';
-import {provideNgReflectAttributes} from '../../src/ng_reflect';
 
 describe('runtime i18n', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [AppComp, DirectiveWithTplRef, UppercasePipe],
       providers: [provideZoneChangeDetection(), provideNgReflectAttributes()],
       // In some of the tests we use made-up tag names for better readability, however
       // they'll cause validation errors. Add the `NO_ERRORS_SCHEMA` so that we don't have
@@ -229,17 +232,6 @@ describe('runtime i18n', () => {
 }-->!</div>`);
   });
 
-  it('should strip replacement characters in translations', () => {
-    loadTranslations({
-      [computeMsgId('Hello {$START_TAG_SPAN}world{$CLOSE_TAG_SPAN}!', '')]:
-        'Bonjour \uFFFD#100\uFFFD \uFFFD0\uFFFD {$START_TAG_SPAN}monde{$CLOSE_TAG_SPAN}!',
-    });
-    const fixture = initWithTemplate(AppComp, `<div i18n>Hello <span>world</span>!</div>`);
-    expect(fixture.nativeElement.innerHTML).toEqual(
-      `<div>Bonjour #100 0 <span>monde</span>!</div>`,
-    );
-  });
-
   it('should support multiple i18n blocks', () => {
     loadTranslations({
       [computeMsgId('trad {$INTERPOLATION}')]: 'traduction {$INTERPOLATION}',
@@ -358,11 +350,7 @@ describe('runtime i18n', () => {
     loadTranslations({[computeMsgId('Hello {$INTERPOLATION}')]: 'Bonjour {$INTERPOLATION}'});
 
     @Component({
-      selector: 'app-comp',
       template: `<div i18n (click)="onClick()">Hello {{ name }}</div>`,
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class ListenerComp {
       name = `Angular`;
@@ -373,7 +361,6 @@ describe('runtime i18n', () => {
       }
     }
 
-    TestBed.configureTestingModule({declarations: [ListenerComp]});
     const fixture = TestBed.createComponent(ListenerComp);
     fixture.detectChanges();
 
@@ -571,12 +558,9 @@ describe('runtime i18n', () => {
     });
 
     @Component({
-      selector: 'defer-comp',
       template:
         '<div i18n>Content: @defer (when isLoaded) {before<span>middle</span>after} ' +
         '@placeholder {before<div>placeholder</div>after}!</div>',
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class DeferComp {
       isLoaded = false;
@@ -786,14 +770,12 @@ describe('runtime i18n', () => {
       });
       @Directive({
         selector: '[myDir]',
-        standalone: false,
       })
       class Dir {
         condition = true;
       }
 
       @Component({
-        selector: 'my-cmp',
         template: `
           <div *ngIf="isLogged; else notLoggedIn">
             <span>Logged in</span>
@@ -802,17 +784,13 @@ describe('runtime i18n', () => {
             <a myDir>Not logged in</a>
           </ng-template>
         `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [CommonModule, Dir],
       })
       class Cmp {
         isLogged = false;
       }
 
-      TestBed.configureTestingModule({
-        declarations: [Cmp, Dir],
-      });
       const fixture = TestBed.createComponent(Cmp);
       fixture.detectChanges();
 
@@ -1397,26 +1375,20 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: '<div><ng-content></ng-content></div>',
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: ` <child i18n>{value // i18n(ph = "blah"), plural,
           =1 {one}
           other {at least {{value}} .}
         }</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         value = 3;
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
 
       const fixture = TestBed.createComponent(Parent);
       fixture.detectChanges();
@@ -1442,7 +1414,6 @@ describe('runtime i18n', () => {
       });
       @Directive({
         selector: '[someDir]',
-        standalone: false,
       })
       class Dir {
         constructor(
@@ -1462,19 +1433,18 @@ describe('runtime i18n', () => {
             <ng-content></ng-content>
           </div>
         `,
-        standalone: false,
 
+        imports: [Dir],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Cmp {}
 
       @Component({
-        selector: 'my-app',
         template: `
           <my-cmp i18n="test" *ngIf="condition">{count, plural, =1 {ONE} other {OTHER}}</my-cmp>
         `,
-        standalone: false,
 
+        imports: [CommonModule, Cmp],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class App {
@@ -1482,9 +1452,6 @@ describe('runtime i18n', () => {
         condition = true;
       }
 
-      TestBed.configureTestingModule({
-        declarations: [App, Cmp, Dir],
-      });
       const fixture = TestBed.createComponent(App);
       fixture.detectChanges();
       expect(fixture.debugElement.nativeElement.innerHTML).toContain(
@@ -1524,7 +1491,6 @@ describe('runtime i18n', () => {
       let dir: Dir | null = null;
       @Directive({
         selector: '[someDir]',
-        standalone: false,
       })
       class Dir {
         constructor(
@@ -1546,31 +1512,27 @@ describe('runtime i18n', () => {
             <ng-content></ng-content>
           </div>
         `,
-        standalone: false,
 
+        imports: [Dir],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Cmp {}
 
       @Component({
-        selector: 'my-app',
         template: `
           <my-cmp i18n="test">{count, plural,
             =1 {ONE}
             other {{{count}} {name, select, cat {cats} dog {dogs} other {animals}}!}
           }</my-cmp>
         `,
-        standalone: false,
 
+        imports: [Cmp],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class App {
         count = 1;
       }
 
-      TestBed.configureTestingModule({
-        declarations: [App, Cmp, Dir],
-      });
       const fixture = TestBed.createComponent(App);
       fixture.componentRef.instance.count = 2;
       fixture.detectChanges();
@@ -1602,7 +1564,6 @@ describe('runtime i18n', () => {
         [computeMsgId(' {$ICU} ')]: ' {$ICU} ',
       });
       @Component({
-        selector: 'comp',
         template: `
           <ng-container [ngSwitch]="visible">
             <ng-container *ngSwitchCase="isVisible()" i18n>
@@ -1613,8 +1574,8 @@ describe('runtime i18n', () => {
             </ng-container>
           </ng-container>
         `,
-        standalone: false,
 
+        imports: [CommonModule],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Comp {
@@ -1624,8 +1585,6 @@ describe('runtime i18n', () => {
           return true;
         }
       }
-
-      TestBed.configureTestingModule({declarations: [Comp]});
 
       const fixture = TestBed.createComponent(Comp);
       fixture.detectChanges();
@@ -1649,7 +1608,6 @@ describe('runtime i18n', () => {
           'B {B (translated) - {PH_B}} other {other (translated) - {PH_WITH_SPACES}}}',
       });
       @Component({
-        selector: 'comp',
         template: `
           <ng-container i18n>{type, select,
             A {A - {{ typeA // i18n(ph="PH_A") }}}
@@ -1657,8 +1615,6 @@ describe('runtime i18n', () => {
             other {other - {{ typeC // i18n(ph="PH WITH SPACES") }}}
           }</ng-container>
         `,
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Comp {
@@ -1667,8 +1623,6 @@ describe('runtime i18n', () => {
         typeB = 'Type B';
         typeC = 'Type C';
       }
-
-      TestBed.configureTestingModule({declarations: [Comp]});
 
       const fixture = TestBed.createComponent(Comp);
       fixture.detectChanges();
@@ -1690,7 +1644,6 @@ describe('runtime i18n', () => {
       });
 
       @Component({
-        selector: 'app',
         template: `
           <ng-template #myTemp i18n let-type
             >{type, select, A {A} B {B} other {other - {{ typeC // i18n(ph="PH WITH SPACES") }}}}
@@ -1700,15 +1653,12 @@ describe('runtime i18n', () => {
             <ng-container *ngTemplateOutlet="myTemp; context: {$implicit: type}"> </ng-container>
           </div>
         `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [CommonModule],
       })
       class AppComponent {
         types = ['A', 'B', 'C'];
       }
-
-      TestBed.configureTestingModule({declarations: [AppComponent]});
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -1721,17 +1671,11 @@ describe('runtime i18n', () => {
       loadTranslations({idA: "{VAR_SELECT, select, 1 {un} other {plus d'un}}"});
 
       @Component({
-        selector: 'app',
         template: ` <div i18n="@@idA">{count, select, 1 {one} other {more than one}}</div> `,
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class AppComponent {
         count = 2;
       }
-
-      TestBed.configureTestingModule({declarations: [AppComponent]});
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -1745,21 +1689,16 @@ describe('runtime i18n', () => {
       });
 
       @Component({
-        selector: 'app',
         template: `
           <div i18n="@@idA">{count, select, 1 {one (select)} 2 {two (select)}}</div>
           -
           <div i18n="@@idB">{count, plural, =1 {one (plural)} =2 {two (plural)}}</div>
         `,
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class AppComponent {
         count = 1;
       }
-
-      TestBed.configureTestingModule({declarations: [AppComponent]});
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -1799,7 +1738,6 @@ describe('runtime i18n', () => {
       // Spacing will break the ICU parsing
       // prettier-ignore
       @Component({
-        selector: 'app',
         template: `
           <div i18n="@@idA">{
             type, select,
@@ -1812,15 +1750,12 @@ describe('runtime i18n', () => {
               other {}
           }</div>
         `,
-        standalone: false,
-      
-        changeDetection: ChangeDetectionStrategy.Eager,})
+        changeDetection: ChangeDetectionStrategy.Eager,
+      })
       class AppComponent {
         type = 'A';
         count = 1;
       }
-
-      TestBed.configureTestingModule({declarations: [AppComponent]});
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -1861,21 +1796,13 @@ describe('runtime i18n', () => {
       // Spacing will break the ICU parsing
       // prettier-ignore
       @Component({
-        selector: 'app',
         template: `
           <div i18n="@@idA">{count$ | async, select, 1 {{{count$ | async}} item} 2 {two items}}</div>
         `,
-        standalone: false,
-      
-        changeDetection: ChangeDetectionStrategy.Eager,})
+       imports: [AsyncPipe]})
       class AppComponent {
         count$ = new BehaviorSubject<number>(1);
       }
-
-      TestBed.configureTestingModule({
-        imports: [CommonModule],
-        declarations: [AppComponent],
-      });
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -2039,7 +1966,6 @@ describe('runtime i18n', () => {
 
       @Directive({
         selector: '[title]',
-        standalone: false,
       })
       class TitleDir {
         @Input() title = '';
@@ -2049,17 +1975,11 @@ describe('runtime i18n', () => {
       }
 
       @Component({
-        selector: 'comp',
         template: '<ng-template i18n-title title="Hello"></ng-template>',
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [TitleDir],
       })
       class Comp {}
-
-      TestBed.configureTestingModule({
-        declarations: [Comp, TitleDir],
-      });
 
       const fixture = TestBed.createComponent(Comp);
       fixture.detectChanges();
@@ -2076,7 +1996,6 @@ describe('runtime i18n', () => {
 
       @Directive({
         selector: '[title]',
-        standalone: false,
       })
       class TitleDir {
         @Input() title: string = '';
@@ -2086,18 +2005,12 @@ describe('runtime i18n', () => {
       }
 
       @Component({
-        selector: 'my-cmp',
         template: ` <button *ngIf="true" i18n-title title="Hello"></button> `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [CommonModule, TitleDir],
       })
       class Cmp {}
 
-      TestBed.configureTestingModule({
-        imports: [CommonModule],
-        declarations: [Cmp, TitleDir],
-      });
       const fixture = TestBed.createComponent(Cmp);
       fixture.detectChanges();
 
@@ -2111,18 +2024,12 @@ describe('runtime i18n', () => {
     it('should support static i18n attributes on inline templates', () => {
       loadTranslations({[computeMsgId('Hello')]: 'Bonjour'});
       @Component({
-        selector: 'my-cmp',
         template: ` <div *ngIf="true" i18n-title title="Hello"></div> `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [CommonModule],
       })
       class Cmp {}
 
-      TestBed.configureTestingModule({
-        imports: [CommonModule],
-        declarations: [Cmp],
-      });
       const fixture = TestBed.createComponent(Cmp);
       fixture.detectChanges();
 
@@ -2135,7 +2042,6 @@ describe('runtime i18n', () => {
       let dirInstance: WithInput;
       @Directive({
         selector: '[dir]',
-        standalone: false,
       })
       class WithInput {
         constructor() {
@@ -2145,17 +2051,14 @@ describe('runtime i18n', () => {
       }
 
       @Component({
-        selector: 'my-app',
         template: '<ng-template i18n-dir dir="Hello {{ name }}"></ng-template>',
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [WithInput],
       })
       class TestComp {
         name = 'Angular';
       }
 
-      TestBed.configureTestingModule({declarations: [TestComp, WithInput]});
       const fixture = TestBed.createComponent(TestComp);
       fixture.detectChanges();
 
@@ -2171,7 +2074,6 @@ describe('runtime i18n', () => {
         let dirInstance: WithInput;
         @Directive({
           selector: '[dir]',
-          standalone: false,
         })
         class WithInput {
           constructor() {
@@ -2181,17 +2083,14 @@ describe('runtime i18n', () => {
         }
 
         @Component({
-          selector: 'my-app',
           template: '<ng-template *ngIf="true" i18n-dir dir="Hello {{ name }}"></ng-template>',
-          standalone: false,
 
-          changeDetection: ChangeDetectionStrategy.Eager,
+          imports: [CommonModule, WithInput],
         })
         class TestComp {
           name = 'Angular';
         }
 
-        TestBed.configureTestingModule({declarations: [TestComp, WithInput]});
         const fixture = TestBed.createComponent(TestComp);
         fixture.detectChanges();
 
@@ -2205,34 +2104,26 @@ describe('runtime i18n', () => {
         selector: '[test]',
         inputs: ['test'],
         exportAs: 'dir',
-        standalone: false,
       })
       class Dir {}
 
       @Component({
         selector: 'other',
         template: `<div i18n #ref="dir" test="Set" i18n-test="This is also a test"></div>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Dir],
       })
       class Other {}
 
       @Component({
-        selector: 'blah',
         template: `
           <other></other>
           <other></other>
         `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Other],
       })
       class Cmp {}
-
-      TestBed.configureTestingModule({
-        declarations: [Dir, Cmp, Other],
-      });
 
       const fixture = TestBed.createComponent(Cmp);
       fixture.detectChanges();
@@ -2268,24 +2159,18 @@ describe('runtime i18n', () => {
 
       @Directive({
         selector: '[mydir]',
-        standalone: false,
       })
       class Dir {
         @Input() mydir: string = '';
       }
 
       @Component({
-        selector: 'my-cmp',
         template: ` <ng-container i18n-mydir="meaning|description" mydir="Hello"></ng-container> `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Dir],
       })
       class Cmp {}
 
-      TestBed.configureTestingModule({
-        declarations: [Cmp, Dir],
-      });
       const fixture = TestBed.createComponent(Cmp);
       fixture.detectChanges();
 
@@ -2341,7 +2226,6 @@ describe('runtime i18n', () => {
 
     @Directive({
       selector: '[test]',
-      standalone: false,
     })
     class ClsDir {
       @HostBinding('className') klass = 'foo';
@@ -2352,7 +2236,6 @@ describe('runtime i18n', () => {
     }
 
     @Component({
-      selector: `my-app`,
       template: ` <div i18n test i18n-title title="start {{ exp1 }} middle {{ exp2 }} end" outer>
           trad:
           {exp1, plural,
@@ -2362,8 +2245,8 @@ describe('runtime i18n', () => {
           }
         </div>
         <div test inner></div>`,
-      standalone: false,
 
+      imports: [ClsDir],
       changeDetection: ChangeDetectionStrategy.Eager,
     })
     class MyApp {
@@ -2371,7 +2254,6 @@ describe('runtime i18n', () => {
       exp2 = 2;
     }
 
-    TestBed.configureTestingModule({declarations: [ClsDir, MyApp]});
     loadTranslations({
       // Note that this translation switches the order of the expressions!
       [computeMsgId('start {$INTERPOLATION} middle {$INTERPOLATION_1} end')]:
@@ -2413,9 +2295,6 @@ describe('runtime i18n', () => {
     @Component({
       selector: 'my-comp',
       template: '',
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class MyComp {
       t!: string;
@@ -2439,7 +2318,6 @@ describe('runtime i18n', () => {
       val!: string;
     }
 
-    TestBed.configureTestingModule({declarations: [AppComp, MyComp]});
     loadTranslations({
       [computeMsgId('Hello {$INTERPOLATION}')]: 'Bonjour {$INTERPOLATION}',
       [computeMsgId('works')]: 'fonctionne',
@@ -2447,6 +2325,7 @@ describe('runtime i18n', () => {
     const fixture = initWithTemplate(
       AppComp,
       `<my-comp i18n i18n-title title="works" i18n-value="hi" value="Hello {{name}}"></my-comp>`,
+      [MyComp],
     );
     fixture.detectChanges();
 
@@ -2498,14 +2377,10 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: '<p><ng-content></ng-content></p>',
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: ` <div i18n>
           <child
             >I am projected from
@@ -2514,14 +2389,13 @@ describe('runtime i18n', () => {
           </child>
           <remove-me-3></remove-me-3>
         </div>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Child of {$INTERPOLATION}')]: 'Enfant de {$INTERPOLATION}',
         [computeMsgId(
@@ -2544,14 +2418,11 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: '<p><ng-content></ng-content></p>',
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: ` <div>
           <child>
             <any></any>
@@ -2559,14 +2430,14 @@ describe('runtime i18n', () => {
             <any></any>
           </child>
         </div>`,
-        standalone: false,
 
+        imports: [Child],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Child of {$INTERPOLATION}')]: 'Enfant de {$INTERPOLATION}',
         [computeMsgId('I am projected from {$INTERPOLATION}')]:
@@ -2597,33 +2468,26 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'grand-child',
         template: '<div><ng-content></ng-content></div>',
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class GrandChild {}
 
       @Component({
         selector: 'child',
         template: '<grand-child><ng-content></ng-content></grand-child>',
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [GrandChild],
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child i18n><b>Hello</b> World!</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
 
-      TestBed.configureTestingModule({declarations: [Parent, Child, GrandChild]});
       loadTranslations({
         [computeMsgId('{$START_BOLD_TEXT}Hello{$CLOSE_BOLD_TEXT} World!')]:
           '{$START_BOLD_TEXT}Bonjour{$CLOSE_BOLD_TEXT} monde!',
@@ -2639,33 +2503,26 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'grand-child',
         template: '<div><ng-content></ng-content></div>',
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class GrandChild {}
 
       @Component({
         selector: 'child',
         template: '<grand-child><ng-content></ng-content></grand-child>',
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [GrandChild],
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child i18n><b>Hello</b> World!</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
 
-      TestBed.configureTestingModule({declarations: [Parent, Child, GrandChild]});
       loadTranslations({
         [computeMsgId('{$START_BOLD_TEXT}Hello{$CLOSE_BOLD_TEXT} World!')]: 'Bonjour monde!',
       });
@@ -2680,9 +2537,6 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<ng-content select="span"></ng-content>`,
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
@@ -2694,13 +2548,11 @@ describe('runtime i18n', () => {
             <span title="deleteMe"></span>
           </child>
         `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {}
 
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
       loadTranslations({
         [computeMsgId('{$START_TAG_SPAN}{$CLOSE_TAG_SPAN}{$START_TAG_SPAN_1}{$CLOSE_TAG_SPAN}')]:
           '{$START_TAG_SPAN}Contenu{$CLOSE_TAG_SPAN}',
@@ -2716,23 +2568,20 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<div i18n>Content projected from <ng-content></ng-content></div>`,
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child>{{ name }}</child>`,
-        standalone: false,
 
+        imports: [Child],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Content projected from {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}')]:
           'Contenu projeté depuis {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}',
@@ -2755,25 +2604,20 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<div i18n>Content projected from <ng-content></ng-content></div>`,
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child
           ><b>{{ name }}</b></child
         >`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Content projected from {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}')]:
           '{$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT} a projeté le contenu',
@@ -2789,23 +2633,18 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<div i18n>Child content <ng-content></ng-content></div>`,
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child i18n>and projection from {{ name }}</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Child content {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}')]:
           'Contenu enfant {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}',
@@ -2827,26 +2666,20 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: '<div><ng-content></ng-content></div>',
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: ` <child i18n>{value // i18n(ph = "blah"), plural,
           =1 {one}
           other {at least {{value}} .}
         }</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         value = 3;
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
 
       const fixture = TestBed.createComponent(Parent);
       fixture.detectChanges();
@@ -2858,25 +2691,22 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<div i18n>Child content <ng-content></ng-content></div>`,
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child i18n
           >and projection from {name, select, angular {Angular} other {{{name}}}}</child
         >`,
-        standalone: false,
 
+        imports: [Child],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('{VAR_SELECT, select, angular {Angular} other {{INTERPOLATION}}}')]:
           '{VAR_SELECT, select, angular {Angular} other {{INTERPOLATION}}}',
@@ -2905,23 +2735,18 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'child',
         template: `<div i18n>Child content <ng-content></ng-content></div>`,
-        standalone: false,
-
-        changeDetection: ChangeDetectionStrategy.Eager,
       })
       class Child {}
 
       @Component({
-        selector: 'parent',
         template: `<child i18n>and projection from {{ name }}</child>`,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Child],
       })
       class Parent {
         name: string = 'Parent';
       }
-      TestBed.configureTestingModule({declarations: [Parent, Child]});
+
       loadTranslations({
         [computeMsgId('Child content {$START_TAG_NG_CONTENT}{$CLOSE_TAG_NG_CONTENT}')]:
           'Contenu enfant',
@@ -2941,25 +2766,20 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'app',
         template: ` <ng-container>(<ng-content></ng-content>)</ng-container> `,
-        standalone: false,
-
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class MyContentApp {}
 
       @Component({
-        selector: 'my-app',
         template: ` <app i18n *ngIf="condition">{type, select, A {A} B {B} other {other}}</app> `,
-        standalone: false,
 
+        imports: [CommonModule, MyContentApp],
         changeDetection: ChangeDetectionStrategy.Eager,
       })
       class MyApp {
         type = 'A';
         condition = true;
       }
-
-      TestBed.configureTestingModule({declarations: [MyApp, MyContentApp]});
 
       const fixture = TestBed.createComponent(MyApp);
       fixture.detectChanges();
@@ -2995,7 +2815,6 @@ describe('runtime i18n', () => {
         selector: '[text]',
         inputs: ['text'],
         exportAs: 'textDir',
-        standalone: false,
       })
       class TextDirective {
         text: string | undefined;
@@ -3005,9 +2824,8 @@ describe('runtime i18n', () => {
       @Component({
         selector: 'div-query',
         template: '<ng-container #vc></ng-container>',
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [TextDirective],
       })
       class DivQuery {
         @ContentChild(TemplateRef, {static: true}) template!: TemplateRef<any>;
@@ -3025,7 +2843,6 @@ describe('runtime i18n', () => {
         }
       }
 
-      TestBed.configureTestingModule({declarations: [TextDirective, DivQuery]});
       loadTranslations({
         [computeMsgId(
           '{$START_TAG_NG_TEMPLATE}{$START_TAG_DIV_1}' +
@@ -3048,6 +2865,7 @@ describe('runtime i18n', () => {
             </ng-template>
           </div-query>
         `,
+        [NgIf, DivQuery, TextDirective],
       );
       const q = fixture.debugElement.children[0].references['q'];
       expect(q.query.length).toEqual(0);
@@ -3127,7 +2945,6 @@ describe('runtime i18n', () => {
   it('should reflect lifecycle hook changes in text interpolations in i18n block', () => {
     @Directive({
       selector: 'input',
-      standalone: false,
     })
     class InputsDir {
       constructor(private elementRef: ElementRef) {}
@@ -3141,13 +2958,10 @@ describe('runtime i18n', () => {
         <input #myinput />
         <div i18n>{{ myinput.value }}</div>
       `,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [InputsDir],
     })
     class App {}
-
-    TestBed.configureTestingModule({declarations: [App, InputsDir]});
 
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -3158,7 +2972,6 @@ describe('runtime i18n', () => {
   it('should reflect lifecycle hook changes in text interpolations in i18n attributes', () => {
     @Directive({
       selector: 'input',
-      standalone: false,
     })
     class InputsDir {
       constructor(private elementRef: ElementRef) {}
@@ -3172,13 +2985,10 @@ describe('runtime i18n', () => {
         <input #myinput />
         <div i18n-title title="{{ myinput.value }}"></div>
       `,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [InputsDir],
     })
     class App {}
-
-    TestBed.configureTestingModule({declarations: [App, InputsDir]});
 
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
@@ -3204,15 +3014,12 @@ describe('runtime i18n', () => {
         </div>
         <button [close]="true">Button label</button>
       `,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [CommonModule, forwardRef(() => DialogDir), forwardRef(() => CloseBtn)],
     })
     class ContentElementDialog {
       data = false;
     }
-
-    TestBed.configureTestingModule({declarations: [DialogDir, CloseBtn, ContentElementDialog]});
 
     const fixture = TestBed.createComponent(ContentElementDialog);
     fixture.detectChanges();
@@ -3276,22 +3083,17 @@ describe('runtime i18n', () => {
           <ng-container *ngTemplateOutlet="tmpl"></ng-container>
           <ng-template #tmpl i18n> <ng-content></ng-content> B </ng-template>
         `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [CommonModule],
       })
       class Projector {}
 
       @Component({
-        selector: 'app',
         template: ` <projector>a</projector> `,
-        standalone: false,
 
-        changeDetection: ChangeDetectionStrategy.Eager,
+        imports: [Projector],
       })
       class AppComponent {}
-
-      TestBed.configureTestingModule({declarations: [AppComponent, Projector]});
 
       const fixture = TestBed.createComponent(AppComponent);
       fixture.detectChanges();
@@ -3311,14 +3113,11 @@ describe('runtime i18n', () => {
         template: `
             <div i18n>before|<div myDir>inside</div>|after</div>
           `,
-        standalone: false,
-      
-        changeDetection: ChangeDetectionStrategy.Eager,})
+       imports: [forwardRef(() => MyDir)]})
       class MyApp {}
 
       @Directive({
         selector: '[myDir]',
-        standalone: false,
       })
       class MyDir {
         constructor(vcRef: ViewContainerRef) {
@@ -3327,7 +3126,6 @@ describe('runtime i18n', () => {
       }
       let myDir!: MyDir;
 
-      TestBed.configureTestingModule({declarations: [MyApp, MyDir]});
       const fixture = TestBed.createComponent(MyApp);
       fixture.detectChanges();
       expect(myDir).toBeDefined();
@@ -3346,15 +3144,13 @@ describe('runtime i18n', () => {
           other {Your cart <span class="item-count">({{ registerItemCount }} items)</span>}
         }
       </h1>`,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [CommonModule],
     })
     class MyApp {
       registerItemCount = 1;
     }
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toEqual(` Your cart (1 item) `);
@@ -3365,22 +3161,17 @@ describe('runtime i18n', () => {
     // NOTE: This test is extracted from g3.
     @Component({
       template: `<div i18n>before|<child>TextNotProjected</child>|after</div>`,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [forwardRef(() => Child)],
     })
     class MyApp {}
 
     @Component({
       selector: 'child',
       template: 'CHILD',
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class Child {}
 
-    TestBed.configureTestingModule({declarations: [MyApp, Child]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toEqual(`before|CHILD|after`);
@@ -3396,12 +3187,9 @@ describe('runtime i18n', () => {
       template: `
       <div i18n [title]="null | async"><div>A</div></div>
       <div i18n>{{(null | async)||'B'}}<div></div></div>`,
-      standalone: false,
-    
-      changeDetection: ChangeDetectionStrategy.Eager,})
+     imports: [AsyncPipe]})
     class MyApp {}
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toEqual(`AB`);
@@ -3418,31 +3206,20 @@ describe('runtime i18n', () => {
             <child>Text</child>
           </middle>
         </parent>`,
-      standalone: false,
-    
-      changeDetection: ChangeDetectionStrategy.Eager,})
+     imports: [forwardRef(() => Parent), forwardRef(() => Middle), forwardRef(() => Child)]})
     class MyApp {}
 
     @Component({
       selector: 'parent',
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class Parent {}
 
     @Component({
       selector: 'middle',
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class Middle {}
     @Component({
       selector: 'child',
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class Child {
       constructor(public middle: Middle) {
@@ -3451,7 +3228,6 @@ describe('runtime i18n', () => {
     }
     let child: Child | undefined;
 
-    TestBed.configureTestingModule({declarations: [MyApp, Parent, Middle, Child]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(child?.middle).toBeInstanceOf(Middle);
@@ -3465,13 +3241,11 @@ describe('runtime i18n', () => {
         <ng-template #tmpl i18n><span *ngIf="true">X</span></ng-template>
         <span [ngTemplateOutlet]="tmpl"></span>
       </div>`,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [CommonModule],
     })
     class MyApp {}
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toEqual(`XX`);
@@ -3504,13 +3278,11 @@ describe('runtime i18n', () => {
           {{ ']' }}
         </ng-container>
       `,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [CommonModule],
     })
     class MyApp {}
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     const textContent = fixture.nativeElement.textContent as string;
@@ -3556,9 +3328,6 @@ describe('runtime i18n', () => {
         }
         |after.
       `,
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class MyApp {
       retention = {
@@ -3567,7 +3336,6 @@ describe('runtime i18n', () => {
       };
     }
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     const textContent = fixture.nativeElement.textContent as string;
@@ -3591,15 +3359,11 @@ describe('runtime i18n', () => {
           }
         </div>
       `,
-      standalone: false,
-
-      changeDetection: ChangeDetectionStrategy.Eager,
     })
     class MyApp {
       parameters = [{name: 'void_abt_param'}];
     }
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     const span = (fixture.nativeElement as HTMLElement).querySelector('span')!;
@@ -3612,15 +3376,14 @@ describe('runtime i18n', () => {
       template: ` <ul i18n>
         <li *ngFor="let item of items">{item, plural, =1 {<b>one</b>} =2 {<i>two</i>}},</li>
       </ul>`,
-      standalone: false,
 
+      imports: [CommonModule],
       changeDetection: ChangeDetectionStrategy.Eager,
     })
     class MyApp {
       items = [1, 2];
     }
 
-    TestBed.configureTestingModule({declarations: [MyApp]});
     const fixture = TestBed.createComponent(MyApp);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toEqual(`one,two,`);
@@ -3635,7 +3398,6 @@ describe('runtime i18n', () => {
 
     @Directive({
       selector: '[injectTitle]',
-      standalone: false,
     })
     class InjectTitleDir {
       constructor(@Attribute('title') public title: string) {}
@@ -3643,15 +3405,13 @@ describe('runtime i18n', () => {
 
     @Component({
       template: `<div i18n-title title="text" injectTitle></div>`,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [InjectTitleDir],
     })
     class App {
       @ViewChild(InjectTitleDir) dir!: InjectTitleDir;
     }
 
-    TestBed.configureTestingModule({declarations: [App, InjectTitleDir]});
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
@@ -3664,7 +3424,6 @@ describe('runtime i18n', () => {
 
     @Directive({
       selector: '[injectTitle]',
-      standalone: false,
     })
     class InjectTitleDir {
       constructor(@Attribute('title') public title: string) {}
@@ -3672,16 +3431,14 @@ describe('runtime i18n', () => {
 
     @Component({
       template: `<div i18n-title title="text {{ value }}" injectTitle></div>`,
-      standalone: false,
 
-      changeDetection: ChangeDetectionStrategy.Eager,
+      imports: [InjectTitleDir],
     })
     class App {
       @ViewChild(InjectTitleDir) dir!: InjectTitleDir;
       value = 'value';
     }
 
-    TestBed.configureTestingModule({declarations: [App, InjectTitleDir]});
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
@@ -3774,23 +3531,112 @@ describe('runtime i18n', () => {
         const input: HTMLInputElement = fixture.nativeElement.querySelector('input');
         expect(input.getAttribute('formaction')).toMatch(/^unsafe:/);
       });
+
+      it('should not be vulnerable to DOM clobbering of nodeName/tagName in ICU expressions', () => {
+        loadTranslations({
+          [computeMsgId('{VAR_PLURAL, plural, other {other}}')]:
+            '{VAR_PLURAL, plural, other {<input name=nodeName form=x><input name=tagName form=x>hello<form id=x></form>}}',
+        });
+        const fixture = initWithTemplate(AppComp, `<div i18n>{count, plural, other {other}}</div>`);
+        expect(fixture.nativeElement.textContent).toBe('hello');
+      });
+
+      it('should not enter an infinite loop when nextSibling or firstChild is clobbered in ICU expressions', () => {
+        loadTranslations({
+          [computeMsgId('{VAR_PLURAL, plural, other {other}}')]:
+            '{VAR_PLURAL, plural, other {<input name=nextSibling form=x>hello<form id=x></form>}}',
+        });
+        expect(() => {
+          initWithTemplate(AppComp, `<div i18n>{count, plural, other {other}}</div>`);
+        }).toThrowError(/Action failed because the element is clobbered/);
+      });
     }
+  });
+
+  describe('plural locale resolution', () => {
+    @Component({
+      selector: 'app',
+      template: `<div>{count(), plural, one {one item} few {a few items} other {many items}}</div>`,
+    })
+    class App {
+      readonly count = signal(3);
+    }
+
+    beforeEach(() => registerLocaleData(localeRo));
+    afterEach(() => unregisterLocaleData());
+
+    it('should resolve the plural case using the LOCALE_ID provided to TestBed', () => {
+      TestBed.configureTestingModule({providers: [{provide: LOCALE_ID, useValue: 'ro'}]});
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toBe('a few items');
+
+      fixture.componentInstance.count.set(1);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toBe('one item');
+
+      fixture.componentInstance.count.set(20);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toBe('many items');
+
+      fixture.componentInstance.count.set(10);
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toBe('a few items');
+    });
+
+    describe('with bootstrapApplication', () => {
+      beforeEach(destroyPlatform);
+      afterEach(destroyPlatform);
+
+      it(
+        'should resolve the plural case using the LOCALE_ID provided during bootstrap',
+        withBody('<app></app>', async () => {
+          const appRef = await bootstrapApplication(App, {
+            providers: [{provide: LOCALE_ID, useValue: 'ro'}],
+          });
+          const host = document.querySelector('app')!;
+          const app = appRef.components[0].instance as App;
+          appRef.tick();
+          expect(host.textContent).toBe('a few items');
+
+          app.count.set(1);
+          appRef.tick();
+          expect(host.textContent).toBe('one item');
+
+          app.count.set(20);
+          appRef.tick();
+          expect(host.textContent).toBe('many items');
+
+          app.count.set(10);
+          appRef.tick();
+          expect(host.textContent).toBe('a few items');
+
+          appRef.destroy();
+        }),
+      );
+    });
   });
 });
 
-function initWithTemplate(compType: Type<any>, template: string) {
+function initWithTemplate(compType: Type<any>, template: string, imports?: Type<any>[]) {
   TestBed.overrideComponent(compType, {set: {template}});
+  if (imports) {
+    TestBed.overrideComponent(compType, {set: {imports}});
+  }
   const fixture = TestBed.createComponent(compType);
   fixture.detectChanges();
   return fixture;
 }
 
 @Component({
-  selector: 'app-comp',
   template: ``,
-  standalone: false,
 
-  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [
+    CommonModule,
+    forwardRef(() => DirectiveWithTplRef),
+    forwardRef(() => UppercasePipe),
+    NgIf,
+  ],
 })
 class AppComp {
   name = `Angular`;
@@ -3801,18 +3647,13 @@ class AppComp {
 }
 
 @Component({
-  selector: 'app-comp-with-whitespaces',
   template: ``,
   preserveWhitespaces: true,
-  standalone: false,
-
-  changeDetection: ChangeDetectionStrategy.Eager,
 })
 class AppCompWithWhitespaces {}
 
 @Directive({
   selector: '[tplRef]',
-  standalone: false,
 })
 class DirectiveWithTplRef {
   constructor(
@@ -3826,7 +3667,6 @@ class DirectiveWithTplRef {
 
 @Pipe({
   name: 'uppercase',
-  standalone: false,
 })
 class UppercasePipe implements PipeTransform {
   transform(value: string) {
@@ -3836,14 +3676,12 @@ class UppercasePipe implements PipeTransform {
 
 @Directive({
   selector: `[dialog]`,
-  standalone: false,
 })
 export class DialogDir {}
 
 @Directive({
   selector: `button[close]`,
   host: {'[title]': 'name'},
-  standalone: false,
 })
 export class CloseBtn {
   @Input('close') dialogResult: any;

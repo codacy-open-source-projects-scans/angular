@@ -14,7 +14,6 @@ use super::utils::{extract_property_key, extract_schemas};
 /// Parse an @NgModule decorator
 pub fn parse_decorator<'a>(
     decorator: &Decorator<'a>,
-    converter: &crate::utils::Utf8ToUtf16,
     semantic: &Semantic<'a>,
     import_map: &HashMap<String, ImportedSymbol>,
     eval: &EvalInput<'a, '_>,
@@ -35,7 +34,6 @@ pub fn parse_decorator<'a>(
     parse_ng_module_args(
         call_expr,
         crate::analyzer::utils::extract_decorator_name(decorator),
-        converter,
         semantic,
         import_map,
         eval,
@@ -45,7 +43,6 @@ pub fn parse_decorator<'a>(
 fn parse_ng_module_args<'a>(
     call_expr: &oxc_ast::ast::CallExpression<'a>,
     decorator_name: Option<String>,
-    _converter: &crate::utils::Utf8ToUtf16,
     semantic: &Semantic<'a>,
     import_map: &HashMap<String, ImportedSymbol>,
     eval: &EvalInput<'a, '_>,
@@ -368,6 +365,12 @@ fn classify_isolated_element<'a>(
         ..*eval
     };
     let resolved = evaluate_expression(el, &isolated_eval);
+    if resolved.contains_incomplete() {
+        return IsolatedTypeElementData::Deferred {
+            resolved: Resolved::from_syntax(resolved, eval.file),
+            fallback: Box::new(syntactic_isolated_element(el, semantic)),
+        };
+    }
     match resolved.unwrap_named() {
         ResolvedValue::Reference(r) => {
             return IsolatedTypeElementData::Typeof {
@@ -392,7 +395,16 @@ fn classify_isolated_element<'a>(
         _ => {}
     }
 
-    // Fallback to syntactic transform (`transformToTypeTupleElement`).
+    syntactic_isolated_element(el, semantic)
+}
+
+/// The syntactic fallback (`transformToTypeTupleElement`).
+fn syntactic_isolated_element<'a>(
+    el: &Expression<'a>,
+    semantic: &Semantic<'a>,
+) -> super::class_data::IsolatedTypeElementData {
+    use super::class_data::IsolatedTypeElementData;
+
     let mut current = super::utils::unwrap_expression(el);
     while let Some(unwrapped) = super::utils::unwrap_forward_ref(current, semantic) {
         current = super::utils::unwrap_expression(unwrapped);
@@ -461,10 +473,8 @@ mod tests {
             env: &env,
             foreign,
         };
-        let converter = crate::utils::Utf8ToUtf16::new(source);
         parse_decorator(
             decorator,
-            &converter,
             &semantic_ret.semantic,
             &import_map,
             &eval,
@@ -920,22 +930,35 @@ mod tests {
         assert!(isolated_imports.is_array_literal);
         assert_eq!(isolated_imports.elements.len(), 6);
 
-        // 0: `NG_MODULE_IMPORTS` (local const with unresolved import -> syntactic fallback `typeof NG_MODULE_IMPORTS`)
+        // Import-dependent elements stay deferred here; with nothing to complete them, the wire
+        // projection uses their fallback.
+        let settled = |el: &'_ IsolatedTypeElementData| match el {
+            IsolatedTypeElementData::Deferred { fallback, .. } => fallback.as_ref().clone(),
+            other => other.clone(),
+        };
+
+        // 0: `NG_MODULE_IMPORTS` (local const of an import) -> Deferred, fallback `typeof NG_MODULE_IMPORTS`
         match &isolated_imports.elements[0] {
-            IsolatedTypeElementData::Typeof {
-                span: Some(span),
-                reference: None,
-            } => {
-                assert_eq!(
-                    &source[span.start as usize..span.end as usize],
-                    "NG_MODULE_IMPORTS"
-                );
+            IsolatedTypeElementData::Deferred { resolved, fallback } => {
+                assert!(resolved.contains_incomplete());
+                match fallback.as_ref() {
+                    IsolatedTypeElementData::Typeof {
+                        span: Some(span),
+                        reference: None,
+                    } => {
+                        assert_eq!(
+                            &source[span.start as usize..span.end as usize],
+                            "NG_MODULE_IMPORTS"
+                        );
+                    }
+                    other => panic!("Expected Typeof span fallback, got {other:?}"),
+                }
             }
-            other => panic!("Expected Typeof span for NG_MODULE_IMPORTS, got {other:?}"),
+            other => panic!("Expected Deferred for NG_MODULE_IMPORTS, got {other:?}"),
         }
 
         // 1: `FooModule.forRoot()` -> CallReturnType with `FooModule.forRoot`
-        match &isolated_imports.elements[1] {
+        match settled(&isolated_imports.elements[1]) {
             IsolatedTypeElementData::CallReturnType { callee_span } => {
                 assert_eq!(
                     &source[callee_span.start as usize..callee_span.end as usize],
@@ -946,7 +969,7 @@ mod tests {
         }
 
         // 2: `provideFoo()` -> CallReturnType with `provideFoo`
-        match &isolated_imports.elements[2] {
+        match settled(&isolated_imports.elements[2]) {
             IsolatedTypeElementData::CallReturnType { callee_span } => {
                 assert_eq!(
                     &source[callee_span.start as usize..callee_span.end as usize],
@@ -966,7 +989,7 @@ mod tests {
         }
 
         // 4: `forwardRef(() => FooModule)` -> Typeof span `FooModule`
-        match &isolated_imports.elements[4] {
+        match settled(&isolated_imports.elements[4]) {
             IsolatedTypeElementData::Typeof {
                 span: Some(span),
                 reference: None,
@@ -978,7 +1001,7 @@ mod tests {
 
         // 5: `isDev ? LocalModule : PermissionsChecker` -> Never
         assert!(matches!(
-            isolated_imports.elements[5],
+            settled(&isolated_imports.elements[5]),
             IsolatedTypeElementData::Never { .. }
         ));
 

@@ -31,9 +31,7 @@ import {
 
 import type {TcbTargetInput, NgpTypeCheckingConfig} from './tcb.js';
 import * as nga from './types.js';
-import {createSpan, isStaticSourceNode} from './compiler-utils.js';
-
-// PropertyMappingImpl is removed as we now use ClassPropertyMapping directly.
+import {createForeignComponentMatcher, createSpan, isStaticSourceNode} from './compiler-utils.js';
 
 export function createInputPropertyMapping(
   metadata: nga.InputMetadata[] | null | undefined,
@@ -233,10 +231,18 @@ export function adaptTcbInput(
   let matcher: SelectorMatcher<TcbDirectiveMetadata[]> | SelectorlessMatcher<TcbDirectiveMetadata>;
 
   const declarations =
-    isStandalone &&
-    target.ownDeclaration &&
-    !target.declarations.some((d) => d.name === target.ownDeclaration.name)
-      ? [...target.declarations, target.ownDeclaration]
+    isStandalone && target.ownDeclaration
+      ? [
+          target.ownDeclaration,
+          ...target.declarations.filter(
+            (d) =>
+              !(
+                d.name === target.ownDeclaration.name &&
+                d.ref.localAlias === target.ownDeclaration.name &&
+                d.ref.consumerImport == null
+              ),
+          ),
+        ]
       : target.declarations;
 
   if (isSelectorless) {
@@ -292,7 +298,10 @@ export function adaptTcbInput(
       )
     : [];
 
-  const binder = new R3TargetBinder<TcbDirectiveMetadata>(matcher);
+  const binder = new R3TargetBinder<TcbDirectiveMetadata>(
+    matcher,
+    createForeignComponentMatcher(target.foreignImports),
+  );
   const host = config.typeCheckHostBindings === false ? null : adaptHostElement(target, content);
   const boundTarget = binder.bind({
     template: target.templateNodes,
@@ -396,7 +405,10 @@ function adaptHostElement(target: TcbTargetInput, content?: string): TmplAstHost
   }
 
   for (const decorator of target.hostBindings) {
-    if (!isStaticSourceNode(decorator.memberName)) {
+    // ngtsc only type-checks `@HostBinding`s on property declarations; those on getters and
+    // setters are emitted but never reach the type-check block.
+    // https://github.com/angular/angular/blob/cda8962/packages/compiler-cli/src/ngtsc/annotations/directive/src/shared.ts#L681-L682
+    if (decorator.isAccessor || !isStaticSourceNode(decorator.memberName)) {
       continue;
     }
 
@@ -562,9 +574,7 @@ function declarationToMetadata(
         .filter((f) => f.kind === 'input' && f.input && !f.input.propertySpan)
         .map((f) => f.input!.name),
     ),
-    // TODO(parity): populate `publicMethods`; signal-forms type-checking uses it to detect
-    // ControlValueAccessor directives (`writeValue`, `registerOnChange`, `registerOnTouched`).
-    publicMethods: new Set(),
+    publicMethods: new Set(decl.publicMethods ?? []),
     ngContentSelectors: decl.ngContentSelectors || null,
     animationTriggerNames: decl.animationTriggerNames || null,
   };

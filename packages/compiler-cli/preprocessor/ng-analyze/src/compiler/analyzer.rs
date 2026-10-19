@@ -122,7 +122,6 @@ pub struct Analyzer {
     tsconfig_path: PathBuf,
     entrypoints: Arc<RwLock<Vec<PathBuf>>>,
     current_cancel_token: RwLock<Option<CancellationToken>>,
-    eager_cancel_token: RwLock<Option<CancellationToken>>,
 }
 
 impl Analyzer {
@@ -186,8 +185,6 @@ impl Analyzer {
 
         let entrypoints_lock = Arc::new(RwLock::new(entrypoints));
 
-        let eager_cancel_token = CancellationToken::new();
-
         let resource_registry = Arc::new(ResourceRegistry::default());
 
         let resolver = Arc::new(create_resolver_with_fs(
@@ -229,6 +226,7 @@ impl Analyzer {
             reference_strategy,
             resolved_config.generate_extra_imports_in_local_mode,
             resolved_config.compile_non_exported_classes,
+            options.enable_hmr.unwrap_or(resolved_config.enable_hmr),
         );
 
         let analyzer = Analyzer {
@@ -240,7 +238,6 @@ impl Analyzer {
             tsconfig_path: path,
             entrypoints: entrypoints_lock,
             current_cancel_token: RwLock::new(None),
-            eager_cancel_token: RwLock::new(Some(eager_cancel_token.clone())),
         };
 
         Ok(analyzer)
@@ -331,10 +328,6 @@ impl Analyzer {
         if let Some(token) = token_write.take() {
             token.cancel();
         }
-        let mut eager_token_write = self.eager_cancel_token.write().unwrap();
-        if let Some(token) = eager_token_write.take() {
-            token.cancel();
-        }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -351,23 +344,6 @@ impl Analyzer {
                 }
                 futures::executor::block_on(async { while pool.next().await.is_some() {} });
             }
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn wait_for_analysis(&self) {
-        let mut handles_write = self.active_handles.write().unwrap();
-        let handles = std::mem::take(&mut *handles_write);
-        drop(handles_write);
-
-        if !handles.is_empty() {
-            use futures::stream::FuturesUnordered;
-            use futures::StreamExt;
-            let mut pool = FuturesUnordered::new();
-            for h in handles {
-                pool.push(h);
-            }
-            futures::executor::block_on(async { while pool.next().await.is_some() {} });
         }
     }
 
@@ -429,6 +405,27 @@ impl Analyzer {
     pub fn get_file_content_core(&self, file_path: String) -> Result<String, String> {
         let path = PathBuf::from(&file_path);
         self.fs.read_to_string(&path).map_err(|e| e.to_string())
+    }
+
+    /// Resolve `url` the way a component's `templateUrl`/`styleUrls` are resolved from
+    /// `containing_file` and read it. Backs the stylesheets the TypeScript layer discovers only
+    /// after parsing a template (`<link rel="stylesheet">`), which ngtsc also resolves from the
+    /// component file rather than from the template.
+    /// https://github.com/angular/angular/blob/e3ac727/packages/compiler-cli/src/ngtsc/annotations/component/src/handler.ts#L876-L883
+    pub fn read_resource_core(
+        &self,
+        containing_file: String,
+        url: String,
+    ) -> Option<crate::ResolvedResource> {
+        let resource_resolver =
+            crate::ResourceResolver::new(&self.fs, self.engine.resolver.as_ref());
+        let resource = resource_resolver
+            .load_resource(Path::new(&containing_file), &url)
+            .ok()?;
+        Some(crate::ResolvedResource {
+            resolved_path: crate::fs::path_to_string(resource.resolved_path),
+            content: resource.content,
+        })
     }
 
     /// Apply content updates and return every path whose cached results are now stale.
@@ -655,6 +652,7 @@ impl Analyzer {
         let source_text = parse_res.lock().unwrap().borrow_owner().source_text.clone();
         let path_lookup = |id| self.engine.lookup_path(id);
         let declaring_exports = self.engine.declaring_export_names_blocking(&file_data);
+        let r3_symbols_path = self.engine.r3_symbols_file();
         let cx = crate::analyzer::WireContext {
             mode: crate::analyzer::WireMode::Semantic,
             source_text: &source_text,
@@ -662,6 +660,7 @@ impl Analyzer {
             reference_strategy: &*self.engine.reference_strategy,
             path_lookup: Some(&path_lookup),
             declaring_exports: &declaring_exports,
+            r3_symbols_path: r3_symbols_path.as_deref(),
         };
         match file_data.to_wire(&cx) {
             Ok(result) => Some(result),
@@ -687,6 +686,15 @@ impl Analyzer {
     #[cfg(not(feature = "napi"))]
     pub fn get_file_content(&self, file_path: String) -> Result<String, String> {
         self.get_file_content_core(file_path)
+    }
+
+    #[cfg_attr(feature = "napi", napi)]
+    pub fn read_resource(
+        &self,
+        containing_file: String,
+        url: String,
+    ) -> Option<crate::ResolvedResource> {
+        self.read_resource_core(containing_file, url)
     }
 
     fn run_coordinator_helper<S: Spawner>(
@@ -719,10 +727,12 @@ impl Analyzer {
 
         let engine_clone = engine.clone();
         let cancel_token_clone = cancel_token.clone();
+        let r3_symbols_path: Option<Arc<Path>> = self.engine.r3_symbols_file().map(Arc::from);
 
         let processor = move |file_path: PathBuf, _local_res: FileData| {
             let engine = engine_clone.clone();
             let cancel_token = cancel_token_clone.clone();
+            let r3_symbols_path = r3_symbols_path.clone();
 
             async move {
                 if cancel_token.is_cancelled() {
@@ -757,15 +767,19 @@ impl Analyzer {
                         reference_strategy: &*engine.reference_strategy,
                         path_lookup: Some(&path_lookup),
                         declaring_exports: &declaring_exports,
+                        r3_symbols_path: r3_symbols_path.as_deref(),
                     };
                     (semantic_res.to_wire(&cx), chunk_info)
                 } else {
                     let mut syntax_res = _local_res;
-                    // ngtsc's local compilation still resolves imported `selector`/`styles` constants.
+                    // ngtsc's local compilation still evaluates imported `selector`, `styles`,
+                    // `templateUrl` and `styleUrl(s)` constants; only scope resolution is off.
                     // TODO(parity): unresolvable imports should report NG11001, not NG1010.
                     for class in &mut syntax_res.classes {
                         class.complete_selector(&ctx).await;
                         class.complete_styles(&ctx).await;
+                        class.complete_resource_urls(&ctx).await;
+                        class.complete_isolated_type_tuples(&ctx).await;
                     }
                     // Must run before `validate()`, `extract_chunk_info` and `to_wire()`: it sets
                     // the extra imports and `declaring_ng_module` they read.
@@ -791,6 +805,7 @@ impl Analyzer {
                         reference_strategy: &*engine.reference_strategy,
                         path_lookup: Some(&path_lookup),
                         declaring_exports: &declaring_exports,
+                        r3_symbols_path: r3_symbols_path.as_deref(),
                     };
                     (syntax_res.to_wire(&cx), chunk_info)
                 };
@@ -912,7 +927,6 @@ async fn run_coordinator<S, LA, FutLA, P, FutP, Fs>(
                 let _ = event_sender
                     .clone()
                     .send(CoordinatorEvent::DepsDiscovered {
-                        path: path.clone(),
                         deps: local_res.program_dependencies().cloned().collect(),
                     })
                     .await;
@@ -958,7 +972,7 @@ async fn run_coordinator<S, LA, FutLA, P, FutP, Fs>(
             let mut spawned_any = false;
             while let Ok(event) = event_receiver.get_mut().try_recv() {
                 match event {
-                    CoordinatorEvent::DepsDiscovered { deps, .. } => {
+                    CoordinatorEvent::DepsDiscovered { deps } => {
                         for dep in deps {
                             if cancel_token.is_cancelled() {
                                 break;
@@ -999,7 +1013,7 @@ async fn run_coordinator<S, LA, FutLA, P, FutP, Fs>(
             _ = pending_tasks.select_next_some() => {}
             event = event_receiver.select_next_some() => {
                 match event {
-                    CoordinatorEvent::DepsDiscovered { deps, .. } => {
+                    CoordinatorEvent::DepsDiscovered { deps } => {
                         for dep in deps {
                             if cancel_token.is_cancelled() {
                                 break;
@@ -1039,7 +1053,6 @@ async fn run_coordinator<S, LA, FutLA, P, FutP, Fs>(
 
 pub enum CoordinatorEvent {
     DepsDiscovered {
-        path: PathBuf,
         deps: Vec<PathBuf>,
     },
     FileCompleted {
@@ -1405,6 +1418,7 @@ mod chunk_order_tests {
             let chunk_info = extract_chunk_info(&semantic, engine, &ctx).await;
             let declaring_exports = ctx.declaring_export_names(&semantic).await;
             let path_lookup = |id| engine.lookup_path(id);
+            let r3_symbols_path = engine.r3_symbols_file();
             let cx = crate::analyzer::WireContext {
                 mode: crate::analyzer::WireMode::Semantic,
                 source_text: &source_text,
@@ -1412,6 +1426,7 @@ mod chunk_order_tests {
                 reference_strategy: &*engine.reference_strategy,
                 path_lookup: Some(&path_lookup),
                 declaring_exports: &declaring_exports,
+                r3_symbols_path: r3_symbols_path.as_deref(),
             };
             (semantic.to_wire(&cx).expect("wire projection"), chunk_info)
         })

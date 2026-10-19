@@ -76,7 +76,7 @@ import {
 } from './integration_helpers';
 import {timeout} from '@angular/private/testing';
 
-export function guardsIntegrationSuite() {
+export async function guardsIntegrationSuite() {
   describe('guards', () => {
     describe('CanActivate', () => {
       describe('guard completes before emitting a value', () => {
@@ -1196,10 +1196,10 @@ export function guardsIntegrationSuite() {
         })
         class OuterCmp {}
 
-        @Component({selector: 'inner1', template: '', standalone: true})
+        @Component({template: '', standalone: true})
         class Inner1Cmp {}
 
-        @Component({selector: 'inner2', template: '', standalone: true})
+        @Component({template: '', standalone: true})
         class Inner2Cmp {}
 
         const router: Router = TestBed.inject(Router);
@@ -2341,6 +2341,41 @@ export function guardsIntegrationSuite() {
         await router.navigateByUrl('/a/2');
         await advance(fixture);
         expect(router.url).toEqual('/a/2');
+      });
+
+      it('does not keep earlier guards running when a later guard starts a new navigation', async () => {
+        const router = TestBed.inject(Router);
+        const fixture = await createRoot(router, RootCmp);
+        const recorder: string[] = [];
+
+        router.resetConfig([
+          {
+            path: 'a',
+            canMatch: [
+              () => {
+                recorder.push('first guard called');
+                return new Observable<boolean>(() => {
+                  recorder.push('first guard subscribed');
+                  return () => recorder.push('first guard unsubscribed');
+                });
+              },
+              () => {
+                recorder.push('second guard called');
+                inject(Router).navigateByUrl('/b');
+                return false;
+              },
+            ],
+            component: SimpleCmp,
+          },
+          {path: 'b', component: BlankCmp},
+        ]);
+
+        router.navigateByUrl('/a');
+        await advance(fixture);
+
+        expect(router.url).toEqual('/b');
+        // Recorder before the fix: ['first guard called', 'second guard called', 'first guard subscribed'].
+        expect(recorder).toEqual(['first guard called', 'second guard called']);
       });
     });
 

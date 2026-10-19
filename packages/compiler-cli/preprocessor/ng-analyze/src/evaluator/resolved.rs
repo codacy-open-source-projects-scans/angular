@@ -94,20 +94,6 @@ impl FromResolved for StringList {
     }
 }
 
-/// `@Component.styles` after partial evaluation: ngtsc's `parseDirectiveStyles` accepts a
-/// single string or an array of strings.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InlineStyles(pub Vec<String>);
-
-impl FromResolved for InlineStyles {
-    fn from_value(value: &ResolvedValue, origin: crate::query::FileId) -> Option<Self> {
-        if let ResolvedValue::String(style) = value.unwrap_named() {
-            return Some(InlineStyles(vec![style.clone()]));
-        }
-        StringList::from_value(value, origin).map(|list| InlineStyles(list.0))
-    }
-}
-
 /// The numeric value of a `ViewEncapsulation` member reached through the partial evaluator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ViewEncapsulationValue(pub i32);
@@ -312,15 +298,113 @@ impl FromResolved for ComponentStyles {
     }
 }
 
+/// A primitive a const enum member folded to. The only values TypeScript admits in a const
+/// enum, and the only ones ngtsc's `getRuntimeRepresentation` re-emits as literals.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConstEnumLiteral {
+    String(String),
+    Number(f64),
+    Boolean(bool),
+    Null,
+    Undefined,
+}
+
+/// One member of a const enum referenced by HMR-relevant code.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConstEnumMember {
+    pub name: String,
+    pub value: ConstEnumLiteral,
+}
+
+/// What the object of a `Foo.bar` reference in decorator metadata turned out to be, for HMR's
+/// local-dependency capture (ngtsc's `isConstEnumReference` + `getRuntimeRepresentation`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConstEnumResolution {
+    /// Anything other than a const enum (a class, a regular enum, an unresolvable import, …):
+    /// the identifier is passed to the HMR callback by reference.
+    NotConstEnum,
+    /// A const enum whose members all folded to primitives: passed as an object literal, since
+    /// TypeScript inlines const enums and leaves nothing to reference at runtime.
+    Members(Vec<ConstEnumMember>),
+    /// A const enum with a member the evaluator could not fold to a primitive. ngtsc gives up
+    /// on HMR for the class in that case rather than emit a wrong literal.
+    Unevaluable,
+}
+
+impl FromResolved for ConstEnumResolution {
+    fn from_value(value: &ResolvedValue, _origin: crate::query::FileId) -> Option<Self> {
+        let ResolvedValue::Map(map) = value.unwrap_named() else {
+            return Some(ConstEnumResolution::NotConstEnum);
+        };
+        if map.is_empty() {
+            return Some(ConstEnumResolution::NotConstEnum);
+        }
+        let mut members = Vec::with_capacity(map.len());
+        for (name, member) in map.iter() {
+            // An object literal evaluates to a `Map` too; only enum members mark it an enum.
+            let ResolvedValue::EnumValue(member) = member.unwrap_named() else {
+                return Some(ConstEnumResolution::NotConstEnum);
+            };
+            if member.enum_ref.kind != crate::evaluator::value::DeclKind::ConstEnum {
+                return Some(ConstEnumResolution::NotConstEnum);
+            }
+            let value = match member.resolved.unwrap_named() {
+                ResolvedValue::String(s) => ConstEnumLiteral::String(s.clone()),
+                ResolvedValue::Number(n) => ConstEnumLiteral::Number(*n),
+                ResolvedValue::Boolean(b) => ConstEnumLiteral::Boolean(*b),
+                ResolvedValue::Null => ConstEnumLiteral::Null,
+                ResolvedValue::Undefined => ConstEnumLiteral::Undefined,
+                _ => return Some(ConstEnumResolution::Unevaluable),
+            };
+            members.push(ConstEnumMember {
+                name: name.clone(),
+                value,
+            });
+        }
+        Some(ConstEnumResolution::Members(members))
+    }
+}
+
 impl FromResolved for Vec<crate::types::analysis::Reference> {
+    /// All-or-nothing: an entry that did not evaluate to a reference lowers the whole list to
+    /// `None`, so emitters fall back to the raw source expression.
     fn from_value(value: &ResolvedValue, origin: crate::query::FileId) -> Option<Self> {
         let mut refs = Vec::new();
-        if collect_references(value, origin, &mut refs) {
+        if collect_references(value, origin, DynamicEntry::Reject, &mut refs) {
             Some(refs)
         } else {
             None
         }
     }
+}
+
+/// An NgModule `declarations`/`imports`/`exports` list read for scope computation.
+///
+/// TODO(parity): in full compilation mode (`allowUnresolvedReferences === false`) ngtsc reports
+/// NG1010 (`Value at position N in the NgModule.imports of X is not a reference`) for a genuinely
+/// dynamic entry instead of skipping it. The optimized pipeline should surface that diagnostic
+/// for the skipped entries rather than staying silent.
+/// https://github.com/angular/angular/blob/96b8042/packages/compiler-cli/src/ngtsc/annotations/ng_module/src/handler.ts#L1301-L1308
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ScopeReferences(pub Vec<crate::types::analysis::Reference>);
+
+impl FromResolved for ScopeReferences {
+    fn from_value(value: &ResolvedValue, origin: crate::query::FileId) -> Option<Self> {
+        let mut refs = Vec::new();
+        if collect_references(value, origin, DynamicEntry::Skip, &mut refs) {
+            Some(ScopeReferences(refs))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DynamicEntry {
+    /// Fail the whole list.
+    Reject,
+    /// Drop the entry and keep collecting.
+    Skip,
 }
 
 /// Build the analyzer-facing `Reference` from an unresolved import hole.
@@ -359,13 +443,16 @@ fn to_reference(r: &crate::evaluator::value::ValueReference) -> crate::types::an
 fn collect_references(
     value: &ResolvedValue,
     origin: crate::query::FileId,
+    on_dynamic: DynamicEntry,
     out: &mut Vec<crate::types::analysis::Reference>,
 ) -> bool {
     match value {
-        ResolvedValue::Named { value: inner, .. } => collect_references(inner, origin, out),
+        ResolvedValue::Named { value: inner, .. } => {
+            collect_references(inner, origin, on_dynamic, out)
+        }
         ResolvedValue::Array(items) => {
             for item in items {
-                if !collect_references(item, origin, out) {
+                if !collect_references(item, origin, on_dynamic, out) {
                     return false;
                 }
             }
@@ -402,7 +489,7 @@ fn collect_references(
         }
         ResolvedValue::Map(map) => {
             if let Some(ng_module) = map.get("ngModule") {
-                collect_references(ng_module, origin, out)
+                collect_references(ng_module, origin, on_dynamic, out)
             } else {
                 false
             }
@@ -410,7 +497,7 @@ fn collect_references(
         ResolvedValue::Dynamic(d) => {
             let crate::evaluator::value::DynamicReason::UnresolvedImport(unresolved) = &d.reason
             else {
-                return false;
+                return on_dynamic == DynamicEntry::Skip;
             };
             out.push(reference_from_import_hole(d.file, unresolved, origin));
             true
@@ -928,6 +1015,53 @@ mod tests {
         let after_first = resolved.raw().clone();
         resolved.demote();
         assert_eq!(resolved.raw(), &after_first);
+    }
+
+    fn class_reference(name: &str) -> ResolvedValue {
+        ResolvedValue::Reference(crate::evaluator::value::ValueReference {
+            file: 0,
+            name: name.to_string(),
+            member: None,
+            reference_id: None,
+            span: oxc_span::Span::new(0, 0),
+            kind: crate::evaluator::value::DeclKind::Class,
+            owning_reference: None,
+            synthetic: false,
+            aliases: Vec::new(),
+            is_default_export: false,
+        })
+    }
+
+    #[test]
+    fn scope_references_skip_dynamic_entries_but_reject_wrong_shapes() {
+        let imports = ResolvedValue::Array(vec![
+            class_reference("RouterModule"),
+            ResolvedValue::Array(vec![dynamic_value()]),
+        ]);
+        let strict: Resolved<Vec<crate::types::analysis::Reference>> =
+            Resolved::from_syntax(imports.clone(), 0);
+        assert_eq!(strict.get_optional(), None);
+
+        let scope: Resolved<ScopeReferences> = Resolved::from_syntax(imports, 0);
+        let names: Vec<_> = scope
+            .get_optional()
+            .expect("static siblings survive a dynamic entry")
+            .0
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
+        assert_eq!(names, vec!["RouterModule"]);
+
+        // A value that is not a class at all is an NG1010 in every ngtsc mode; neither reader
+        // produces a partial list for it.
+        let wrong_shape: Resolved<ScopeReferences> = Resolved::from_syntax(
+            ResolvedValue::Array(vec![
+                class_reference("RouterModule"),
+                ResolvedValue::String("nope".into()),
+            ]),
+            0,
+        );
+        assert_eq!(wrong_shape.get_optional(), None);
     }
 
     #[test]

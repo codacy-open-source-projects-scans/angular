@@ -1,4 +1,6 @@
-use crate::analyzer::{flatten_class_info, resolve_declaration_async, ComponentData};
+use crate::analyzer::{
+    flatten_class_info, resolve_declaration_async, ComponentData, DirectiveData,
+};
 use crate::query::{QueryCtx, ReferenceId};
 use crate::types::analysis::{DeclarationData, OwningReference};
 use crate::ResourceResolverFs;
@@ -175,6 +177,40 @@ async fn resolve_host_directive<Fs: ResourceResolverFs + Clone + 'static>(
     })
 }
 
+/// Resolve the `hostDirectives` a class declares on itself, in its own file's frame — what
+/// ngtsc's `TypeCheckScopeRegistry` puts in `directivesOnHost` ahead of the class itself when
+/// type-checking its host bindings. Shared by components and directives.
+async fn resolve_own_host_directives<Fs: ResourceResolverFs + Clone + 'static>(
+    ctx: &QueryCtx<Fs>,
+    file_path: &Path,
+    reference_id: ReferenceId,
+    class_name: Option<&str>,
+) -> Option<Vec<ResolvedHostDirective>> {
+    let syntax_file = ctx.analyze_file_syntax(reference_id.file).await;
+    let class_info = syntax_file.class_index.get(class_name?)?;
+    resolve_host_directives_for_class(
+        ctx,
+        class_info,
+        reference_id.file,
+        file_path,
+        &mut Vec::new(),
+    )
+    .await
+}
+
+/// Stage 2 for a directive: resolve its own `hostDirectives` for the host binding type-check
+/// block. The directive's template scope does not exist, so this is all it needs cross-file.
+pub async fn optimize_directive<Fs: ResourceResolverFs + Clone + 'static>(
+    ctx: &QueryCtx<Fs>,
+    file_path: &Path,
+    reference_id: ReferenceId,
+    class_name: Option<&str>,
+    directive: &mut DirectiveData,
+) {
+    directive.resolved_host_directives =
+        resolve_own_host_directives(ctx, file_path, reference_id, class_name).await;
+}
+
 /// Resolve the `hostDirectives` of a scope entry, looking its class up in its declaring file.
 async fn resolve_host_directives_for_declaration<Fs: ResourceResolverFs + Clone + 'static>(
     ctx: &QueryCtx<Fs>,
@@ -278,8 +314,8 @@ async fn contextualize_ngmodule_scope_declarations<Fs: ResourceResolverFs + Clon
     declarations: &[DeclarationData],
     syntax_file: &crate::types::analysis::FileData,
     comp_span_start: u32,
+    module_span_start: Option<u32>,
     module_ref: ReferenceId,
-    module_span_start: u32,
 ) -> Vec<DeclarationData> {
     let mut resolved_declarations = Vec::new();
     let module_path = ctx.engine.lookup_path(module_ref.file);
@@ -291,25 +327,25 @@ async fn contextualize_ngmodule_scope_declarations<Fs: ResourceResolverFs + Clon
         contextual_decl.ref_in_declaring_module =
             Some(project_reference(ctx, &decl.reference, module_ref.file, &module_path).await);
 
-        // An owning module is only ever recorded for an absolute specifier.
-        let is_external = decl.reference.owning_reference.is_some();
-
+        // Match ngtsc's `isExpressionForwardReference(expr, context, contextSource)`:
+        // `ngtsc` only wraps a reference in `WrappedNodeExpr(id)` when `LocalIdentifierStrategy`
+        // finds an identifier for `ref` in `contextSource` (`local_alias.is_some()`). Re-exported
+        // declarations from imported NgModules have no local identifier in `contextSource` and
+        // emit as `ExternalExpr` (`i1.Dir`), which is never treated as a forward reference.
+        // https://github.com/angular/angular/blob/83622ee/packages/compiler-cli/src/ngtsc/annotations/common/src/util.ts#L286-L297
+        // https://github.com/angular/angular/blob/83622ee/packages/compiler-cli/src/ngtsc/imports/src/emitter.ts#L281-L290
         let is_forward_ref = if decl.is_forward_ref {
             true
         } else if decl.reference.file == reference_id.file {
-            let decl_class = syntax_file
+            syntax_file
                 .classes
                 .iter()
-                .find(|c| c.class_name.as_deref() == Some(&decl.reference.name));
-            if let Some(target_class) = decl_class {
-                target_class.span.start > comp_span_start
-            } else {
-                false
-            }
-        } else if is_external {
-            false
+                .find(|c| c.class_name.as_deref() == Some(&decl.reference.name))
+                .is_some_and(|target_class| target_class.span.start > comp_span_start)
+        } else if contextual_decl.ref_meta.local_alias.is_some() {
+            module_span_start.is_some_and(|m_start| m_start > comp_span_start)
         } else {
-            module_ref.file == reference_id.file && module_span_start > comp_span_start
+            false
         };
         contextual_decl.is_forward_ref = is_forward_ref;
 
@@ -383,18 +419,22 @@ pub async fn optimize_component<Fs: ResourceResolverFs + Clone + 'static>(
             component.schemas = Some(combined);
         }
 
-        let module_class = module_meta
-            .classes
-            .iter()
-            .find(|c| c.reference_id == module_ref);
-        let module_span_start = module_class.map(|c| c.span.start).unwrap_or(0);
-
         let scope = ctx.ngmodule_imports_scope(module_ref).await;
         if !scope.is_complete {
             component.resolved_declarations = None;
             component.raw_imports_span = None;
             return;
         }
+
+        let module_span_start = if module_ref.file == reference_id.file {
+            module_meta
+                .classes
+                .iter()
+                .find(|c| c.reference_id == module_ref)
+                .map(|c| c.span.start)
+        } else {
+            None
+        };
 
         let resolved_declarations = contextualize_ngmodule_scope_declarations(
             ctx,
@@ -403,8 +443,8 @@ pub async fn optimize_component<Fs: ResourceResolverFs + Clone + 'static>(
             &scope.declarations,
             &syntax_file,
             comp_span_start,
-            module_ref,
             module_span_start,
+            module_ref,
         )
         .await;
         component.resolved_declarations = Some(resolved_declarations);
@@ -748,16 +788,8 @@ pub async fn optimize_component<Fs: ResourceResolverFs + Clone + 'static>(
 
     // The component's own host directives go on its host element, ahead of the component itself
     // (ngtsc's `directivesOnHost`). Like any host directive they stay out of its template scope.
-    if let Some(comp_info) = class_name.and_then(|name| syntax_file.class_index.get(name)) {
-        component.resolved_host_directives = resolve_host_directives_for_class(
-            ctx,
-            comp_info,
-            reference_id.file,
-            file_path,
-            &mut Vec::new(),
-        )
-        .await;
-    }
+    component.resolved_host_directives =
+        resolve_own_host_directives(ctx, file_path, reference_id, class_name).await;
 
     if let Some(ref mut decls) = component.resolved_declarations {
         DeclarationData::deduplicate(decls);
@@ -890,14 +922,6 @@ pub async fn populate_local_component_extra_imports<Fs: ResourceResolverFs + Clo
         .map(|c| c.span.start)
         .unwrap_or(0);
 
-    let module_meta = ctx.analyze_file_syntax(module_ref.file).await;
-    let module_span_start = module_meta
-        .classes
-        .iter()
-        .find(|c| c.reference_id == module_ref)
-        .map(|c| c.span.start)
-        .unwrap_or(0);
-
     let mut resolved_declarations = contextualize_ngmodule_scope_declarations(
         ctx,
         file_path,
@@ -905,8 +929,8 @@ pub async fn populate_local_component_extra_imports<Fs: ResourceResolverFs + Clo
         &local_decls,
         &syntax_file,
         comp_span_start,
+        None,
         module_ref,
-        module_span_start,
     )
     .await;
     DeclarationData::deduplicate(&mut resolved_declarations);

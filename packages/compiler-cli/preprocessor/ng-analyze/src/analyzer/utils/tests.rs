@@ -71,8 +71,12 @@ fn test_extract_template_guards_method_and_property() {
     for stmt in ret.program.body {
         if let oxc_ast::ast::Statement::ClassDeclaration(class) = stmt {
             found_class = true;
-            let (has_context_guard, guards, has_field_directive) =
-                extract_template_guards_and_field_directive(&class);
+            let meta = extract_class_body_type_check_meta(&class);
+            let (has_context_guard, guards, has_field_directive) = (
+                meta.has_ng_template_context_guard,
+                meta.ng_template_guards,
+                meta.has_ng_field_directive,
+            );
 
             assert!(
                 has_field_directive,
@@ -126,8 +130,12 @@ fn test_extract_template_guards_dts() {
         if let oxc_ast::ast::Statement::ExportDeclaration(decl) = stmt {
             if let oxc_ast::ast::Declaration::ClassDeclaration(class) = &decl.declaration {
                 found_class = true;
-                let (has_context_guard, guards, has_field_directive) =
-                    extract_template_guards_and_field_directive(class);
+                let meta = extract_class_body_type_check_meta(class);
+                let (has_context_guard, guards, has_field_directive) = (
+                    meta.has_ng_template_context_guard,
+                    meta.ng_template_guards,
+                    meta.has_ng_field_directive,
+                );
 
                 assert!(
                     has_field_directive,
@@ -159,6 +167,96 @@ fn test_extract_template_guards_dts() {
         }
     }
     assert!(found_class, "Test class not found");
+}
+
+/// Parse `source` and return the `publicMethods` of its first class (declared or exported).
+fn public_methods_of(source: &str) -> Vec<String> {
+    let allocator = Allocator::default();
+    let source_type = SourceType::default()
+        .with_typescript(true)
+        .with_module(true);
+    let ret = Parser::new(&allocator, source, source_type).parse();
+    assert!(
+        ret.diagnostics.is_empty(),
+        "parse errors: {:?}",
+        ret.diagnostics
+    );
+    let class = ret
+        .program
+        .body
+        .iter()
+        .find_map(|stmt| match stmt {
+            oxc_ast::ast::Statement::ClassDeclaration(class) => Some(&**class),
+            oxc_ast::ast::Statement::ExportDeclaration(decl) => match &decl.declaration {
+                oxc_ast::ast::Declaration::ClassDeclaration(class) => Some(&**class),
+                _ => None,
+            },
+            _ => None,
+        })
+        .expect("Test class not found");
+    extract_class_body_type_check_meta(class).public_methods
+}
+
+/// `publicMethods` holds exactly what ngtsc's `extractDirectiveTypeCheckMeta` collects: non-static
+/// `ClassMemberKind.Method` members with a public access level.
+/// https://github.com/angular/angular/blob/96b8042/packages/compiler-cli/src/ngtsc/metadata/src/util.ts#L189-L202
+#[test]
+fn test_extract_public_methods() {
+    let methods = public_methods_of(
+        "
+        class Cva {
+            writeValue(value: unknown): void {}
+            public registerOnChange(fn: (value: unknown) => void): void {}
+            registerOnTouched(fn: () => void): void {}
+            'quoted'(): void {}
+            // Overload signatures share one name.
+            setDisabledState(disabled: boolean): void;
+            setDisabledState(disabled?: boolean): void {}
+            // Everything below is excluded.
+            private privateMethod(): void {}
+            protected protectedMethod(): void {}
+            #hashMethod(): void {}
+            static staticMethod(): void {}
+            get accessor(): string { return ''; }
+            set accessor(value: string) {}
+            constructor() {}
+            [computed](): void {}
+            field = () => {};
+        }
+        ",
+    );
+    assert_eq!(
+        methods,
+        vec![
+            "writeValue",
+            "registerOnChange",
+            "registerOnTouched",
+            "quoted",
+            "setDisabledState",
+        ]
+    );
+}
+
+/// `.d.ts` classes go through the same member reflection (`DtsMetadataReader` also calls
+/// `extractDirectiveTypeCheckMeta`).
+#[test]
+fn test_extract_public_methods_dts() {
+    let methods = public_methods_of(
+        "
+        export declare class Cva {
+            writeValue(value: unknown): void;
+            registerOnChange(fn: (value: unknown) => void): void;
+            registerOnTouched(fn: () => void): void;
+            private privateMethod;
+            protected protectedMethod(): void;
+            static ɵdir: unknown;
+        }
+        ",
+    );
+    assert_eq!(
+        methods,
+        vec!["writeValue", "registerOnChange", "registerOnTouched"]
+    );
 }
 
 /// Parse a whole program and hand the callback its final expression statement, so tests can
@@ -593,50 +691,20 @@ fn test_extract_string_constant_folding() {
     assert_string_in_program("greeting - target", None);
 }
 
-/// Parse `source` and hand its final expression statement to `f`, with the preceding
-/// declarations in scope.
-fn with_last_expression<F>(source: &str, f: F)
-where
-    F: FnOnce(&Expression, &Semantic),
-{
-    let allocator = Allocator::default();
-    let ret = Parser::new(&allocator, source, SourceType::ts()).parse();
-    assert!(
-        ret.diagnostics.is_empty(),
-        "parse errors: {:?}",
-        ret.diagnostics
-    );
-    let semantic = SemanticBuilder::new()
-        .with_build_nodes(true)
-        .build(&ret.program)
-        .semantic;
-    let expr = ret
-        .program
-        .body
-        .iter()
-        .rev()
-        .find_map(|stmt| match stmt {
-            oxc_ast::ast::Statement::ExpressionStatement(s) => Some(&s.expression),
-            _ => None,
-        })
-        .expect("source must end with an expression statement");
-    f(expr, &semantic);
-}
-
 #[test]
 fn resolve_local_expression_declines_destructured_bindings() {
     // Regression: a declarator's initializer is the value of the whole *pattern*, not of any
     // single name it binds. Handing it back made `template: x` emit an unrelated string.
-    with_last_expression(
+    with_trailing_expression(
         "const STYLES = ['.a {}', '.b {}']; const [firstStyle] = STYLES; firstStyle;",
         |expr, semantic| assert_eq!(extract_string(expr, semantic), None),
     );
-    with_last_expression(
+    with_trailing_expression(
         "const TPL = '<p>outer</p>'; const {x} = {x: TPL}; x;",
         |expr, semantic| assert_eq!(extract_string(expr, semantic), None),
     );
     // Plain identifier bindings still resolve, including through a chain.
-    with_last_expression(
+    with_trailing_expression(
         "const TPL = '<p>outer</p>'; const ALIAS = TPL; ALIAS;",
         |expr, semantic| {
             assert_eq!(

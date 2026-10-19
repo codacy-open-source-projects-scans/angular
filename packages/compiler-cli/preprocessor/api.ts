@@ -7,16 +7,13 @@
  */
 
 /**
- * Public programmatic API of `ng-exp-compiler`.
+ * Public programmatic API of `@angular/compiler-cli/preprocessor`.
  *
  * This module is deliberately **free of static edges to the analysis-engine loader**.
  * The compiler also runs where N-API is unavailable, driven by an out-of-process
  * sidecar binary; a static `import` of `./src/analyzer_loader.js` here would pull
  * engine resolution into module evaluation and break those deployments. The engine is
  * reached only through {@link createAnalyzer}, which loads the resolver lazily.
- *
- * Consumers that always want the engine can import `ng-exp-compiler/analyzer`
- * directly instead.
  */
 
 import type {IAnalyzer} from './src/hybrid_compiler.js';
@@ -31,9 +28,14 @@ export {SidecarAnalyzer} from './src/analyzer_sidecar.js';
 export {run} from './ngp.js';
 export type {RunOptions} from './ngp.js';
 
-export {buildTypeCheckingConfig} from './src/tcb.js';
+export {buildTypeCheckingConfig, type NgpTypeCheckingConfig} from './src/tcb.js';
 export {resolveWorkspaceConfig} from './src/workspace.js';
 export type {WorkspaceConfig} from './src/workspace.js';
+export {WasmAnalyzer, type WasmInner} from './src/analyzer_wasm.js';
+export type {WasmHostFs, HostDirEntry, HostFileStat} from './src/wasm_host_fs.js';
+export type {NgDiagnostic} from './src/types.js';
+export {IndexerBoundTemplate} from './src/indexing/indexer.js';
+export type {ClassEntity} from './src/indexer_api.js';
 
 export type {AnalyzerBackend, LoadAnalyzerOptions, LoadedAnalyzer};
 

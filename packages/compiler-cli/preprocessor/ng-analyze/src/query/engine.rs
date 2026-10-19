@@ -9,7 +9,7 @@ use oxc_resolver::ResolverGeneric;
 use crate::analyzer::DecoratorData;
 use crate::compiler::async_compiler::spawn_shared;
 use crate::compiler::decorators::component::{
-    optimize_component, populate_local_component_extra_imports,
+    optimize_component, optimize_directive, populate_local_component_extra_imports,
 };
 use crate::compiler::decorators::ng_module::optimize_ng_module;
 
@@ -24,6 +24,10 @@ use crate::{ClassInfo, FileData, NgModuleComponentMap};
 /// `fs`/`resolver`/`resource_registry`/`file_analysis` through every call.
 pub type QueryCtx<Fs> = Arc<QueryEngine<Fs>>;
 
+/// The file inside `@angular/core` that re-exports the runtime symbols generated code needs, and
+/// that core's own compilation imports instead of `@angular/core` (`packages/core/src/r3_symbols.ts`).
+const R3_SYMBOLS_FILE_NAME: &str = "r3_symbols.ts";
+
 /// The unified query engine.
 ///
 /// Every "question" the analyzer answers is a [`QueryKey`]; [`QueryEngine::query`] returns a cached,
@@ -32,8 +36,8 @@ pub type QueryCtx<Fs> = Arc<QueryEngine<Fs>>;
 /// ambient analysis state (`fs`, `resolver`, `resource_registry`, `entrypoints`) so query bodies
 /// don't have to thread it; the cross-file symbol table lives on the `AnalyzeFileSyntax` results.
 ///
-/// `Fs` is kept generic so a future virtual-filesystem-only WASM backend can be plugged in; the
-/// concrete `Analyzer` instantiates `QueryEngine<OverlayFileSystem>` today.
+/// `Fs` is generic over [`ResourceResolverFs`]; the concrete `Analyzer` instantiates
+/// `QueryEngine<OverlayFileSystem>`.
 pub struct QueryEngine<Fs: ResourceResolverFs + Clone + 'static> {
     pub(crate) fs: Fs,
     pub(crate) resolver: Arc<ResolverGeneric<Fs>>,
@@ -46,6 +50,7 @@ pub struct QueryEngine<Fs: ResourceResolverFs + Clone + 'static> {
     pub(crate) reference_strategy: Arc<dyn crate::analyzer::import_emit::ReferenceEmitStrategy>,
     pub generate_extra_imports_in_local_mode: bool,
     pub compile_non_exported_classes: bool,
+    pub enable_hmr: bool,
 }
 
 impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
@@ -64,9 +69,11 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
             reference_strategy,
             false,
             true,
+            false,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_options(
         fs: Fs,
         resolver: Arc<ResolverGeneric<Fs>>,
@@ -75,6 +82,7 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
         reference_strategy: Arc<dyn crate::analyzer::import_emit::ReferenceEmitStrategy>,
         generate_extra_imports_in_local_mode: bool,
         compile_non_exported_classes: bool,
+        enable_hmr: bool,
     ) -> Arc<Self> {
         Arc::new(Self {
             fs,
@@ -88,6 +96,7 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
             reference_strategy,
             generate_extra_imports_in_local_mode,
             compile_non_exported_classes,
+            enable_hmr,
         })
     }
 
@@ -112,6 +121,18 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
 
     pub fn lookup_path(&self, id: FileId) -> PathBuf {
         self.interner.lookup_path(id)
+    }
+
+    pub fn r3_symbols_file(&self) -> Option<PathBuf> {
+        self.entrypoints
+            .read()
+            .unwrap()
+            .iter()
+            .find(|path| {
+                path.file_name()
+                    .is_some_and(|name| name == R3_SYMBOLS_FILE_NAME)
+            })
+            .cloned()
     }
 
     /// Purge every cached query that depends on `path` (file invalidation). Dropping the cached
@@ -288,14 +309,6 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
         }
     }
 
-    pub fn parse_file_blocking(
-        self: &Arc<Self>,
-        path: impl AsRef<Path>,
-    ) -> Arc<std::sync::Mutex<crate::ParsedFile>> {
-        let file_id = self.intern_path(path);
-        self.parse_file_by_id_blocking(file_id)
-    }
-
     async fn parse_file_body(
         self: &Arc<Self>,
         file_id: FileId,
@@ -396,6 +409,8 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
                 errors: dep.errors.clone(),
                 diagnostics: Vec::new(),
                 signal_debug_names: Vec::new(),
+                is_core: false,
+                top_level_value_bindings: None,
             });
         }
 
@@ -410,6 +425,7 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
             self.resolver.as_ref(),
             &converter,
             self.compile_non_exported_classes,
+            self.enable_hmr,
         );
 
         self.resource_registry
@@ -455,6 +471,8 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
             errors: dep.errors.clone(),
             diagnostics: analysis.diagnostics,
             signal_debug_names: analysis.signal_debug_names,
+            is_core: analysis.is_core,
+            top_level_value_bindings: analysis.top_level_value_bindings,
         })
     }
 
@@ -772,6 +790,7 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
                     let flattened =
                         crate::analyzer::flatten_class_info(comp_info.clone(), ctx).await;
                     class.flattened_fields = flattened.fields;
+                    class.public_methods = flattened.public_methods;
                 }
             }
 
@@ -827,6 +846,14 @@ impl<Fs: ResourceResolverFs + Clone + 'static> QueryEngine<Fs> {
                     directive.declaring_ng_module,
                     directive.duplicate_declaring_ng_modules,
                 ) = mapping.declaring_ng_modules(reference_id.file, class_name.as_deref());
+                optimize_directive(
+                    ctx,
+                    &file_path,
+                    reference_id,
+                    class_name.as_deref(),
+                    directive,
+                )
+                .await;
             } else if let DecoratorData::Pipe(pipe) = &mut class.decorator {
                 let mapping = ctx.component_mapping().await;
                 (
@@ -961,6 +988,7 @@ fn class_index_from_registrations(
             schemas: reg.schemas.clone(),
             animation_trigger_names: reg.animation_trigger_names.clone(),
             has_ng_field_directive: reg.has_ng_field_directive,
+            public_methods: reg.public_methods.clone(),
             raw_imports: reg.raw_imports.clone(),
             may_declare_providers: reg.may_declare_providers,
             super_class: reg.super_class.clone(),

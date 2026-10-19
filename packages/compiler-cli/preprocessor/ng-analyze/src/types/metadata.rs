@@ -319,6 +319,12 @@ pub struct ComponentMetadata {
     pub template_span: Option<SpanMetadata>,
     /// True when an inline `template` is present but not statically resolvable.
     pub template_dynamic: bool,
+    /// Span of the `templateUrl` value expression, present whenever the property is, whatever
+    /// its syntax. This is the node ngtsc anchors diagnostics about an external template
+    /// declaration on (`getTemplateDeclarationNodeForError`), e.g. a stylesheet linked from
+    /// the template that cannot be found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_url_span: Option<SpanMetadata>,
     pub template_url: Option<UrlMetadata>,
     pub styles: Option<Vec<String>>,
     pub styles_from_urls: Option<Vec<String>>,
@@ -360,6 +366,8 @@ pub struct ComponentMetadata {
     /// `changeDetection` expression as written in the decorator, matching ngtsc's local compilation behavior. `None` when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_detection: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_detection_span: Option<SpanMetadata>,
     pub preserve_whitespaces: Option<bool>,
     pub animations_span: Option<SpanMetadata>,
     pub animation_trigger_names: Option<LegacyAnimationTriggerNames>,
@@ -415,6 +423,9 @@ pub struct HostMetadataEntry {
     /// Source text of a value that is not statically evaluable, for verbatim re-emission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expression: Option<String>,
+    /// Span of `expression` in the declaring file, for HMR's local-dependency capture.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expression_span: Option<SpanMetadata>,
 }
 
 #[cfg_attr(feature = "napi", napi(object))]
@@ -439,6 +450,9 @@ pub struct DirectiveMetadata {
     pub host_metadata: Option<Vec<HostMetadataEntry>>,
     /// Raw hostDirectives expression from the decorator
     pub host_directives: Option<Vec<HostDirectiveMetadata>>,
+    /// The directive's own `hostDirectives`, resolved in its own frame for the type-check block.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_host_directives: Option<Vec<ResolvedHostDirectiveMetadata>>,
     pub providers_span: Option<SpanMetadata>,
     pub args_span: Option<SpanMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -544,7 +558,7 @@ pub struct AngularFieldMetadata {
     pub coercion: Option<String>,
 }
 
-// NOTE: `SourceNodeKind` requires duplicated #[cfg] blocks rather than #[cfg_attr] because
+// NOTE: `ExpressionValueKindMetadata` requires duplicated #[cfg] blocks rather than #[cfg_attr] because
 // `napi-derive` proc macro limitations prevent evaluating #[cfg_attr] on individual enum variants
 // inside a `#[napi(string_enum)]` container.
 #[cfg(feature = "napi")]
@@ -589,6 +603,7 @@ pub struct HostBindingMetadata {
     pub host_property_name: Option<String>,
     pub decorator_span: SpanMetadata,
     pub member_span: SpanMetadata,
+    pub is_accessor: bool,
 }
 
 #[cfg_attr(feature = "napi", napi(object))]
@@ -609,15 +624,6 @@ impl DeclarationTuple {
     pub fn export_name(&self) -> &str {
         self.imported_name.as_deref().unwrap_or(&self.local_name)
     }
-}
-
-#[cfg_attr(feature = "napi", napi(object))]
-#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportViaMetadata {
-    pub module_specifier: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub symbol: Option<String>,
 }
 
 /// How to write an import for a symbol, if the consumer decides it needs one.
@@ -880,6 +886,70 @@ pub struct DecoratedMemberMetadata {
     pub decorators: Vec<DecoratorMetadata>,
 }
 
+/// Which primitive a [`ConstEnumMemberMetadata::value`] encodes.
+// NOTE: duplicated #[cfg] blocks rather than #[cfg_attr] for the same `napi-derive` reason as
+// `ExpressionValueKindMetadata`.
+#[cfg(feature = "napi")]
+#[napi(string_enum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConstEnumMemberKind {
+    #[napi(value = "string")]
+    String,
+    #[napi(value = "number")]
+    Number,
+    #[napi(value = "boolean")]
+    Boolean,
+    #[napi(value = "null")]
+    Null,
+    #[napi(value = "undefined")]
+    Undefined,
+}
+
+#[cfg(not(feature = "napi"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ConstEnumMemberKind {
+    String,
+    Number,
+    Boolean,
+    Null,
+    Undefined,
+}
+
+/// A const enum member the HMR update callback receives as an object-literal entry (const
+/// enums are inlined by TypeScript and have no runtime object to pass by reference).
+#[cfg_attr(feature = "napi", napi(object))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConstEnumMemberMetadata {
+    pub key: String,
+    pub kind: ConstEnumMemberKind,
+    /// The primitive's text: the raw string, the JS number (`js_number_to_string`), `true` /
+    /// `false`; empty for `null` and `undefined`.
+    pub value: String,
+}
+
+/// A read of a root-scope value binding (import, class, function, enum, variable) inside this
+/// class's Angular decorator metadata — the identifiers ngtsc's `PotentialTopLevelReadsVisitor`
+/// finds in the `WrappedNodeExpr`s of a compiled component. The TypeScript layer keeps the
+/// ones whose `span` falls inside source text it actually re-emits and passes them to the HMR
+/// update callback.
+/// https://github.com/angular/angular/blob/e3ac727/packages/compiler-cli/src/ngtsc/hmr/src/extract_dependencies.ts#L229-L263
+#[cfg_attr(feature = "napi", napi(object))]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopLevelReferenceMetadata {
+    pub name: String,
+    pub span: SpanMetadata,
+    /// The identifier is the object of a `Name.member` access and resolves to a `const enum`.
+    pub is_const_enum: bool,
+    /// The const enum's members when every one folded to a primitive. `None` with
+    /// `is_const_enum` set means a member did not; ngtsc disables HMR for the class then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub const_enum_members: Option<Vec<ConstEnumMemberMetadata>>,
+}
+
 #[cfg_attr(feature = "napi", napi(object))]
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -899,6 +969,10 @@ pub struct ClassMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub member_decorators: Option<Vec<DecoratedMemberMetadata>>,
     pub later_declaration_references: Vec<SpanMetadata>,
+    /// Root-scope value bindings read inside the class's Angular decorator metadata, for HMR's
+    /// local-dependency capture. Only collected when the analyzer runs with `enable_hmr`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_level_references: Option<Vec<TopLevelReferenceMetadata>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub injectable: Option<InjectableMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -941,6 +1015,7 @@ pub struct ClassMetadata {
     pub has_ng_template_context_guard: bool,
     pub ng_template_guards: Vec<TemplateGuardMetadata>,
     pub has_ng_field_directive: bool,
+    pub public_methods: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub super_class: Option<DeclarationTuple>,
     pub uses_inheritance: bool,

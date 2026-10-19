@@ -6,8 +6,30 @@
  * found in the LICENSE file at https://angular.dev/license
  */
 
+import {
+  BoundTarget,
+  LEGACY_OPTIONAL_CHAINING_DEFAULT,
+  MatchSource,
+  ParsedTemplate,
+  ParseTemplateOptions,
+  TcbDirectiveMetadata,
+} from '@angular/compiler';
+import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'path';
+import {makeClassKey} from './compiler-utils.js';
+import {withErrorGuide} from './diagnostic.js';
+import {ChunkContext, FileAnalysis, getOrCreateFileAnalysis} from './file_analysis.js';
+import {IndexedComponent} from './indexer_api.js';
+import {getIndexedComponents, getIndexedComponentsSync} from './indexing/indexer.js';
+import {buildTcbTargets, processFile, processFileSync, type ProcessedFile} from './processor.js';
+import {
+  buildTypeCheckingConfig,
+  combineTcbContent,
+  generateTcbCode,
+  prepareTcbTargets,
+  type NgpTypeCheckingConfig,
+} from './tcb.js';
 import type * as nga from './types.js';
 
 export function getDiagnosticPath(tsconfigPath: string): string {
@@ -54,28 +76,6 @@ export function serializeDiagnostics(
     ) + '\n'
   );
 }
-import {
-  ParsedTemplate,
-  ParseTemplateOptions,
-  TcbDirectiveMetadata,
-  TypeCheckingConfig,
-  TmplAstHostElement,
-  BoundTarget,
-  MatchSource,
-  LEGACY_OPTIONAL_CHAINING_DEFAULT,
-} from '@angular/compiler';
-import {
-  prepareTcbTargets,
-  generateTcbCode,
-  buildTypeCheckingConfig,
-  combineTcbContent,
-  type NgpTypeCheckingConfig,
-} from './tcb.js';
-import {processFile, buildTcbTargets, type ProcessedFile} from './processor.js';
-import {FileAnalysis, getOrCreateFileAnalysis, ChunkContext} from './file_analysis.js';
-import {getIndexedComponents} from './indexing/indexer.js';
-import {IndexedComponent} from './indexer_api.js';
-import {makeClassKey} from './compiler-utils.js';
 export interface IAnalyzer {
   analyze(): AsyncIterable<nga.CompilationChunk>;
   analyzeOptimized(): AsyncIterable<nga.CompilationChunk>;
@@ -88,11 +88,21 @@ export interface IAnalyzer {
   invalidateFiles(updates: nga.FileInvalidation[]): Promise<string[]>;
   getTsFileForTemplate(templatePath: string): Promise<nga.TemplateUsage[] | null>;
   getFileContent(filePath: string): Promise<string>;
+  /**
+   * Resolves `url` from `containingFile` exactly as the analyzer resolves a component's
+   * `templateUrl`/`styleUrls` (`rootDirs`, virtual overlay, preprocessor-extension fallback)
+   * and reads it. `null` when the URL cannot be resolved at all; a result without `content`
+   * when it resolved to a file that cannot be read.
+   */
+  readResource(containingFile: string, url: string): Promise<nga.ResolvedResource | null>;
 
-  // Synchronous lookups (supported in NAPI mode, throws in Sidecar mode)
+  // Synchronous lookups (supported in NAPI and WASM modes, throws in Sidecar mode)
+  analyzeSync?(): Iterable<nga.CompilationChunk>;
+  analyzeOptimizedSync?(): Iterable<nga.CompilationChunk>;
   getMetadataForFileSync(filePath: string): nga.AnalysisResult | null;
   getFileContentSync(filePath: string): string;
   getTsFileForTemplateSync(templatePath: string): nga.TemplateUsage[] | null;
+  readResourceSync?(containingFile: string, url: string): nga.ResolvedResource | null;
   close(): void;
 }
 export interface HybridCompilerOptions {
@@ -123,8 +133,8 @@ export interface HybridCompilerOptions {
   /** Literal inline templates always normalize, whatever this is set to. */
   i18nNormalizeLineEndingsInICUs?: boolean;
   /**
-   * Whether HMR is enabled.
-   * TODO(parity): accepted but ignored, still needs to be implemented.
+   * Whether HMR is enabled (`_enableHmr`): emits an HMR initializer after every component and
+   * enables `emitHmrUpdateModule`. The analyzer must run with `enableHmr` as well.
    */
   enableHmr?: boolean;
   /** Project root used to compute the relative `filePath` emitted in `ɵsetClassDebugInfo`. */
@@ -136,30 +146,30 @@ export interface HybridCompilerOptions {
 }
 
 export class HybridCompiler {
-  public analyzer: IAnalyzer;
+  readonly analyzer: IAnalyzer;
   /** Bound targets and TCBs per file, keyed by `AnalysisResult.filePath`. */
-  public fileCache = new Map<string, FileAnalysis>();
-  public optimize: boolean;
-  public tsconfigPath?: string;
-  public diagnosticsMap = new Map<string, nga.NgDiagnostic[]>();
-  public virtualFiles?: Record<string, string>;
-  public tcbConfig: NgpTypeCheckingConfig;
-  public templateParseOptions: Partial<ParseTemplateOptions>;
-  public legacyOptionalChaining: boolean;
-  public isClosureCompilerEnabled: boolean;
-  public emitDeclarationOnly: boolean;
-  public externalRuntimeStyles: boolean;
-  public onlyExplicitDeferDependencyImports: boolean;
-  public enableTemplateSourceLocations: boolean;
-  public onlyPublishPublicTypingsForNgModules: boolean;
-  public forbidOrphanComponents: boolean;
-  public supportTestBed: boolean;
-  public i18nUseExternalIds: boolean;
-  public enableHmr: boolean;
-  public rootDir?: string;
-  public complianceMode: boolean;
-  public workspaceName?: string;
-  public rootDirs?: string[];
+  readonly fileCache = new Map<string, FileAnalysis>();
+  readonly optimize: boolean;
+  readonly tsconfigPath?: string;
+  readonly diagnosticsMap = new Map<string, nga.NgDiagnostic[]>();
+  readonly virtualFiles?: Record<string, string>;
+  readonly tcbConfig: NgpTypeCheckingConfig;
+  readonly templateParseOptions: Partial<ParseTemplateOptions>;
+  readonly legacyOptionalChaining: boolean;
+  readonly isClosureCompilerEnabled: boolean;
+  readonly emitDeclarationOnly: boolean;
+  readonly externalRuntimeStyles: boolean;
+  readonly onlyExplicitDeferDependencyImports: boolean;
+  readonly enableTemplateSourceLocations: boolean;
+  readonly onlyPublishPublicTypingsForNgModules: boolean;
+  readonly forbidOrphanComponents: boolean;
+  readonly supportTestBed: boolean;
+  readonly i18nUseExternalIds: boolean;
+  readonly enableHmr: boolean;
+  readonly rootDir?: string;
+  readonly complianceMode: boolean;
+  readonly workspaceName?: string;
+  readonly rootDirs?: string[];
   private pendingCompilation: Promise<void> = Promise.resolve();
 
   constructor(analyzer: IAnalyzer, options: HybridCompilerOptions = {}) {
@@ -196,7 +206,11 @@ export class HybridCompiler {
     this.complianceMode = options.complianceMode ?? false;
     this.workspaceName = options.workspaceName;
     if (options.rootDirs) {
-      const baseDir = options.rootDir ? options.rootDir.replace(/\\/g, '/') : '/';
+      const baseDir = options.rootDir
+        ? options.rootDir.replace(/\\/g, '/')
+        : options.tsconfigPath
+          ? path.posix.dirname(options.tsconfigPath.replace(/\\/g, '/'))
+          : '/';
       this.rootDirs = options.rootDirs.map((d) => {
         const norm = d.replace(/\\/g, '/');
         if (norm.startsWith('/') || /^[a-zA-Z]:/.test(norm)) {
@@ -209,7 +223,7 @@ export class HybridCompiler {
     }
   }
 
-  public async writeDiagnosticsFile(): Promise<void> {
+  async writeDiagnosticsFile(): Promise<void> {
     if (!this.tsconfigPath) {
       return;
     }
@@ -222,16 +236,26 @@ export class HybridCompiler {
     }
   }
 
-  public async prepareChunk(chunk: nga.CompilationChunk): Promise<ChunkContext> {
+  writeDiagnosticsFileSync(): void {
+    if (!this.tsconfigPath) {
+      return;
+    }
+    const diagPath = getDiagnosticPath(this.tsconfigPath);
+    const content = serializeDiagnostics(this.tsconfigPath, this.diagnosticsMap);
+    if (this.virtualFiles) {
+      this.virtualFiles[diagPath] = content;
+    } else {
+      fsSync.writeFileSync(diagPath, content, 'utf-8');
+    }
+  }
+
+  async prepareChunk(chunk: nga.CompilationChunk): Promise<ChunkContext> {
     for (const file of chunk.files) {
       if (file.diagnostics) {
-        this.diagnosticsMap.set(file.filePath, file.diagnostics);
+        this.diagnosticsMap.set(file.filePath, file.diagnostics.map(withErrorGuide));
       }
     }
     await this.writeDiagnosticsFile();
-
-    const remoteScopedClasses = new Set<string>();
-    const eagerlyUsedDeclarations = new Map<string, nga.DeclarationMetadata[]>();
 
     const boundFiles = await Promise.all(
       chunk.files.map(async (file) => ({
@@ -239,11 +263,36 @@ export class HybridCompiler {
         analysis: await this.ensureBoundWithMetadata(file),
       })),
     );
+    return this.finalizePreparedChunk(chunk, boundFiles);
+  }
 
+  prepareChunkSync(chunk: nga.CompilationChunk): ChunkContext {
+    for (const file of chunk.files) {
+      if (file.diagnostics) {
+        this.diagnosticsMap.set(file.filePath, file.diagnostics.map(withErrorGuide));
+      }
+    }
+    this.writeDiagnosticsFileSync();
+
+    const boundFiles = chunk.files.map((file) => ({
+      file,
+      analysis: this.ensureBoundWithMetadataSync(file),
+    }));
+    return this.finalizePreparedChunk(chunk, boundFiles);
+  }
+
+  private finalizePreparedChunk(
+    chunk: nga.CompilationChunk,
+    boundFiles: Array<{file: nga.AnalysisResult; analysis: FileAnalysis}>,
+  ): ChunkContext {
+    const remoteScopedClasses = new Set<string>();
+    const eagerlyUsedDeclarations = new Map<string, nga.DeclarationMetadata[]>();
+
+    // Identify template dependencies of components in the chunk and check cycleProne.
     const chunkFileIds = new Set(chunk.files.map((f) => f.fileId));
     const dynamicGraph = new Map<number, Set<number>>();
 
-    // Pre-seed graph with intra-chunk static TypeScript import edges from Rust.
+    // Pre-seed graph with intra-chunk static TypeScript import edges from Rust
     if (chunk.staticEdges) {
       for (const [fromIdStr, targets] of Object.entries(chunk.staticEdges)) {
         const fromId = Number(fromIdStr);
@@ -327,6 +376,7 @@ export class HybridCompiler {
       }
     }
 
+    // Detect cycles in the local dynamic graph
     const cyclicFiles = findCyclicNodes(dynamicGraph);
     for (const file of chunk.files) {
       if (cyclicFiles.has(file.fileId)) {
@@ -346,7 +396,7 @@ export class HybridCompiler {
     return {remoteScopedClasses, metadataMap, eagerlyUsedDeclarations};
   }
 
-  public async init() {
+  async init() {
     const iterator = this.optimize ? this.analyzer.analyzeOptimized() : this.analyzer.analyze();
     for await (const _ of iterator) {
     }
@@ -359,18 +409,18 @@ export class HybridCompiler {
    * report of how the updates went: a failed update's error goes to that update's caller, and
    * rethrowing it here would fail every later request for an error the requester can't act on.
    */
-  public async ensureReady(): Promise<void> {
+  async ensureReady(): Promise<void> {
     await this.pendingCompilation;
   }
 
-  public async updateFileContent(updates: {filePath: string; content: string}[]): Promise<void> {
+  async updateFileContent(updates: {filePath: string; content: string}[]): Promise<void> {
     if (updates.length === 0) {
       return;
     }
     await this.enqueueUpdate(() => this.analyzer.updateFileContent(updates));
   }
 
-  public async invalidateFiles(updates: nga.FileInvalidation[]): Promise<void> {
+  async invalidateFiles(updates: nga.FileInvalidation[]): Promise<void> {
     if (updates.length === 0) {
       return;
     }
@@ -415,23 +465,37 @@ export class HybridCompiler {
     }
   }
 
-  public analyze(): AsyncIterable<nga.CompilationChunk> {
+  analyze(): AsyncIterable<nga.CompilationChunk> {
     return this.analyzer.analyze();
   }
 
-  public analyzeOptimized(): AsyncIterable<nga.CompilationChunk> {
+  analyzeOptimized(): AsyncIterable<nga.CompilationChunk> {
     return this.analyzer.analyzeOptimized();
   }
 
-  public analyzeDelta(): AsyncIterable<nga.CompilationChunk> {
+  analyzeSync(): Iterable<nga.CompilationChunk> {
+    if (!this.analyzer.analyzeSync) {
+      throw new Error('Analyzer does not support analyzeSync');
+    }
+    return this.analyzer.analyzeSync();
+  }
+
+  analyzeOptimizedSync(): Iterable<nga.CompilationChunk> {
+    if (!this.analyzer.analyzeOptimizedSync) {
+      throw new Error('Analyzer does not support analyzeOptimizedSync');
+    }
+    return this.analyzer.analyzeOptimizedSync();
+  }
+
+  analyzeDelta(): AsyncIterable<nga.CompilationChunk> {
     return this.analyzer.analyzeDelta();
   }
 
-  public analyzeOptimizedDelta(): AsyncIterable<nga.CompilationChunk> {
+  analyzeOptimizedDelta(): AsyncIterable<nga.CompilationChunk> {
     return this.analyzer.analyzeOptimizedDelta();
   }
 
-  public getTcbForFile(filePath: string): string | null {
+  getTcbForFile(filePath: string): string | null {
     return this.ensureTcb(filePath).tcb || null;
   }
 
@@ -474,7 +538,28 @@ export class HybridCompiler {
   }
 
   /** Asynchronously binds template targets for `filePath`. */
-  public async ensureBound(filePath: string): Promise<FileAnalysis> {
+  ensureBoundWithMetadataSync(result: nga.AnalysisResult, content?: string): FileAnalysis {
+    const normalized = result.filePath;
+    const fileAnalysis = getOrCreateFileAnalysis(this.fileCache, normalized);
+    if (fileAnalysis.preparedTcbData !== undefined) {
+      return fileAnalysis;
+    }
+
+    if (!this.hasTcbCandidates(result.classes)) {
+      fileAnalysis.preparedTcbData = null;
+      return fileAnalysis;
+    }
+
+    const fileContent =
+      content !== undefined ? content : this.analyzer.getFileContentSync(result.filePath);
+    return this.populateBoundData(normalized, fileAnalysis, result, fileContent);
+  }
+
+  /**
+   * Asynchronously ensures that the targets for the given file are bound.
+   * This is used in sidecar/async mode to avoid blocking CPU tasks.
+   */
+  async ensureBound(filePath: string): Promise<FileAnalysis> {
     const result = await this.analyzer.getMetadataForFile(filePath);
     if (!result) {
       return unanalyzedFile(filePath);
@@ -483,7 +568,7 @@ export class HybridCompiler {
   }
 
   /** Asynchronously binds template targets using a pre-fetched `AnalysisResult`. */
-  public async ensureBoundWithMetadata(
+  async ensureBoundWithMetadata(
     result: nga.AnalysisResult,
     content?: string,
   ): Promise<FileAnalysis> {
@@ -533,8 +618,6 @@ export class HybridCompiler {
       content,
       this.tcbConfig,
       result.classes,
-      this.workspaceName,
-      this.rootDirs,
     );
     if (prepared) {
       fileAnalysis.preparedTcbData = prepared;
@@ -585,32 +668,46 @@ export class HybridCompiler {
     return fileAnalysis;
   }
 
-  public getParsedTemplate(filePath: string, classKey: string): any | null {
+  getParsedTemplate(filePath: string, classKey: string): any | null {
     return this.ensureBoundSync(filePath).parsedTemplates?.get(classKey) ?? null;
   }
 
-  public getHostElement(filePath: string, classKey: string): any | null {
+  getHostElement(filePath: string, classKey: string): any | null {
     return this.ensureBoundSync(filePath).preparedTcbData?.hostElementsMap.get(classKey) ?? null;
   }
 
-  public getTypeCheckIdMap(filePath: string): Map<string, string> | null {
+  getTypeCheckIdMap(filePath: string): Map<string, string> | null {
     return this.ensureBoundSync(filePath).preparedTcbData?.typeCheckIdMap ?? null;
   }
 
-  public getClassMetadata(filePath: string): nga.AnalysisResult | null {
+  getClassMetadata(filePath: string): nga.AnalysisResult | null {
     return this.analyzer.getMetadataForFileSync(filePath);
   }
 
-  public async processFile(
+  async processFile(
     filePath: string,
     content: string,
-    readResource?: (file: string) => string | undefined,
     metadata?: nga.AnalysisResult,
     chunkContext?: ChunkContext,
   ): Promise<ProcessedFile> {
     const result = metadata || (await this.analyzer.getMetadataForFile(filePath));
     const normPath = result ? result.filePath : filePath;
-    const processed = await processFile(
+    const processed = await processFile(this, normPath, content, result || undefined, chunkContext);
+    this.recordProcessedDiagnostics(normPath, processed);
+    return processed;
+  }
+
+  processFileSync(
+    filePath: string,
+    content: string,
+    readResource?:
+      ((file: string) => string | undefined) | Map<string, nga.ResolvedResource | null>,
+    metadata?: nga.AnalysisResult,
+    chunkContext?: ChunkContext,
+  ): ProcessedFile {
+    const result = metadata || this.analyzer.getMetadataForFileSync(filePath);
+    const normPath = result ? result.filePath : filePath;
+    const processed = processFileSync(
       this,
       normPath,
       content,
@@ -618,42 +715,90 @@ export class HybridCompiler {
       result || undefined,
       chunkContext,
     );
+    this.recordProcessedDiagnostics(normPath, processed);
+    return processed;
+  }
+
+  private recordProcessedDiagnostics(normPath: string, processed: ProcessedFile): void {
     if (processed.diagnostics && processed.diagnostics.length > 0) {
       for (const diag of processed.diagnostics) {
         const targetPath = diag.filePath || normPath;
         const existing = this.diagnosticsMap.get(targetPath) || [];
-        existing.push(diag);
+        existing.push(withErrorGuide(diag));
         this.diagnosticsMap.set(targetPath, existing);
       }
     }
-    return processed;
   }
 
-  public getBoundTarget(
-    filePath: string,
-    classKey: string,
-  ): BoundTarget<TcbDirectiveMetadata> | null {
+  async emitHmrUpdateModule(filePath: string, className: string): Promise<string | null> {
+    if (!this.enableHmr) {
+      return null;
+    }
+    const result = await this.analyzer.getMetadataForFile(filePath);
+    if (!result) {
+      return null;
+    }
+    const content = await this.analyzer.getFileContent(result.filePath);
+    const processed = await processFile(
+      {...this, hmrUpdateTarget: className},
+      result.filePath,
+      content,
+      result,
+    );
+    return processed.hmrUpdateModule ?? null;
+  }
+
+  emitHmrUpdateModuleSync(filePath: string, className: string): string | null {
+    if (!this.enableHmr) {
+      return null;
+    }
+    const result = this.analyzer.getMetadataForFileSync(filePath);
+    if (!result) {
+      return null;
+    }
+    const content = this.analyzer.getFileContentSync(result.filePath);
+    const processed = processFileSync(
+      {...this, hmrUpdateTarget: className},
+      result.filePath,
+      content,
+      undefined,
+      result,
+    );
+    return processed.hmrUpdateModule ?? null;
+  }
+
+  getBoundTarget(filePath: string, classKey: string): BoundTarget<TcbDirectiveMetadata> | null {
     return this.ensureBoundSync(filePath).preparedTcbData?.boundTargetMap.get(classKey) || null;
   }
 
-  public async getIndexedComponents(): Promise<Map<string, IndexedComponent>> {
+  async getIndexedComponents(): Promise<Map<string, IndexedComponent>> {
     // Drain any remaining items from the analyzer queue first.
     const iterator = this.optimize ? this.analyzer.analyzeOptimized() : this.analyzer.analyze();
     for await (const chunk of iterator) {
       for (const result of chunk.files) {
-        await this.ensureBound(result.filePath);
+        await this.ensureBoundWithMetadata(result);
       }
     }
 
     return getIndexedComponents(this);
   }
 
-  public getTsFileForTemplate(templatePath: string): nga.TemplateUsage | null {
+  getIndexedComponentsSync(): Map<string, IndexedComponent> {
+    const chunks = this.optimize ? this.analyzeOptimizedSync() : this.analyzeSync();
+    for (const chunk of chunks) {
+      for (const result of chunk.files) {
+        this.ensureBoundWithMetadataSync(result);
+      }
+    }
+    return getIndexedComponentsSync(this);
+  }
+
+  getTsFileForTemplate(templatePath: string): nga.TemplateUsage | null {
     const res = this.analyzer.getTsFileForTemplateSync(templatePath);
     return res?.[0] ?? null;
   }
 
-  public getFileContent(filePath: string): string {
+  getFileContent(filePath: string): string {
     return this.analyzer.getFileContentSync(filePath);
   }
 }

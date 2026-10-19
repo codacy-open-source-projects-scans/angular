@@ -6,7 +6,7 @@ use crate::fs::OverlayFileSystem;
 use crate::AnalysisResult;
 use futures::StreamExt;
 
-use oxc_resolver::{FileSystem, TsConfig};
+use oxc_resolver::FileSystem;
 use std::path::{Path, PathBuf};
 
 use oxc_allocator::Allocator;
@@ -24,39 +24,14 @@ pub fn create_test_fs(files: &[(&str, &str)]) -> OverlayFileSystem {
     fs
 }
 
-/// Preserved for future parity tests that resolve real `@angular/core` from `node_modules`.
-#[allow(dead_code)]
-pub fn create_test_fs_with_fallback(files: &[(&str, &str)]) -> OverlayFileSystem {
-    let fs = OverlayFileSystem::new_with_overlay();
-    for (path, content) in files {
-        fs.upsert_file(PathBuf::from(*path), content.to_string());
-    }
-    fs
-}
-
 /// Run the analyzer on a test filesystem and collect all results.
 pub fn run_analyzer(
     fs: OverlayFileSystem,
     tsconfig_path: &str,
     optimize: bool,
 ) -> Vec<AnalysisResult> {
-    let tsconfig_path = PathBuf::from(tsconfig_path);
-
-    // Parse tsconfig.json
-    let json = fs
-        .read_to_string(&tsconfig_path)
-        .expect("tsconfig.json must exist in virtual filesystem");
-    let config = TsConfig::parse(true, &tsconfig_path, &tsconfig_path, json)
-        .expect("Failed to parse tsconfig");
-
-    let _files: Vec<PathBuf> = config.files.expect("tsconfig must have files array");
-    let _base_dir = tsconfig_path
-        .parent()
-        .unwrap_or(Path::new("/"))
-        .to_path_buf();
-
     let options = crate::AnalyzerOptions {
-        tsconfig_path: tsconfig_path.to_string_lossy().into_owned(),
+        tsconfig_path: tsconfig_path.to_string(),
         optimize: Some(optimize),
         ..Default::default()
     };
@@ -2141,6 +2116,58 @@ export class AppComponent {}
             component.template,
             Some("<div>Hello World</div>".to_string())
         );
+    }
+
+    #[test]
+    fn test_component_with_cross_file_template_url_in_both_modes() {
+        let fs = create_test_fs(&[
+            (
+                "/test/tsconfig.json",
+                r#"{"compilerOptions": {}, "files": ["app/app.component.ts"]}"#,
+            ),
+            (
+                "/test/shared/paths.ts",
+                "export const APP_TEMPLATE_URL = './views/app.html';\n",
+            ),
+            (
+                "/test/app/app.component.ts",
+                r#"
+import { Component } from '@angular/core';
+import { APP_TEMPLATE_URL } from '../shared/paths';
+
+@Component({
+    selector: 'app-root',
+    templateUrl: APP_TEMPLATE_URL,
+    standalone: true,
+})
+export class AppComponent {}
+"#,
+            ),
+            ("/test/app/views/app.html", "<main>app</main>"),
+        ]);
+
+        for optimize in [false, true] {
+            let results = run_analyzer(fs.clone(), "/test/tsconfig.json", optimize);
+            let file = results
+                .iter()
+                .find(|r| r.file_path.ends_with("app.component.ts"))
+                .expect("app.component.ts result");
+            assert!(
+                file.diagnostics.is_empty(),
+                "optimize={optimize}: {:?}",
+                file.diagnostics
+            );
+            let component = find_class(&results, "AppComponent")
+                .and_then(|c| c.component.as_ref())
+                .expect("AppComponent");
+            let t_url = component
+                .template_url
+                .as_ref()
+                .unwrap_or_else(|| panic!("optimize={optimize}: templateUrl must resolve"));
+            assert_eq!(t_url.url, "./views/app.html");
+            assert_eq!(t_url.resolved_path, "/test/app/views/app.html");
+            assert_eq!(component.template.as_deref(), Some("<main>app</main>"));
+        }
     }
 
     #[test]
@@ -5417,5 +5444,122 @@ class LocalModule {}
         let fs = compile_non_exported_classes_fs("");
         let results = run_analyzer(fs, "/test/tsconfig.json", true);
         assert_eq!(analyzed_class_names(&results).len(), 6);
+    }
+
+    /// A slice of `@angular/core`'s own layout: `package.json` names the package, decorators are
+    /// imported through relative paths, and `src/r3_symbols.ts` is one of the sources.
+    const CORE_PACKAGE_JSON: &str = r#"{"name": "@angular/core"}"#;
+    const CORE_INJECTABLE_DECORATOR: &str = "export function Injectable(opts?: unknown): any {}";
+    const CORE_R3_SYMBOLS: &str = "export const ITS_JUST_ANGULAR = true;";
+    const CORE_SERVICE: &str = r#"
+import {Injectable} from '../di/injectable';
+
+@Injectable({providedIn: 'root'})
+export class ApplicationRef {}
+"#;
+
+    fn r3_symbols_specifier_of(
+        results: &[crate::AnalysisResult],
+        file_path: &str,
+    ) -> Option<String> {
+        results
+            .iter()
+            .find(|r| r.file_path == file_path)
+            .unwrap_or_else(|| panic!("no result for {file_path}"))
+            .r3_symbols_specifier
+            .clone()
+    }
+
+    /// Inside core, with `r3_symbols.ts` among the root files, generated `@angular/core` imports
+    /// are redirected to it through a plain relative specifier (ngtsc's
+    /// `R3SymbolsImportRewriter`), computed in the importing file's frame.
+    #[test]
+    fn r3_symbols_specifier_is_set_for_core_files_when_r3_symbols_is_a_root_file() {
+        let fs = create_test_fs(&[
+            ("/core/package.json", CORE_PACKAGE_JSON),
+            (
+                "/core/tsconfig.json",
+                r#"{"compilerOptions": {}, "files": ["src/r3_symbols.ts", "src/di/injectable.ts", "src/application/application_ref.ts"]}"#,
+            ),
+            ("/core/src/r3_symbols.ts", CORE_R3_SYMBOLS),
+            ("/core/src/di/injectable.ts", CORE_INJECTABLE_DECORATOR),
+            ("/core/src/application/application_ref.ts", CORE_SERVICE),
+        ]);
+
+        let results = run_analyzer(fs, "/core/tsconfig.json", false);
+
+        let class = find_class(&results, "ApplicationRef").expect("ApplicationRef should exist");
+        assert!(
+            class.injectable.is_some(),
+            "relative decorator import matched in core mode"
+        );
+        assert_eq!(
+            r3_symbols_specifier_of(&results, "/core/src/application/application_ref.ts"),
+            Some("../r3_symbols".to_string()),
+        );
+    }
+
+    /// A compilation that lives under core's `package.json` but does not include `r3_symbols.ts`
+    /// (a secondary entry point such as `@angular/core/testing`) keeps importing `@angular/core`,
+    /// exactly as ngtsc falls back to `NoopImportRewriter` when `getR3SymbolsFile` finds nothing.
+    #[test]
+    fn r3_symbols_specifier_is_absent_without_r3_symbols_root_file() {
+        let fs = create_test_fs(&[
+            ("/core/package.json", CORE_PACKAGE_JSON),
+            (
+                "/core/testing/tsconfig.json",
+                r#"{"compilerOptions": {}, "files": ["src/test_bed.ts"]}"#,
+            ),
+            ("/core/src/di/injectable.ts", CORE_INJECTABLE_DECORATOR),
+            (
+                "/core/testing/src/test_bed.ts",
+                r#"
+import {Injectable} from '../../src/di/injectable';
+
+@Injectable()
+export class TestBedImpl {}
+"#,
+            ),
+        ]);
+
+        let results = run_analyzer(fs, "/core/testing/tsconfig.json", false);
+
+        let class = find_class(&results, "TestBedImpl").expect("TestBedImpl should exist");
+        assert!(class.injectable.is_some());
+        assert_eq!(
+            r3_symbols_specifier_of(&results, "/core/testing/src/test_bed.ts"),
+            None,
+        );
+    }
+
+    /// A file named `r3_symbols.ts` in a package that is not `@angular/core` means nothing: the
+    /// rewrite is gated on the compilation being core (`isCore`), not on the file name alone.
+    #[test]
+    fn r3_symbols_specifier_is_absent_outside_core() {
+        let fs = create_test_fs(&[
+            ("/app/package.json", r#"{"name": "my-app"}"#),
+            (
+                "/app/tsconfig.json",
+                r#"{"compilerOptions": {}, "files": ["src/r3_symbols.ts", "src/service.ts"]}"#,
+            ),
+            ("/app/src/r3_symbols.ts", CORE_R3_SYMBOLS),
+            (
+                "/app/src/service.ts",
+                r#"
+import {Injectable} from '@angular/core';
+
+@Injectable({providedIn: 'root'})
+export class MyService {}
+"#,
+            ),
+        ]);
+
+        let results = run_analyzer(fs, "/app/tsconfig.json", false);
+
+        assert!(find_class(&results, "MyService").is_some());
+        assert_eq!(
+            r3_symbols_specifier_of(&results, "/app/src/service.ts"),
+            None
+        );
     }
 }
